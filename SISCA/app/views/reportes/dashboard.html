@@ -1,0 +1,10 @@
+{% extends 'base.html' %}{% block title %}Dashboard Reportes{% endblock %}
+{% block sidebar %}<span class="sb-lbl">Reportes</span><a class="sb-item active"><span class="ico">📊</span> Dashboard</a><a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Asistencia</a><a class="sb-item" href="{{ url_for('reportes.auditoria') }}"><span class="ico">🔍</span> Auditoría</a>{% endblock %}
+{% block content %}<div class="pg-header"><div class="pg-title"><h2>📊 Centro de Reportes</h2><p>Genera y exporta reportes del sistema</p></div></div>
+<div class="three-col">
+  <div class="card" style="text-align:center;cursor:pointer;" onclick="location.href='{{ url_for('reportes.reporte_asistencia') }}'"><div style="font-size:48px;margin-bottom:12px;">📋</div><div style="font-weight:700;color:var(--white);">Reporte Asistencia</div><div style="font-size:12px;color:var(--txt3);margin-top:6px;">Consulta con filtros</div></div>
+  <div class="card" style="text-align:center;cursor:pointer;" onclick="location.href='{{ url_for('reportes.exportar_pdf') }}'"><div style="font-size:48px;margin-bottom:12px;">📄</div><div style="font-weight:700;color:var(--white);">Exportar PDF</div><div style="font-size:12px;color:var(--txt3);margin-top:6px;">Descarga informe PDF</div></div>
+  <div class="card" style="text-align:center;cursor:pointer;" onclick="location.href='{{ url_for('reportes.exportar_excel') }}'"><div style="font-size:48px;margin-bottom:12px;">📊</div><div style="font-weight:700;color:var(--white);">Exportar Excel</div><div style="font-size:12px;color:var(--txt3);margin-top:6px;">Análisis externo</div></div>
+  <div class="card" style="text-align:center;cursor:pointer;" onclick="location.href='{{ url_for('reportes.auditoria') }}'"><div style="font-size:48px;margin-bottom:12px;">🔍</div><div style="font-weight:700;color:var(--white);">Auditoría</div><div style="font-size:12px;color:var(--txt3);margin-top:6px;">Logs del sistema</div></div>
+</div>
+{% endblock %}

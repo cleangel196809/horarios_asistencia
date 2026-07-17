@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Mis Materias · Estudiante{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_estudiante.html' with active='mis_materias' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📚 Mis Materias</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Materias matriculadas · Total: <strong style="color:var(--blue-lt);">{{ matriculas|length }}</strong></p>
+    </div>
+
+    <div class="card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Periodo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Créditos</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for m in matriculas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ m.periodo.codigo }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--cyan);">{{ m.materia.codigo }}</td>
+            <td style="padding:10px;color:var(--white);">{{ m.materia.nombre }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ m.materia.creditos }}</td>
+            <td style="padding:10px;color:{% if m.estado == 'ACTIVA' %}var(--lime-lt){% elif m.estado == 'CANCELADA' %}var(--red-lt){% else %}var(--txt2){% endif %};">{{ m.get_estado_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No tienes materias matriculadas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Docentes · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='docentes' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Personal Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Docentes</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Total docentes activos: <strong style="color:var(--blue-lt);">{{ total }}</strong></p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Lista de docentes</span><span class="tb-badge">{{ total }} activos</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">ID</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Contrato</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Carga máx.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in docentes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">DOC-{{ d.id_docente }}</td>
+            <td style="padding:10px;color:var(--white);">{{ d.usuario.nombre }} {{ d.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ d.usuario.correo }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ d.get_tipo_contrato_display }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ d.carga_horaria_max }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay docentes registrados aún. <br><br>Ejecuta <code>cargar_datos_reales.bat</code> y luego <code>cargar_demo.bat</code>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

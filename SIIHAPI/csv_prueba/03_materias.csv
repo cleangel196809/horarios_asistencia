@@ -1,0 +1,35 @@
+codigo,nombre,programa_codigo,ciclo,creditos,horas_semanales
+ENF-101,Fundamentos de Enfermeria,TL01,1,4,6
+ENF-102,Anatomia y Fisiologia,TL01,1,4,6
+ENF-201,Farmacologia Aplicada,TL01,2,3,4
+ENF-202,Primeros Auxilios,TL01,2,3,4
+ENF-301,Cuidado Materno Infantil,TL01,3,4,6
+ENF-401,Practicas Clinicas I,TL01,4,5,8
+GAS-101,Tecnicas Culinarias Basicas,TL07,1,4,6
+GAS-102,Higiene y Manipulacion,TL07,1,3,4
+GAS-201,Cocina Internacional,TL07,2,4,6
+GAS-202,Reposteria y Pasteleria,TL07,2,4,6
+GAS-301,Cocina Colombiana,TL07,3,4,6
+GAS-401,Gestion de Restaurantes,TL07,4,3,4
+BAR-101,Bar y Cocteleria Basica,TL06,1,4,6
+BAR-102,Servicio al Cliente,TL06,1,3,4
+BAR-201,Mixologia Avanzada,TL06,2,4,6
+BAR-301,Administracion de Bar,TL06,3,3,4
+CEX-101,Introduccion al Comercio Internacional,PR01,1,3,4
+CEX-201,Logistica y Distribucion,PR01,2,4,6
+CEX-301,Negociacion Internacional,PR01,3,4,4
+CEX-401,Tratados de Libre Comercio,PR01,4,3,4
+HOT-101,Introduccion a la Hoteleria,PR06,1,3,4
+HOT-201,Gestion de Operaciones Hoteleras,PR06,2,4,6
+HOT-301,Marketing Turistico,PR06,3,3,4
+SST-101,Sistemas de Gestion SST,TE01,1,4,6
+SST-201,Identificacion de Riesgos,TE01,2,4,6
+TI-101,Programacion Web,TE02,1,4,6
+TI-201,Bases de Datos Empresariales,TE02,2,4,6
+ADM-101,Fundamentos de Administracion,TL08,1,3,4
+MER-101,Fundamentos de Marketing,TL09,1,3,4
+CON-101,Contabilidad Basica,TL11,1,4,6
+ING-A1,Ingles Nivel I,IN01,1,3,6
+ING-A2,Ingles Nivel II,IN01,1,3,6
+MEC-101,Anatomia Dental,TL03,1,4,6
+MEC-201,Tecnicas de Laboratorio Dental,TL03,2,4,6

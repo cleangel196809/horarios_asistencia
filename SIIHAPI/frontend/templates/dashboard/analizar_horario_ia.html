@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block title %}Análisis IA de Horarios{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h1 class="page-title"><i class="fas fa-robot"></i> Análisis IA de Horarios</h1>
+  <a href="{% url 'motor_ia' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fas fa-arrow-left"></i> Volver al Motor IA
+  </a>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags }} alert-dismissible fade show">
+    {{ msg }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<!-- FLUJO -->
+<div class="row g-3 mb-4">
+  {% for paso, label, icon in pasos %}
+  <div class="col">
+    <div class="card text-center border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-3 mb-1"><i class="{{ icon }}"></i></div>
+        <div class="small fw-bold">{{ paso }}. {{ label }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- FORMULARIO SUBIDA -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-primary text-white">
+    <i class="fas fa-upload"></i> Subir archivo de horarios
+  </div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" action="{% url 'motor_ia_analizar' %}">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Archivo <span class="text-danger">*</span></label>
+          <input type="file" name="archivo" class="form-control"
+                 accept=".csv,.xlsx,.xls,.pdf,.docx,.doc" required>
+          <div class="form-text">CSV, Excel, PDF o Word — máx. 16 MB</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Período académico <span class="text-danger">*</span></label>
+          <input type="text" name="periodo" class="form-control"
+                 placeholder="Ej: 2026-1" required value="{{ periodo_actual|default:'' }}">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-brain"></i> Analizar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- RESULTADO IA -->
+{% if resultado %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center
+              {% if resultado.exito %}bg-success{% else %}bg-warning{% endif %} text-white">
+    <span><i class="fas fa-clipboard-check"></i> Resultado del análisis</span>
+    <span class="badge bg-white text-dark">
+      Confianza: {{ resultado.confianza|default:0 }}%
+    </span>
+  </div>
+  <div class="card-body">
+    {% if resultado.exito %}
+      <div class="alert alert-success">
+        <strong>{{ resultado.horarios_creados|default:0 }}</strong> horarios propuestos creados
+        para el período <strong>{{ resultado.periodo }}</strong>.
+        {% if resultado.advertencias %}
+          <br><small>{{ resultado.advertencias|length }} advertencia(s) menores.</small>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <a href="{% url 'revision_propuesta' %}" class="btn btn-success">
+          <i class="fas fa-check-circle"></i> Revisar y aprobar
+        </a>
+        <a href="{% url 'centro_publicacion' %}" class="btn btn-outline-primary">
+          <i class="fas fa-paper-plane"></i> Publicar en SISCA
+        </a>
+      </div>
+    {% else %}
+      <div class="alert alert-warning">
+        <strong>Error:</strong> {{ resultado.error|default:"No se pudo analizar el archivo." }}
+      </div>
+      {% if resultado.detalle %}
+        <pre class="bg-light p-2 rounded small">{{ resultado.detalle }}</pre>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- REFERENCIA DE COLUMNAS -->
+<div class="card shadow-sm">
+  <div class="card-header"><i class="fas fa-table"></i> Columnas esperadas (CSV/Excel)</div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr><th>Columna</th><th>Obligatoria</th><th>Ejemplo</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>codigo_materia</td><td><span class="badge bg-danger">Sí</span></td><td>MAT-101</td></tr>
+        <tr><td>nombre_materia</td><td><span class="badge bg-danger">Sí</span></td><td>Cálculo I</td></tr>
+        <tr><td>docente</td><td><span class="badge bg-secondary">No</span></td><td>Juan García</td></tr>
+        <tr><td>docente_email</td><td><span class="badge bg-secondary">No</span></td><td>jgarcia@pi.edu.co</td></tr>
+        <tr><td>salon</td><td><span class="badge bg-secondary">No</span></td><td>Aula 301</td></tr>
+        <tr><td>dia</td><td><span class="badge bg-danger">Sí</span></td><td>LUNES</td></tr>
+        <tr><td>hora_inicio</td><td><span class="badge bg-danger">Sí</span></td><td>08:00</td></tr>
+        <tr><td>hora_fin</td><td><span class="badge bg-danger">Sí</span></td><td>10:00</td></tr>
+        <tr><td>grupo</td><td><span class="badge bg-secondary">No</span></td><td>A</td></tr>
+        <tr><td>creditos</td><td><span class="badge bg-secondary">No</span></td><td>3</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex gap-2">
+    <a href="{% url 'descargar_plantilla' 'csv' %}" class="btn btn-sm btn-outline-success">
+      <i class="fas fa-download"></i> Plantilla CSV
+    </a>
+    <a href="{% url 'descargar_plantilla' 'xlsx' %}" class="btn btn-sm btn-outline-primary">
+      <i class="fas fa-download"></i> Plantilla Excel
+    </a>
+  </div>
+</div>
+{% endblock %}

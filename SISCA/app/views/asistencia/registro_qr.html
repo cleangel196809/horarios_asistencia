@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Registrar Asistencia · SISCA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}"></head>
+<body style="min-height:100vh;display:flex;flex-direction:column;background:var(--bg);">
+<header class="topbar">
+  <div class="tb-logo">
+    <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Politécnico" height="34" onerror="this.style.display='none'">
+    <div class="tb-logo-text"><span class="tb-logo-name">SISCA</span><span class="tb-logo-sub">Registro de Asistencia</span></div>
+  </div>
+</header>
+<main style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div class="auth-card" style="max-width:420px;text-align:center;">
+    <div style="font-size:64px;margin-bottom:16px;">📱</div>
+    <h2 style="color:var(--white);margin-bottom:8px;">Registrar Asistencia</h2>
+    {% if sesion %}
+    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:20px;text-align:left;">
+      <div style="font-size:13px;font-weight:700;color:var(--white);">{{ sesion.nombre_materia }}</div>
+      <div style="font-size:11px;color:var(--txt3);">Aula {{ sesion.aula or 'N/A' }} · {{ sesion.fecha_sesion|string|truncate(10,True,'') }}</div>
+    </div>
+    {% endif %}
+    {% if session.usuario_id %}
+    <p style="color:var(--txt2);margin-bottom:20px;">Haz clic en el botón para confirmar tu asistencia como <strong style="color:var(--white);">{{ session.nombre }}</strong>.</p>
+    <form method="POST">
+      <button type="submit" class="btn btn-primary btn-full btn-lg">✅ Confirmar Mi Asistencia</button>
+    </form>
+    {% else %}
+    <p style="color:var(--txt2);margin-bottom:20px;">Debes iniciar sesión como estudiante para registrar tu asistencia.</p>
+    <a href="{{ url_for('auth.login', rol='estudiante') }}" class="btn btn-primary btn-full btn-lg">🔐 Iniciar Sesión</a>
+    {% endif %}
+    <p style="font-size:11px;color:var(--txt3);margin-top:16px;">Token: {{ token[:16] }}...</p>
+  </div>
+</main>
+</body></html>

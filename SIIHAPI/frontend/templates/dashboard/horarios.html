@@ -1,0 +1,362 @@
+{% extends 'base.html' %}
+{% block title %}Horarios · SIIHAPI{% endblock %}
+
+{% block body %}
+<style>
+  /* Animación de los campos de filtro */
+  .filtros-form select, .filtros-form input[type="text"]{
+    transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
+    cursor: pointer;
+  }
+  /* Hover: cambia de color */
+  .filtros-form select:hover, .filtros-form input[type="text"]:hover{
+    border-color: var(--cyan, #22D3EE) !important;
+    background: rgba(34,211,238,.08) !important;
+  }
+  /* Foco */
+  .filtros-form select:focus, .filtros-form input[type="text"]:focus{
+    border-color: var(--blue-lt, #4D9BFF) !important;
+    box-shadow: 0 0 0 3px rgba(77,155,255,.20) !important;
+    outline: none;
+  }
+  /* Campo CON valor seleccionado → azul más oscuro (filtro activo) */
+  .filtros-form .filtro-activo{
+    background: #143a6b !important;
+    border-color: var(--blue-lt, #4D9BFF) !important;
+    color: #EAF2FF !important;
+    font-weight: 600;
+  }
+</style>
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='horarios' %}
+
+  <main class="main-content">
+
+    <!-- ENCABEZADO -->
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📅 Horarios</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Total general: <strong style="color:var(--blue-lt);">{{ total }}</strong>
+          {% if total_filtrado != total %}· Coincidencias del filtro: <strong style="color:var(--cyan);">{{ total_filtrado }}</strong>{% endif %}
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% if num_aprobados > 0 %}
+        <form method="POST" action="{% url 'sisca_publicar_ui' %}" style="display:inline;" onsubmit="return confirm('¿Publicar {{ num_aprobados }} horario(s) APROBADO(s) en SISCA?');">
+          {% csrf_token %}
+          <button type="submit" style="background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(34,211,238,0.30);">
+            📡 Publicar {{ num_aprobados }} en SISCA
+          </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'horarios_exportar_pdf_completo' %}?{{ request.GET.urlencode }}"
+           style="background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;box-shadow:0 4px 14px rgba(31,111,235,0.30);">
+          📄 Descargar PDF (Politécnico)
+        </a>
+      </div>
+    </div>
+
+    <!-- TARJETAS DE ESTADO (clicables = filtro rápido) -->
+    <div class="kpi-grid" style="margin-bottom:20px;grid-template-columns:repeat(4,1fr);">
+      {% for t in tarjetas %}
+      <a href="?estado={{ t.codigo }}" style="text-decoration:none;">
+        <div class="kpi" style="border:1px solid {% if filtros.estado == t.codigo %}{{ t.color }}{% else %}var(--border){% endif %};cursor:pointer;">
+          <div class="kpi-lbl" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>{{ t.label }}</span><span style="font-size:18px;">{{ t.icon }}</span>
+          </div>
+          <div class="kpi-val" style="color:{{ t.color }};">{{ t.count }}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:6px;">{{ t.sub }}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- SECCIÓN: PENDIENTES POR APROBAR -->
+    {% if num_pendientes > 0 %}
+    <div class="card" style="margin-bottom:20px;border-left:3px solid #A78BFA;">
+      <div class="card-hdr">
+        <span class="card-title">🤖 Pendientes por aprobar
+          <span style="background:rgba(167,139,250,.18);color:#A78BFA;border:1px solid rgba(167,139,250,.35);padding:2px 10px;border-radius:20px;font-size:12px;margin-left:8px;">{{ num_pendientes }}</span>
+        </span>
+        <form method="POST" action="{% url 'aprobar_horarios' %}" onsubmit="return confirm('¿Aprobar TODOS los horarios propuestos del periodo?');">
+          {% csrf_token %}
+          <input type="hidden" name="ui" value="1">
+          <button type="submit" style="background:linear-gradient(135deg,#22C55E,#4ADE80);color:#062b13;padding:8px 16px;border-radius:9px;font-size:12px;font-weight:800;border:none;cursor:pointer;">
+            ✅ Aprobar todos
+          </button>
+        </form>
+      </div>
+      <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">
+        La IA propuso estos horarios. Revísalos y apruébalos para poder publicarlos en SISCA.
+      </p>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Bloque</th>
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+        </tr></thead>
+        <tbody>
+          {% for h in pendientes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;" onclick="window.location='{% url 'horario_detalle' h.id_horario %}'">
+            <td style="padding:8px;color:var(--blue-lt);">{{ h.get_dia_display }}</td>
+            <td style="padding:8px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">B{{ h.bloque.numero }} {{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }}</td>
+            <td style="padding:8px;color:var(--white);">{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:24 }}</td>
+            <td style="padding:8px;color:var(--txt2);">{{ h.matricula.estudiante.codigo }} · {{ h.matricula.estudiante.usuario.nombre }}</td>
+            <td style="padding:8px;color:var(--txt2);">{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}</td>
+            <td style="padding:8px;color:var(--cyan);">{{ h.salon.codigo }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- PANEL DE FILTROS AVANZADOS -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🔎 Asignaciones del periodo</span></div>
+
+      <form method="GET" class="filtros-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;align-items:end;">
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Estado</label>
+          <select name="estado" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todos —</option>
+            {% for e, lbl in estados %}<option value="{{ e }}" {% if filtros.estado == e %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Día</label>
+          <select name="dia" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todos —</option>
+            {% for d, lbl in dias %}<option value="{{ d }}" {% if filtros.dia == d %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Jornada</label>
+          <select name="jornada" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todas —</option>
+            {% for j, lbl in jornadas %}<option value="{{ j }}" {% if filtros.jornada == j %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Trimestre / Periodo</label>
+          <select name="periodo" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todos —</option>
+            {% for p in cat_periodos %}<option value="{{ p.codigo }}" {% if filtros.periodo == p.codigo %}selected{% endif %}>{{ p.codigo }}{% if p.activo %} (activo){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Carrera / Programa</label>
+          <select name="carrera" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todas —</option>
+            {% for c in cat_carreras %}<option value="{{ c.codigo }}" {% if filtros.carrera == c.codigo %}selected{% endif %}>{{ c.nombre|truncatechars:38 }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Ciclo / Semestre</label>
+          <select name="ciclo" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">— Todos —</option>
+            {% for c in cat_ciclos %}<option value="{{ c }}" {% if filtros.ciclo == c|stringformat:'s' %}selected{% endif %}>Ciclo {{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Materia (código o nombre)</label>
+          <input type="text" name="materia" value="{{ filtros.materia }}" placeholder="Ej: 0569 o Aplicaciones"
+                 style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Docente (nombre o correo)</label>
+          <input type="text" name="docente" value="{{ filtros.docente }}" placeholder="Ej: Edgar o edgar@pi.edu.co"
+                 style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+        </div>
+        <div style="grid-column:span 2;">
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:700;">Estudiante (código, cédula o nombre)</label>
+          <input type="text" name="q" value="{{ filtros.q }}" placeholder="Ej: 2023101, 1433280 o Francisco"
+                 style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="submit" style="flex:1;background:linear-gradient(135deg,#1F6FEB,#22D3EE);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;">🔍 Buscar</button>
+          <a href="{% url 'horarios' %}" style="background:var(--surface);color:var(--txt2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;text-decoration:none;display:flex;align-items:center;">Limpiar</a>
+        </div>
+      </form>
+
+      <!-- TABLA PRINCIPAL -->
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Bloque</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acción</th>
+        </tr></thead>
+        <tbody>
+          {% for h in horarios %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background=''">
+            <td style="padding:10px;color:var(--blue-lt);">{{ h.get_dia_display }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">B{{ h.bloque.numero }} {{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }}</td>
+            <td style="padding:10px;color:var(--white);">{{ h.materia.codigo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ h.matricula.estudiante.codigo }}<br><span style="font-size:11px;color:var(--txt3);">{{ h.matricula.estudiante.usuario.nombre }} {{ h.matricula.estudiante.usuario.apellido }}</span></td>
+            <td style="padding:10px;color:var(--txt2);">{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ h.salon.codigo }} ({{ h.salon.sede.nombre }})</td>
+            <td style="padding:10px;">
+              {% if h.estado == 'PROPUESTO' %}<span style="color:#A78BFA;">🤖 {{ h.get_estado_display }}</span>
+              {% elif h.estado == 'APROBADO' %}<span style="color:#4ADE80;">✅ {{ h.get_estado_display }}</span>
+              {% elif h.estado == 'PUBLICADO' %}<span style="color:#22D3EE;">📡 {{ h.get_estado_display }}</span>
+              {% else %}<span style="color:#F87171;">🚫 {{ h.get_estado_display }}</span>{% endif %}
+            </td>
+            <td style="padding:10px;text-align:center;white-space:nowrap;">
+              <button type="button" onclick="abrirEdicion(this)"
+                      data-id="{{ h.id_horario }}"
+                      data-materia="{{ h.materia.codigo }} · {{ h.materia.nombre|escapejs }}"
+                      data-dia="{{ h.dia }}" data-bloque="{{ h.bloque.numero }}"
+                      data-salon="{{ h.salon.id_salon }}" data-docente="{{ h.docente.id_docente }}" data-estado="{{ h.estado }}"
+                      style="background:rgba(31,111,235,.15);color:var(--blue-lt);border:1px solid rgba(77,155,255,.3);border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">
+                ✏️ Editar
+              </button>
+              <a href="{% url 'horario_detalle' h.id_horario %}" style="color:var(--txt3);font-size:12px;margin-left:6px;text-decoration:none;">Ver ▸</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" style="padding:30px;text-align:center;color:var(--txt3);">
+            {% if filtros.estado or filtros.dia or filtros.jornada or filtros.q %}
+              Sin resultados para los filtros seleccionados. <a href="{% url 'horarios' %}" style="color:var(--blue-lt);">Limpiar filtros</a>.
+            {% else %}
+              Sin horarios. Ejecuta el Motor IA o genera desde matrículas.
+            {% endif %}
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if total_filtrado > 500 %}
+      <p style="color:var(--txt3);font-size:12px;margin-top:12px;text-align:center;">Mostrando los primeros 500 de {{ total_filtrado }}. Refina los filtros.</p>
+      {% endif %}
+    </div>
+  </main>
+</div>
+
+<!-- ════ MODAL DE EDICIÓN ════ -->
+<div id="editBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:linear-gradient(180deg,#1a2333,#141a26);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;margin:16px;box-shadow:0 24px 60px rgba(0,0,0,.6);overflow:hidden;">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:17px;font-weight:800;color:var(--white);">✏️ Editar horario</span>
+      <button onclick="cerrarEdicion()" style="background:none;border:none;color:var(--txt3);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:22px;">
+      <p id="edit-materia" style="color:var(--cyan);font-size:13px;margin-bottom:18px;font-weight:600;"></p>
+      <input type="hidden" id="edit-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Día</label>
+          <select id="edit-dia" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
+            {% for d, lbl in dias %}<option value="{{ d }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Bloque / Jornada</label>
+          <select id="edit-bloque" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
+            {% for b in cat_bloques %}<option value="{{ b.numero }}">B{{ b.numero }} · {{ b.hora_inicio|time:"H:i" }}–{{ b.hora_fin|time:"H:i" }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:span 2;">
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Salón (Sede)</label>
+          <select id="edit-salon" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
+            {% for s in cat_salones %}<option value="{{ s.id_salon }}">{{ s.sede.nombre }} — {{ s.codigo }} · {{ s.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:span 2;">
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Docente</label>
+          <select id="edit-docente" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
+            {% for d in cat_docentes %}<option value="{{ d.id_docente }}">{{ d.usuario.apellido }}, {{ d.usuario.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:span 2;">
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Estado</label>
+          <select id="edit-estado" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
+            {% for e, lbl in estados %}<option value="{{ e }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <p id="edit-msg" style="display:none;margin-top:14px;font-size:12px;padding:10px;border-radius:8px;"></p>
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button onclick="guardarEdicion()" id="edit-save" style="flex:1;background:linear-gradient(135deg,#1F6FEB,#22D3EE);color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;">💾 Guardar cambios</button>
+        <button onclick="cerrarEdicion()" style="background:var(--surface);color:var(--txt2);border:1px solid var(--border);border-radius:9px;padding:11px 18px;font-size:14px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Marca de "filtro activo": pinta de azul oscuro los campos con valor.
+(function(){
+  function marcar(el){
+    const v = (el.value || '').trim();
+    el.classList.toggle('filtro-activo', v !== '' && v !== '—');
+  }
+  function init(){
+    document.querySelectorAll('.filtros-form select, .filtros-form input[type="text"]').forEach(el=>{
+      marcar(el);
+      el.addEventListener('change', ()=>marcar(el));
+      el.addEventListener('input', ()=>marcar(el));
+    });
+  }
+  if(document.readyState !== 'loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+function _csrf(){ const m=document.cookie.match(/csrftoken=([^;]+)/); return m?m[1]:''; }
+function abrirEdicion(btn){
+  document.getElementById('edit-id').value=btn.dataset.id;
+  document.getElementById('edit-materia').textContent=btn.dataset.materia||('Horario #'+btn.dataset.id);
+  document.getElementById('edit-dia').value=btn.dataset.dia;
+  document.getElementById('edit-bloque').value=btn.dataset.bloque;
+  document.getElementById('edit-salon').value=btn.dataset.salon;
+  document.getElementById('edit-docente').value=btn.dataset.docente;
+  document.getElementById('edit-estado').value=btn.dataset.estado;
+  document.getElementById('edit-msg').style.display='none';
+  document.getElementById('editBg').style.display='flex';
+}
+function cerrarEdicion(){ document.getElementById('editBg').style.display='none'; }
+document.getElementById('editBg').addEventListener('click',e=>{ if(e.target.id==='editBg') cerrarEdicion(); });
+async function guardarEdicion(){
+  const id=document.getElementById('edit-id').value;
+  const btn=document.getElementById('edit-save');
+  const msg=document.getElementById('edit-msg');
+  const body=new URLSearchParams({
+    dia:document.getElementById('edit-dia').value,
+    bloque:document.getElementById('edit-bloque').value,
+    salon:document.getElementById('edit-salon').value,
+    docente:document.getElementById('edit-docente').value,
+    estado:document.getElementById('edit-estado').value,
+  });
+  btn.disabled=true; btn.textContent='Guardando…';
+  try{
+    const r=await fetch(`/dashboard/horarios/${id}/actualizar/`,{
+      method:'POST',headers:{'X-CSRFToken':_csrf(),'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()
+    });
+    const d=await r.json();
+    if(d.success){
+      msg.style.display='block'; msg.style.background='rgba(34,197,94,.15)'; msg.style.color='#4ADE80';
+      msg.textContent='✅ '+(d.mensaje||'Guardado');
+      setTimeout(()=>location.reload(),800);
+    }else{
+      msg.style.display='block'; msg.style.background='rgba(239,68,68,.15)'; msg.style.color='#F87171';
+      msg.textContent='⚠️ '+(d.error||'No se pudo guardar');
+      btn.disabled=false; btn.textContent='💾 Guardar cambios';
+    }
+  }catch(err){
+    msg.style.display='block'; msg.style.background='rgba(239,68,68,.15)'; msg.style.color='#F87171';
+    msg.textContent='⚠️ Error de conexión: '+err.message;
+    btn.disabled=false; btn.textContent='💾 Guardar cambios';
+  }
+}
+</script>
+{% endblock %}

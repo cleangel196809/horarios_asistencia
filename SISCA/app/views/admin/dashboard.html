@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Panel Admin{% endblock %}
+
+{% block sidebar %}
+<span class="sb-lbl">Administración</span>
+<a class="sb-item active" data-page="pg-dashboard" onclick="showPage('pg-dashboard')"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" data-page="pg-usuarios" href="{{ url_for('admin.usuarios') }}"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item" href="{{ url_for('admin.carga_masiva') }}"><span class="ico">📥</span> Carga Masiva CSV</a>
+<a class="sb-item" data-page="pg-materias" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" data-page="pg-horarios" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" data-page="pg-carreras" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+<span class="sb-lbl" style="margin-top:12px;">Integración</span>
+<a class="sb-item" href="{{ url_for('ui_siihapi.panel_horarios_siihapi') }}"><span class="ico">🔗</span> Horarios SIIHAPI</a>
+<span class="sb-lbl" style="margin-top:12px;">Reportes</span>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Asistencia</a>
+<a class="sb-item" href="{{ url_for('reportes.auditoria') }}"><span class="ico">🔍</span> Auditoría</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_pdf') }}"><span class="ico">📄</span> Exportar PDF</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_excel') }}"><span class="ico">📊</span> Exportar Excel</a>
+{% endblock %}
+
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>📊 Dashboard Administrativo</h2>
+    <p>Resumen general del sistema · {{ now if now else 'Hoy' }}</p>
+  </div>
+  <div class="pg-actions">
+    <a href="{{ url_for('academico.materias') }}" class="btn btn-teal">+ Materia</a>
+    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-primary">+ Usuario</a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-lbl">Usuarios Activos <span>👥</span></div>
+    <div class="kpi-val" style="color:var(--blue-lt)">{{ stats.usuarios }}</div>
+    <div class="kpi-delta up">↑ Sistema operativo</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Docentes <span>👨‍🏫</span></div>
+    <div class="kpi-val" style="color:var(--teal)">{{ stats.docentes }}</div>
+    <div class="kpi-delta up">Registrados</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Estudiantes <span>🎓</span></div>
+    <div class="kpi-val" style="color:var(--green-lt)">{{ stats.estudiantes }}</div>
+    <div class="kpi-delta up">Inscritos</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Materias Activas <span>📚</span></div>
+    <div class="kpi-val" style="color:var(--gold-lt)">{{ stats.materias }}</div>
+    <div class="kpi-delta up">En curso</div>
+  </div>
+</div>
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-lbl">Sesiones Hoy <span>📅</span></div>
+    <div class="kpi-val">{{ stats.sesiones_hoy }}</div>
+    <div class="kpi-delta">Clases del día</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Registros Hoy <span>✅</span></div>
+    <div class="kpi-val" style="color:var(--green-lt)">{{ stats.asistencias_hoy }}</div>
+    <div class="kpi-delta up">Asistencias</div>
+  </div>
+  <div class="kpi" style="grid-column:span 2;">
+    <div class="kpi-lbl">Estado del Sistema <span>🟢</span></div>
+    <div style="display:flex;gap:20px;margin-top:8px;flex-wrap:wrap;">
+      <div><span class="pulse"></span><span style="font-size:12px;color:var(--green-lt);">Oracle XE Conectado</span></div>
+      <div><span style="width:7px;height:7px;border-radius:50%;background:var(--blue-lt);display:inline-block;margin-right:6px;"></span><span style="font-size:12px;color:var(--blue-lt);">Flask Running · Port 8080</span></div>
+      <div><span style="width:7px;height:7px;border-radius:50%;background:var(--gold-lt);display:inline-block;margin-right:6px;"></span><span style="font-size:12px;color:var(--gold-lt);">PWA Activo</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Últimos Usuarios + Logs -->
+<div class="two-col">
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">👥 Últimos Usuarios Registrados</span>
+      <a href="{{ url_for('admin.usuarios') }}" class="btn btn-ghost" style="font-size:11px;">Ver todos</a>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th></tr></thead>
+        <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>
+            <div class="user-cell">
+              <div class="av" style="background:linear-gradient(135deg,{% if u.rol=='ADMINISTRADOR' %}#1F6FEB,#388BFD{% elif u.rol=='DOCENTE' %}#0EA5E9,#0369A1{% else %}#2EA043,#3FB950{% endif %});">
+                {{ u.nombre[0]|upper }}{{ u.apellido[0]|upper }}
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">{{ u.nombre }} {{ u.apellido }}</div>
+                <div style="font-size:11px;color:var(--txt3);">{{ u.correo }}</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="badge {% if u.rol=='ADMINISTRADOR' %}b-blue{% elif u.rol=='DOCENTE' %}b-teal{% else %}b-green{% endif %}">{{ u.rol }}</span></td>
+          <td><span class="badge {% if u.estado=='A' %}b-green{% else %}b-red{% endif %}">{{ 'Activo' if u.estado=='A' else 'Inactivo' }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center;color:var(--txt3);padding:24px;">Sin usuarios registrados</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">🔍 Últimas Acciones (Auditoría)</span>
+      <a href="{{ url_for('reportes.auditoria') }}" class="btn btn-ghost" style="font-size:11px;">Ver todas</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;">
+      {% for log in logs %}
+      <div style="padding:10px 12px;background:var(--surface3);border-radius:7px;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span style="font-size:12px;font-weight:600;color:var(--txt);">{{ log.accion }}</span>
+          <span style="font-size:10px;color:var(--txt3);">{{ log.fecha|string|truncate(16,True,'') }}</span>
+        </div>
+        <div style="font-size:11px;color:var(--txt3);">
+          IP: {{ log.ip or 'N/A' }} · Tabla: {{ log.tabla_afectada or '—' }}
+        </div>
+      </div>
+      {% else %}
+      <div style="text-align:center;color:var(--txt3);padding:24px;">Sin registros de auditoría</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="card" style="margin-top:16px;">
+  <div class="card-hdr"><span class="card-title">⚡ Acciones Rápidas</span></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-primary">👥 Gestionar Usuarios</a>
+    <a href="{{ url_for('admin.carga_masiva') }}" class="btn btn-teal">📥 Carga Masiva CSV</a>
+    <a href="{{ url_for('academico.materias') }}" class="btn btn-teal">📚 Gestionar Materias</a>
+    <a href="{{ url_for('academico.horarios') }}" class="btn btn-gold">🕐 Gestionar Horarios</a>
+    <a href="{{ url_for('academico.carreras') }}" class="btn btn-ghost">🏫 Gestionar Carreras</a>
+    <a href="{{ url_for('reportes.reporte_asistencia') }}" class="btn btn-green">📋 Ver Reportes</a>
+    <a href="{{ url_for('reportes.auditoria') }}" class="btn btn-ghost">🔍 Auditoría</a>
+    <a href="{{ url_for('reportes.exportar_pdf') }}" class="btn btn-red">📄 Exportar PDF</a>
+    <a href="{{ url_for('reportes.exportar_excel') }}" class="btn btn-green">📊 Exportar Excel</a>
+  </div>
+</div>
+{% endblock %}

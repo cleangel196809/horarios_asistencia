@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}Carga Masiva · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='carga' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📤 Carga Masiva CSV / Excel</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Importa datos desde archivos y conversa con la IA para optimizar la asignación.</p>
+    </div>
+
+    {% if messages %}
+      {% for m in messages %}
+      <div style="padding:14px 18px;border-radius:10px;margin-bottom:14px;background:{% if m.tags == 'error' %}rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);color:var(--red-lt){% elif m.tags == 'success' %}rgba(34,211,238,0.10);border:1px solid rgba(34,211,238,0.30);color:var(--cyan-lt){% else %}var(--surface-glass);border:1px solid var(--border);color:var(--blue-lt){% endif %};">
+        {{ m }}
+      </div>
+      {% endfor %}
+    {% endif %}
+
+    {% if errores_previos %}
+    <div class="card" style="background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.20);margin-bottom:18px;">
+      <div class="card-hdr"><span class="card-title" style="color:var(--red-lt);">⚠ Detalle de errores (últimos 50)</span></div>
+      <ul style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt2);max-height:250px;overflow-y:auto;list-style:none;padding:0;">
+        {% for e in errores_previos %}
+        <li style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">{{ e }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ===== Generador inteligente de horarios desde matriculas ===== #}
+    <div class="card" style="margin-bottom:18px;background:linear-gradient(135deg,rgba(34,211,238,0.10),rgba(99,102,241,0.06));border-color:rgba(34,211,238,0.35);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <span style="font-size:24px;">🤖</span>
+            <span style="font-size:16px;font-weight:800;color:var(--white);">Generar horarios automáticamente</span>
+          </div>
+          <p style="color:var(--txt2);font-size:13px;">
+            ¿No quieres armar un archivo? La IA crea los horarios directamente desde tus
+            <strong style="color:var(--cyan-lt);">matrículas activas</strong>, asignando día, bloque, salón y docente
+            <strong>sin choques</strong>. Luego los revisas, editas, apruebas y publicas.
+          </p>
+        </div>
+        <form method="POST" action="{% url 'generar_horarios_desde_matriculas' %}"
+              onsubmit="return confirm('La IA generará horarios PROPUESTO desde tus matrículas activas (solo las que aún no tienen horario). ¿Continuar?');">
+          {% csrf_token %}
+          <button type="submit" style="background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;border:none;border-radius:10px;padding:13px 22px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(34,211,238,0.30);white-space:nowrap;">
+            ⚡ Generar con IA
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {# ============================ TAB 1: SUBIR ARCHIVO ============================ #}
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">⬆ Subir archivo</span>
+          <span class="tb-badge">CSV o XLSX · máx 5 MB</span>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:14px;">
+          {% csrf_token %}
+
+          <div>
+            <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;display:block;margin-bottom:6px;">1. Tipo de carga</label>
+            <select name="tipo" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+              <option value="">— Selecciona el tipo —</option>
+              <option value="estudiantes">🎓 Estudiantes</option>
+              <option value="docentes">👨‍🏫 Docentes</option>
+              <option value="materias">📚 Materias</option>
+              <option value="personal">👔 Personal administrativo</option>
+              <option value="horarios">📅 Horarios pre-aprobados</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;display:block;margin-bottom:6px;">2. Archivo</label>
+            <input type="file" name="archivo" accept=".csv,.xlsx,.xls" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top:8px;">📤 Importar archivo</button>
+        </form>
+
+        <div style="margin-top:18px;padding:12px 14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);">
+          <p style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">💡 Recomendaciones</p>
+          <ul style="font-size:12px;color:var(--txt2);padding-left:18px;line-height:1.7;">
+            <li>Descarga la plantilla del tipo que vayas a cargar</li>
+            <li>Las cabeceras (primera fila) deben coincidir exactamente</li>
+            <li>El correo debe terminar en <code>@pi.edu.co</code></li>
+            <li>Los programas deben existir (carga primero los datos reales)</li>
+            <li>Tras la carga, la IA te ofrece optimizar la asignación</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📋 Plantillas de ejemplo</span></div>
+        <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">Descarga el formato exacto de cada tipo:</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <a class="btn btn-ghost" href="{% url 'descargar_plantilla' 'estudiantes' %}">🎓 Plantilla estudiantes.csv</a>
+          <a class="btn btn-ghost" href="{% url 'descargar_plantilla' 'docentes' %}">👨‍🏫 Plantilla docentes.csv</a>
+          <a class="btn btn-ghost" href="{% url 'descargar_plantilla' 'materias' %}">📚 Plantilla materias.csv</a>
+          <a class="btn btn-ghost" href="{% url 'descargar_plantilla' 'personal' %}">👔 Plantilla personal.csv</a>
+          <a class="btn btn-ghost" href="{% url 'descargar_plantilla' 'horarios' %}">📅 Plantilla horarios.csv</a>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">Cabeceras por tipo</p>
+        <ul style="font-size:11px;color:var(--txt2);font-family:'JetBrains Mono',monospace;list-style:none;padding:0;line-height:1.6;">
+          <li><strong style="color:var(--blue-lt);">Estudiantes:</strong><br>cedula, correo, nombre, apellido, programa_codigo, semestre</li>
+          <li style="margin-top:8px;"><strong style="color:var(--cyan-lt);">Docentes:</strong><br>cedula, correo, nombre, apellido, tipo_contrato, carga_horaria_max</li>
+          <li style="margin-top:8px;"><strong style="color:var(--cyan-soft);">Materias:</strong><br>codigo, nombre, programa_codigo, ciclo, creditos, horas_semanales</li>
+          <li style="margin-top:8px;"><strong style="color:var(--indigo-lt);">Personal:</strong><br>cedula, correo, nombre, apellido, rol</li>
+          <li style="margin-top:8px;"><strong style="color:var(--blue-sky);">Horarios:</strong><br>matricula_id, materia_codigo, docente_correo, salon_codigo, dia, bloque</li>
+        </ul>
+      </div>
+    </div>
+
+    {# ==================== ASISTENTE IA (siempre disponible) ==================== #}
+    <div class="card" style="margin-top:22px;background:linear-gradient(135deg,rgba(31,111,235,0.08),rgba(99,102,241,0.05));border-color:rgba(77,155,255,0.30);">
+      <div class="card-hdr">
+        <span class="card-title">🧠 Asistente IA de carga</span>
+        <span class="tb-badge" style="background:linear-gradient(135deg,rgba(34,211,238,0.22),rgba(77,155,255,0.10));color:var(--cyan-lt);border-color:rgba(34,211,238,0.40);">⚡ Conectado</span>
+      </div>
+
+      {% if contexto_carga %}
+      <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">
+        Subiste <strong style="color:var(--cyan-lt);">{{ contexto_carga.archivo }}</strong>
+        ({{ contexto_carga.creados }} creados · {{ contexto_carga.actualizados }} actualizados · {{ contexto_carga.errores }} errores).
+        Pídele a la IA que analice los datos y sugiera la mejor estrategia de asignación.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('Analiza los {{ contexto_carga.tipo }} que acabo de cargar y dame un resumen.')">📊 Resumen</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('¿Cómo recomiendas distribuir estos {{ contexto_carga.tipo }} entre los bloques horarios?')">🎯 Estrategia</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('Detecta posibles conflictos o anomalías en los datos cargados.')">⚠ Conflictos</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('Sugiéreme qué hacer ahora para generar los mejores horarios.')">🚀 Próximos pasos</button>
+      </div>
+      {% else %}
+      <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">
+        Soy tu asistente inteligente. <strong>Antes o después de cargar</strong>, pregúntame qué plantilla usar,
+        cómo deben verse las cabeceras, o pega tu primera fila para que valide el formato.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('¿Qué plantilla debo usar para cargar horarios y qué columnas necesita?')">📋 ¿Qué plantilla uso?</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('¿En qué orden debo cargar los datos (sedes, programas, docentes, estudiantes, horarios)?')">🔢 Orden de carga</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('Te paso mis cabeceras y me dices si el formato es correcto: ')">✅ Validar mis cabeceras</button>
+        <button class="btn btn-ghost btn-sm" onclick="sugerir('¿Qué hace el Motor IA después de cargar los datos?')">🤖 ¿Cómo funciona la IA?</button>
+      </div>
+      {% endif %}
+
+      <div id="chat-box" style="background:rgba(8,12,20,0.55);border-radius:12px;border:1px solid var(--border);padding:14px;max-height:400px;overflow-y:auto;margin-bottom:12px;">
+        <div class="msg-ia" style="display:flex;gap:10px;margin-bottom:14px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--blue-lt),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🤖</div>
+          <div style="background:var(--surface);padding:10px 14px;border-radius:12px 12px 12px 4px;border:1px solid var(--border);color:var(--white);font-size:13px;line-height:1.5;">
+            {% if contexto_carga %}
+            ¡Listo! Procesé tu archivo <strong>{{ contexto_carga.archivo }}</strong> con <strong>{{ contexto_carga.total_filas }} filas</strong>. Pregúntame lo que quieras o usa los botones de arriba.
+            {% else %}
+            ¡Hola! 👋 Soy tu asistente de carga masiva. Te ayudo a elegir la plantilla correcta, revisar tus cabeceras y entender el proceso antes de importar. ¿En qué te ayudo?
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <select id="prov-sel" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;flex-shrink:0;">
+          <option value="">🤖 Auto</option>
+          <option value="GEMINI">🧠 Gemini</option>
+          <option value="OPENAI">🟢 OpenAI</option>
+        </select>
+        <textarea id="chat-input" rows="1" placeholder="Pregunta lo que quieras sobre la carga de datos..."
+          style="flex:1;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:10px;padding:10px 14px;resize:none;font-family:inherit;font-size:13px;"
+          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarChat();}"></textarea>
+        <button class="btn btn-primary" onclick="enviarChat()" id="btn-chat">➤ Enviar</button>
+      </div>
+
+      {% if contexto_carga %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+        {% if contexto_carga.tipo == 'horarios' %}
+        <a class="btn btn-primary" style="background:linear-gradient(135deg,var(--cyan),var(--blue-lt));border:0;font-weight:700;" href="{% url 'centro_publicacion' %}">🚀 Centro de Publicación →</a>
+        <a class="btn btn-ghost" href="{% url 'horarios_gestionar' %}">✏️ Editar horarios cargados</a>
+        {% endif %}
+        <a class="btn btn-cyan" href="{% url 'motor_ia' %}">🤖 Ir al Motor IA</a>
+        <a class="btn btn-ghost" href="{% url 'motor_ia_chat' %}">💬 Chat IA completo</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <script>
+      const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+      const $box = document.getElementById('chat-box');
+      const $input = document.getElementById('chat-input');
+      const $btn = document.getElementById('btn-chat');
+      let historial = [];
+      {% if contexto_carga %}
+      const ctx = `Acabo de cargar un archivo de tipo {{ contexto_carga.tipo }} llamado {{ contexto_carga.archivo }} con {{ contexto_carga.total_filas }} filas. Se crearon {{ contexto_carga.creados }} nuevos registros y se actualizaron {{ contexto_carga.actualizados }} existentes. Hubo {{ contexto_carga.errores }} errores.`;
+      {% else %}
+      const ctx = `Estoy en el panel de Carga Masiva del sistema SIIHAPI del Politecnico Internacional. Ayudame con el proceso de importar datos: tipos disponibles (estudiantes, docentes, materias, personal, horarios), que columnas/cabeceras necesita cada plantilla, el orden recomendado de carga, validacion de archivos CSV/XLSX y que hace el Motor IA despues. Responde de forma practica y concreta.`;
+      {% endif %}
+
+      function escapeHtml(s) {
+        return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      }
+      function format(t) {
+        return escapeHtml(t).replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--cyan-lt);">$1</strong>').replace(/\n/g, '<br>');
+      }
+      function addMsg(rol, texto, meta) {
+        const isUser = rol === 'user';
+        const avatar = isUser ? '👤' : '🤖';
+        const grad = isUser ? 'linear-gradient(135deg,var(--indigo-lt),var(--blue-lt))' : 'linear-gradient(135deg,var(--blue-lt),var(--cyan))';
+        const html = `
+          <div class="msg-${rol}" style="display:flex;gap:10px;margin-bottom:14px;${isUser?'flex-direction:row-reverse;':''}">
+            <div style="width:32px;height:32px;border-radius:50%;background:${grad};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${avatar}</div>
+            <div style="background:${isUser?'rgba(31,111,235,0.10)':'var(--surface)'};padding:10px 14px;border-radius:${isUser?'12px 12px 4px 12px':'12px 12px 12px 4px'};border:1px solid var(--border);color:var(--white);font-size:13px;line-height:1.5;max-width:80%;">
+              ${format(texto)}
+              ${meta?`<p style="font-size:10px;color:var(--txt3);margin-top:6px;text-transform:uppercase;">${meta}</p>`:''}
+            </div>
+          </div>`;
+        $box.insertAdjacentHTML('beforeend', html);
+        $box.scrollTop = $box.scrollHeight;
+      }
+      function sugerir(txt) { $input.value = txt; $input.focus(); }
+      async function enviarChat() {
+        const txt = $input.value.trim();
+        if (!txt) return;
+        addMsg('user', txt);
+        historial.push({rol:'user', texto: txt});
+        $input.value = '';
+        $btn.disabled = true;
+        const id = 'load-' + Date.now();
+        $box.insertAdjacentHTML('beforeend', `<div id="${id}" style="color:var(--cyan-lt);font-size:12px;padding:6px 14px;">⏳ Pensando…</div>`);
+        $box.scrollTop = $box.scrollHeight;
+        try {
+          const fd = new FormData();
+          const msgConCtx = historial.length === 1 ? (ctx + '\n\n' + txt) : txt;
+          fd.append('mensaje', msgConCtx);
+          fd.append('historial', JSON.stringify(historial.slice(0, -1)));
+          const prov = document.getElementById('prov-sel').value;
+          if (prov) fd.append('proveedor', prov);
+          const r = await fetch('{% url "motor_ia_chat_enviar" %}', {
+            method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd
+          });
+          const d = await r.json();
+          document.getElementById(id)?.remove();
+          if (d.success) {
+            addMsg('assistant', d.respuesta, `${d.proveedor} · ${d.modelo}`);
+            historial.push({rol:'assistant', texto: d.respuesta});
+          } else {
+            addMsg('assistant', '⚠ ' + (d.error || d.respuesta || 'Error'));
+          }
+        } catch(e) {
+          document.getElementById(id)?.remove();
+          addMsg('assistant', '❌ Error: ' + e.message);
+        } finally {
+          $btn.disabled = false;
+          $input.focus();
+        }
+      }
+    </script>
+  </main>
+</div>
+{% endblock %}

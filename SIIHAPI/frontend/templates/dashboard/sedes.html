@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Sedes y Salones · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='sedes' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Infraestructura</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Sedes y Salones</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Gestión de las 3 sedes y {{ total_salones }} salones reales</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      {% for s in sedes %}
+      <div class="kpi {% cycle 'accent' '' 'accent' %}">
+        <div class="kpi-lbl">🏛️ {{ s.nombre }}</div>
+        <div class="kpi-val">{{ s.num_salones }}</div>
+        <p style="font-size:11px;color:var(--txt3);margin-top:6px;">{{ s.direccion }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Salones</span>
+        <span class="tb-badge">{{ total_salones }} activos</span>
+      </div>
+
+      <form method="GET" style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <select name="sede" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+          <option value="">— Todas las sedes —</option>
+          {% for s in sedes %}<option value="{{ s.codigo }}" {% if sede_filtro == s.codigo %}selected{% endif %}>{{ s.nombre }}</option>{% endfor %}
+        </select>
+        <select name="tipo" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+          <option value="">— Todos los tipos —</option>
+          {% for t, lbl in tipos %}<option value="{{ t }}" {% if tipo_filtro == t %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+        </select>
+      </form>
+
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Sede</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Planta</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Capacidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in salones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--blue-lt);">{{ s.sede.nombre }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.planta }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--white);">{{ s.codigo }}</td>
+            <td style="padding:10px;color:var(--txt);">{{ s.nombre }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ s.get_tipo_display }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);font-weight:700;">{{ s.capacidad }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No hay salones que coincidan con los filtros.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

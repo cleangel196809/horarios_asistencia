@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="theme-color" content="#0D1117">
+<meta name="description" content="SISCA — Sistema Institucional de Control de Asistencia · Politécnico Internacional">
+<title>SISCA · Politécnico Internacional</title>
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}">
+</head>
+<body>
+
+<!-- Canvas WebGL de fondo cinemático (3D) -->
+<canvas id="bg3d" aria-hidden="true"></canvas>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="tb-logo">
+    <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Politécnico Internacional" onerror="this.style.display='none'">
+    <div class="tb-logo-text">
+      <span class="tb-logo-name">Politécnico Internacional</span>
+      <span class="tb-logo-sub">SISCA · Control de Asistencia</span>
+    </div>
+  </div>
+  <div class="tb-spacer"></div>
+  <span class="tb-badge">v1.0</span>
+</header>
+
+<!-- HERO -->
+<main style="min-height:calc(100vh - 56px);display:flex;flex-direction:column;">
+<section class="land-hero">
+
+  <!-- Logo grande -->
+  <div class="land-logo-wrap">
+    <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}"
+         alt="Politécnico Internacional"
+         style="height:90px;width:auto;filter:drop-shadow(0 4px 24px rgba(31,111,235,.35));"
+         onerror="this.outerHTML='<div style=\'width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#1A3A6B,#1F6FEB);display:flex;align-items:center;justify-content:center;font-size:36px;\'>🏛️</div>'">
+  </div>
+
+  <div class="land-badge">🎓 Sistema Institucional de Control de Asistencia</div>
+
+  <h1>Gestión Inteligente<br>de <span class="grad">Asistencia Académica</span></h1>
+
+  <p>Plataforma integral para el control y seguimiento de asistencia en tiempo real, con soporte online, offline y acceso desde cualquier dispositivo.</p>
+
+  <!-- Misión -->
+  <div class="mission-card">
+    <div class="mission-label">
+      <span>🎯</span> Misión Institucional
+    </div>
+    <p>{{ mision }}</p>
+  </div>
+
+  <!-- Cards de Rol -->
+  <div class="roles-grid">
+
+    <!-- Administrador -->
+    <div class="role-card" onclick="location.href='{{ url_for('auth.login', rol='admin') }}'">
+      <div class="rc-icon">⚙️</div>
+      <div class="rc-title">Administrador</div>
+      <div class="rc-desc">Gestión completa de usuarios, materias, horarios, reportes y configuración del sistema.</div>
+      <button class="rc-btn admin">Ingresar como Admin →</button>
+    </div>
+
+    <!-- Docente -->
+    <div class="role-card" onclick="location.href='{{ url_for('auth.login', rol='docente') }}'">
+      <div class="rc-icon">👨‍🏫</div>
+      <div class="rc-title">Docente</div>
+      <div class="rc-desc">Generar QR, tomar asistencia online/offline, gestionar sesiones y visualizar estadísticas.</div>
+      <button class="rc-btn docente">Ingresar como Docente →</button>
+    </div>
+
+    <!-- Estudiante -->
+    <div class="role-card" onclick="location.href='{{ url_for('auth.login', rol='estudiante') }}'">
+      <div class="rc-icon">🎓</div>
+      <div class="rc-title">Estudiante</div>
+      <div class="rc-desc">Escanear QR, registrar asistencia y consultar tu historial académico por materia.</div>
+      <button class="rc-btn est">Ingresar como Estudiante →</button>
+    </div>
+
+  </div>
+
+  <!-- Registro rápido -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;">
+    <a href="{{ url_for('auth.register', rol='DOCENTE') }}" class="btn btn-ghost">
+      ➕ Registrar Docente
+    </a>
+    <a href="{{ url_for('auth.register', rol='ESTUDIANTE') }}" class="btn btn-ghost">
+      ➕ Registrar Estudiante
+    </a>
+  </div>
+  <p style="font-size:11px;color:var(--txt3);">¿Nuevo en el sistema? Registra tus credenciales para acceder.</p>
+
+</section>
+
+<!-- STATS BAR -->
+<div class="land-stats">
+  <div class="stat-item">
+    <div class="stat-val blue">{{ stats.usuarios|default(0) }}</div>
+    <div class="stat-lbl">Usuarios Activos</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val">{{ stats.sesiones_hoy|default(0) }}</div>
+    <div class="stat-lbl">Sesiones Hoy</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val blue">{{ stats.materias|default(0) }}</div>
+    <div class="stat-lbl">Materias Activas</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val">{{ stats.asistencias|default(0) }}</div>
+    <div class="stat-lbl">Registros Totales</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val blue">{{ stats.docentes|default(0) }}</div>
+    <div class="stat-lbl">Docentes</div>
+  </div>
+</div>
+
+
+<footer class="land-footer">
+  <div class="footer-grid">
+
+    <!-- Col 1: Sedes -->
+    <div class="footer-col">
+      <h4>📍 Nuestras Sedes</h4>
+      {% for sede in sedes %}
+      <p><strong style="color:var(--txt2);">{{ sede.nombre }}:</strong> {{ sede.dir }}</p>
+      {% endfor %}
+    </div>
+
+    <!-- Col 2: Institución -->
+    <div class="footer-col">
+      <h4>🏛️ {{ institucion }}</h4>
+      <p>Institución de Educación Superior</p>
+      <p>Vigilado Mineducación</p>
+      <p>SNES {{ snies }} +4135 DEL 11 de nov. de 2004</p>
+      <p>Derechos Pecuniarios</p>
+    </div>
+
+    <!-- Col 3: Legal -->
+    <div class="footer-col">
+      <h4>📋 Legal</h4>
+      <a href="{{ url_for('auth.legal', tipo='habeas-data') }}">Habeas Data</a>
+      <a href="{{ url_for('auth.legal', tipo='transparencia') }}">Transparencia y acceso a la información pública</a>
+      <a href="{{ url_for('auth.legal', tipo='tratamiento') }}">Tratamiento de Datos</a>
+      <a href="{{ url_for('auth.legal', tipo='acta') }}">Acta de creación e implementación de políticas</a>
+    </div>
+
+  </div>
+
+  <div class="footer-bottom">
+    <span>© {{ 2026 }} {{ institucion }} · SISCA v1.0</span>
+    <span>Desarrollado con Python Flask · Oracle XE</span>
+    <span style="display:flex;align-items:center;gap:6px;">
+      <span class="pulse"></span> Sistema Activo
+    </span>
+  </div>
+</footer>
+</main>
+
+<script src="{{ url_for('static', filename='js/sisca.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sisca-bg3d.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/sisca-fx.js') }}" defer></script>
+<script>
+// PWA Service Worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>

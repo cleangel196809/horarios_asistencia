@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Métricas Motor IA · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='motor_ia' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📊 Métricas del Motor IA</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Performance del solver CSP</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">Ejecuciones totales</div><div class="kpi-val">{{ stats.total }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Exitosas</div><div class="kpi-val" style="color:var(--lime-lt);">{{ stats.exitosas }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">Fallidas</div><div class="kpi-val" style="color:var(--orange);">{{ stats.fallidas }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Tasa de éxito</div><div class="kpi-val">{{ stats.tasa_exito }}%</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">Performance promedio</span></div>
+      <p style="font-size:48px;font-weight:800;color:var(--blue-lt);font-family:'JetBrains Mono',monospace;">{{ stats.promedio_ms }} <span style="font-size:18px;color:var(--txt3);">ms</span></p>
+      <p style="color:var(--txt2);margin-top:6px;">Duración promedio del solver.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Historial completo</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Job ID</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Inicio</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Matrículas</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asignadas</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Conflictos</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Duración</th>
+        </tr></thead>
+        <tbody>
+          {% for a in asignaciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ a.job_id }}</td>
+            <td style="padding:10px;color:var(--txt2);font-size:12px;">{{ a.fecha_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ a.estado }}</td>
+            <td style="padding:10px;text-align:right;color:var(--txt);">{{ a.total_matriculas }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ a.asignaciones_exitosas }}</td>
+            <td style="padding:10px;text-align:right;color:var(--orange);">{{ a.conflictos_residuales }}</td>
+            <td style="padding:10px;text-align:right;color:var(--txt2);">{{ a.duracion_ms }} ms</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" style="padding:30px;text-align:center;color:var(--txt3);">Sin ejecuciones aún.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

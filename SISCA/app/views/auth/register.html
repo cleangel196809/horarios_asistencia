@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>Registro · SISCA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}">
+</head>
+<body>
+<div class="auth-wrap">
+
+  <header class="topbar">
+    <a href="{{ url_for('auth.landing') }}" class="tb-logo">
+      <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Politécnico" height="36" onerror="this.style.display='none'">
+      <div class="tb-logo-text">
+        <span class="tb-logo-name">Politécnico Internacional</span>
+        <span class="tb-logo-sub">SISCA · Registro de Usuarios</span>
+      </div>
+    </a>
+    <div class="tb-spacer"></div>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-ghost" style="font-size:12px;">← Iniciar Sesión</a>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div style="position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;">
+    {% for cat, msg in messages %}
+    <div class="toast {{ 'success' if cat=='success' else 'error' if cat=='error' else 'info' }}">
+      <span class="toast-ico">{{ '✅' if cat=='success' else '❌' if cat=='error' else 'ℹ️' }}</span>
+      <div class="toast-txt">{{ msg }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="auth-body" style="align-items:flex-start;padding:30px 20px;">
+    <div class="auth-card" style="max-width:560px;">
+
+      <div class="auth-logo">
+        <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Logo" height="44" onerror="this.outerHTML='<span style=\'font-size:36px;\'>🏛️</span>'">
+        <div>
+          <div class="auth-title">Crear Cuenta</div>
+          <div class="auth-sub">Regístrate en SISCA con tus credenciales</div>
+        </div>
+      </div>
+
+      <!-- Selector de Rol: solo Docente y Estudiante en registro publico -->
+      <div style="margin-bottom:20px;">
+        <label style="font-size:11px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:8px;">Tipo de cuenta</label>
+        <div class="role-selector" id="roleSelector">
+          <label class="role-opt {% if rol_default=='DOCENTE' %}selected{% endif %}" onclick="selectRole('DOCENTE', this)">
+            <input type="radio" name="rol_vis" value="DOCENTE" {% if rol_default=='DOCENTE' %}checked{% endif %}>
+            <span class="role-opt-ico">👨‍🏫</span>
+            <span class="role-opt-lbl">Docente</span>
+          </label>
+          <label class="role-opt {% if rol_default=='ESTUDIANTE' or not rol_default %}selected{% endif %}" onclick="selectRole('ESTUDIANTE', this)">
+            <input type="radio" name="rol_vis" value="ESTUDIANTE" {% if rol_default=='ESTUDIANTE' or not rol_default %}checked{% endif %}>
+            <span class="role-opt-ico">🎓</span>
+            <span class="role-opt-lbl">Estudiante</span>
+          </label>
+        </div>
+        <p style="font-size:11px;color:var(--txt3);margin-top:8px;">
+          🔒 Las cuentas de <strong>Administrador</strong> son creadas exclusivamente por el administrador del sistema.
+        </p>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.register') }}">
+        <input type="hidden" name="rol" id="rolHidden" value="{{ rol_default|default('ESTUDIANTE') }}">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="nombre">Nombre *</label>
+            <input type="text" id="nombre" name="nombre" placeholder="Nombre" required
+                   value="{{ form_data.nombre|default('') }}">
+          </div>
+          <div class="form-group">
+            <label for="apellido">Apellido *</label>
+            <input type="text" id="apellido" name="apellido" placeholder="Apellido" required
+                   value="{{ form_data.apellido|default('') }}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="documento">Documento de Identidad *</label>
+            <input type="number" id="documento" name="documento" placeholder="Número de Cédula" required
+                   value="{{ form_data.documento|default('') }}">
+          </div>
+          <div class="form-group">
+            <label for="correo">Correo Electrónico *</label>
+            <input type="email" id="correo" name="correo" placeholder="@politecnico.edu.co" required
+                   value="{{ form_data.correo|default('') }}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="position:relative;">
+            <label for="contrasena">Contraseña *</label>
+            <input type="password" id="contrasena" name="contrasena" placeholder="Mín. 8 caracteres" required>
+            <button type="button" onclick="togglePwd('contrasena')"
+                    style="position:absolute;right:10px;top:30px;background:none;border:none;color:var(--txt3);cursor:pointer;font-size:16px;">👁</button>
+          </div>
+          <div class="form-group">
+            <label for="confirmar">Confirmar Contraseña *</label>
+            <input type="password" id="confirmar" name="confirmar" placeholder="Repetir contraseña" required>
+          </div>
+        </div>
+
+        <!-- Campos dinámicos por rol -->
+        <div id="extraDocente" class="{% if rol_default != 'DOCENTE' %}hidden{% endif %}">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="especialidad">Especialidad</label>
+              <input type="text" id="especialidad" name="especialidad" placeholder="Ej: Ingeniería de Sistemas">
+            </div>
+            <div class="form-group">
+              <label for="telefono">Teléfono</label>
+              <input type="text" id="telefono" name="telefono" placeholder="Ej: 3001234567">
+            </div>
+          </div>
+        </div>
+
+        <div id="extraEstudiante" class="{% if rol_default != 'ESTUDIANTE' %}hidden{% endif %}">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="semestre">Semestre</label>
+              <select id="semestre" name="semestre">
+                {% for s in range(1, 11) %}
+                <option value="{{ s }}">Semestre {{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="codigo_estudiante">Código Estudiantil</label>
+              <input type="number" id="codigo_estudiante" name="codigo_estudiante" placeholder="Ej: 20230001">
+            </div>
+          </div>
+        </div>
+
+        <!-- Términos -->
+        <div style="background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="terminos" value="S" id="terminos" style="width:16px;height:16px;margin-top:2px;flex-shrink:0;" required>
+            <span style="font-size:12px;color:var(--txt2);">
+              Acepto los
+              <a href="{{ url_for('auth.legal', tipo='habeas-data') }}" target="_blank" style="color:var(--blue-lt);">Términos y Condiciones</a>,
+              la <a href="{{ url_for('auth.legal', tipo='tratamiento') }}" target="_blank" style="color:var(--blue-lt);">Política de Tratamiento de Datos</a> (Ley 1581 de 2012)
+              y autorizo el uso de mis datos personales para los fines del sistema SISCA.
+            </span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full btn-lg">
+          ✅ Crear Cuenta
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <p>¿Ya tienes cuenta? <a href="{{ url_for('auth.login') }}">Inicia sesión aquí</a></p>
+      </div>
+
+    </div>
+  </div>
+
+  <footer style="background:var(--surface);border-top:1px solid var(--border);padding:12px 24px;text-align:center;">
+    <div style="font-size:11px;color:var(--txt3);display:flex;justify-content:center;flex-wrap:wrap;gap:12px;">
+      <span>© 2026 {{ institucion }} · SNES {{ snies }}</span>
+      <a href="{{ url_for('auth.legal', tipo='habeas-data') }}" style="color:var(--txt3);">Habeas Data</a>
+      <a href="{{ url_for('auth.legal', tipo='tratamiento') }}" style="color:var(--txt3);">Tratamiento de Datos</a>
+      <a href="{{ url_for('auth.legal', tipo='transparencia') }}" style="color:var(--txt3);">Transparencia</a>
+      <a href="{{ url_for('auth.legal', tipo='acta') }}" style="color:var(--txt3);">Acta de Creación</a>
+    </div>
+  </footer>
+
+</div>
+<script>
+const extraMap = {DOCENTE:'extraDocente', ESTUDIANTE:'extraEstudiante', ADMINISTRADOR:null};
+function selectRole(val, el){
+  document.getElementById('rolHidden').value = val;
+  document.querySelectorAll('.role-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  ['extraDocente','extraEstudiante'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
+  const target=extraMap[val];
+  if(target && document.getElementById(target)){
+    document.getElementById(target).style.display='block';
+  }
+}
+function togglePwd(id){
+  const i=document.getElementById(id);
+  i.type=i.type==='password'?'text':'password';
+}
+// Fuerza display inicial
+document.querySelectorAll('.hidden').forEach(el=>el.style.display='none');
+setTimeout(()=>document.querySelectorAll('.toast').forEach(t=>{t.style.opacity='0';setTimeout(()=>t.remove(),300);}),4000);
+</script>
+<script src="{{ url_for('static', filename='js/sisca-bg3d.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/sisca-fx.js') }}" defer></script>
+</body>
+</html>

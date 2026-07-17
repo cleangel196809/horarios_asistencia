@@ -1,0 +1,1248 @@
+{% extends 'base.html' %}
+{% block title %}Motor IA · SIIHAPI{% endblock %}
+
+{% block body %}
+<style>
+  /* ═══════════════ Motor IA Premium Styles ═══════════════ */
+  .mia-hero{
+    background:linear-gradient(135deg,rgba(31,111,235,0.08),rgba(6,182,212,0.04));
+    border:1px solid rgba(31,111,235,0.25);
+    border-radius:16px;
+    padding:22px 26px;
+    margin-bottom:22px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;
+    position:relative;overflow:hidden;
+  }
+  .mia-hero::before{
+    content:'';position:absolute;top:-50%;right:-10%;width:300px;height:300px;
+    background:radial-gradient(circle, rgba(6,182,212,0.18) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .mia-hero h1{font-size:30px;font-weight:800;color:var(--white);margin:0;letter-spacing:-0.02em;}
+  .mia-hero p{color:var(--txt2);margin-top:4px;font-size:13px;}
+  .mia-eyebrow{
+    font-size:11px;color:var(--cyan-lt);text-transform:uppercase;
+    letter-spacing:.16em;font-weight:800;display:flex;align-items:center;gap:6px;
+  }
+  .mia-eyebrow::before{
+    content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan-lt);
+    box-shadow:0 0 12px rgba(34,211,238,0.8);animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* Stepper */
+  .stepper{
+    display:flex;align-items:center;justify-content:space-between;
+    margin:0 0 24px;padding:16px 22px;
+    background:var(--surface-glass);border:1px solid var(--border);border-radius:14px;
+    overflow-x:auto;
+  }
+  .step{
+    display:flex;align-items:center;gap:10px;flex:1;min-width:140px;
+    cursor:pointer;transition:all 0.25s;
+  }
+  .step-num{
+    width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:var(--surface3);color:var(--txt3);font-weight:800;font-size:14px;
+    border:2px solid var(--border);transition:all 0.3s;flex-shrink:0;
+  }
+  .step.done .step-num{
+    background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;border-color:transparent;
+    box-shadow:0 0 18px rgba(34,211,238,0.45);
+  }
+  .step.active .step-num{
+    background:linear-gradient(135deg,#1F6FEB,#06B6D4);color:#fff;border-color:transparent;
+    box-shadow:0 0 24px rgba(31,111,235,0.6);transform:scale(1.1);
+  }
+  .step-label{font-size:12px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;}
+  .step.done .step-label{color:var(--cyan-lt);}
+  .step.active .step-label{color:var(--white);}
+  .step-arrow{color:var(--txt3);font-size:18px;margin:0 6px;}
+
+  /* Step panels */
+  .step-panel{display:none;animation:slideUp 0.4s ease-out;}
+  .step-panel.active{display:block;}
+  @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+
+  /* Stat tiles */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px;}
+  .stat-tile{
+    padding:16px 18px;background:var(--surface-glass);border:1px solid var(--border);
+    border-radius:12px;display:flex;align-items:center;gap:12px;transition:all 0.25s;
+    position:relative;overflow:hidden;
+  }
+  .stat-tile:hover{transform:translateY(-2px);border-color:rgba(34,211,238,0.4);}
+  .stat-tile.ok{border-color:rgba(132,204,22,0.30);background:linear-gradient(135deg,rgba(132,204,22,0.06),rgba(132,204,22,0.02));}
+  .stat-tile.warn{border-color:rgba(251,146,60,0.30);background:linear-gradient(135deg,rgba(251,146,60,0.06),rgba(251,146,60,0.02));}
+  .stat-tile.err{border-color:rgba(239,68,68,0.30);background:linear-gradient(135deg,rgba(239,68,68,0.06),rgba(239,68,68,0.02));}
+  .stat-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+  .stat-tile.ok .stat-icon{background:rgba(132,204,22,0.15);color:var(--lime-lt);}
+  .stat-tile.warn .stat-icon{background:rgba(251,146,60,0.15);color:var(--orange);}
+  .stat-tile.err .stat-icon{background:rgba(239,68,68,0.15);color:var(--red-lt);}
+  .stat-tile .stat-num{font-size:24px;font-weight:800;color:var(--white);line-height:1;}
+  .stat-tile .stat-lbl{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:4px;}
+
+  /* LLM cards */
+  .llm-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:14px 0;}
+  .llm-card{
+    padding:14px;background:var(--surface-glass);border:1.5px solid var(--border);
+    border-radius:12px;cursor:pointer;transition:all 0.25s;text-align:center;position:relative;
+  }
+  .llm-card:hover{border-color:rgba(31,111,235,0.55);transform:translateY(-2px);}
+  .llm-card.selected{
+    border-color:#1F6FEB;
+    background:linear-gradient(135deg,rgba(31,111,235,0.10),rgba(6,182,212,0.04));
+    box-shadow:0 0 0 3px rgba(31,111,235,0.18),0 8px 28px rgba(31,111,235,0.25);
+  }
+  .llm-card .llm-emoji{font-size:32px;display:block;margin-bottom:6px;}
+  .llm-card .llm-name{font-size:13px;font-weight:700;color:var(--white);}
+  .llm-card .llm-tag{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-top:4px;}
+  .llm-card.selected .llm-tag{color:var(--cyan-lt);}
+
+  .mode-pick{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;}
+  .mode-card{
+    padding:18px;background:var(--surface-glass);border:1.5px solid var(--border);
+    border-radius:14px;cursor:pointer;transition:all 0.25s;
+  }
+  .mode-card:hover{border-color:rgba(31,111,235,0.55);}
+  .mode-card.selected{
+    border-color:#06B6D4;background:linear-gradient(135deg,rgba(6,182,212,0.08),rgba(6,182,212,0.02));
+    box-shadow:0 0 0 3px rgba(6,182,212,0.16);
+  }
+  .mode-card h4{margin:0 0 4px;color:var(--white);font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .mode-card p{margin:0;color:var(--txt2);font-size:12px;line-height:1.4;}
+
+  /* Execution view */
+  .exec-stage{
+    padding:28px;background:linear-gradient(135deg,rgba(31,111,235,0.06),rgba(6,182,212,0.02));
+    border:1px solid rgba(31,111,235,0.25);border-radius:16px;text-align:center;
+    position:relative;overflow:hidden;
+  }
+  .exec-ring{
+    width:120px;height:120px;margin:0 auto 16px;position:relative;
+    background:conic-gradient(from 0deg, #06B6D4, #1F6FEB, #06B6D4);
+    border-radius:50%;animation:spin 2s linear infinite;
+    -webkit-mask:radial-gradient(circle, transparent 45%, black 47%);
+            mask:radial-gradient(circle, transparent 45%, black 47%);
+  }
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .exec-stage h3{margin:8px 0 6px;color:var(--white);font-size:18px;font-weight:800;}
+  .exec-stage .exec-sub{color:var(--cyan-lt);font-size:13px;}
+  .progress-track{
+    margin:18px auto;max-width:480px;height:8px;background:var(--surface3);
+    border-radius:99px;overflow:hidden;border:1px solid var(--border);
+  }
+  .progress-fill{
+    height:100%;background:linear-gradient(90deg,#06B6D4,#1F6FEB,#22D3EE);
+    background-size:200% 100%;animation:shimmer 1.4s linear infinite;
+    transition:width 0.4s ease;
+  }
+  @keyframes shimmer{from{background-position:0% 0;}to{background-position:200% 0;}}
+
+  .live-logs{
+    margin-top:18px;text-align:left;background:rgba(0,0,0,0.30);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;font-family:'JetBrains Mono',monospace;
+    font-size:12px;max-height:220px;overflow-y:auto;
+  }
+  .log-line{padding:3px 0;color:var(--txt2);display:flex;gap:8px;animation:fadeIn 0.3s;}
+  @keyframes fadeIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+  .log-time{color:var(--txt3);font-size:11px;flex-shrink:0;}
+  .log-line.ok{color:var(--lime-lt);}
+  .log-line.warn{color:var(--orange);}
+  .log-line.info{color:var(--blue-lt);}
+
+  /* Result view */
+  .result-hero{
+    padding:24px 28px;background:linear-gradient(135deg,rgba(132,204,22,0.08),rgba(34,211,238,0.04));
+    border:1px solid rgba(132,204,22,0.30);border-radius:16px;text-align:center;
+    margin-bottom:18px;animation:popIn 0.5s ease-out;
+  }
+  @keyframes popIn{0%{transform:scale(0.92);opacity:0;}100%{transform:scale(1);opacity:1;}}
+  .result-hero .checkmark{
+    width:64px;height:64px;margin:0 auto 12px;background:linear-gradient(135deg,#84CC16,#06B6D4);
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:32px;color:#fff;font-weight:800;box-shadow:0 8px 32px rgba(132,204,22,0.40);
+    animation:checkBounce 0.6s ease;
+  }
+  @keyframes checkBounce{0%{transform:scale(0);}60%{transform:scale(1.15);}100%{transform:scale(1);}}
+  .result-hero h2{margin:0;color:var(--white);font-size:24px;font-weight:800;}
+  .result-hero .pct{font-size:42px;font-weight:900;color:var(--lime-lt);margin:6px 0;display:block;}
+  .result-hero p{color:var(--txt2);margin:0;font-size:13px;}
+
+  .insight-card{
+    padding:18px 20px;background:var(--surface-glass);border:1px solid var(--border);
+    border-radius:14px;margin-bottom:14px;
+  }
+  .insight-card h4{margin:0 0 10px;color:var(--cyan-lt);font-size:13px;font-weight:800;
+    text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:8px;}
+  .insight-card .insight-text{color:var(--white);font-size:14px;line-height:1.55;}
+  .insight-list{margin:0;padding-left:20px;}
+  .insight-list li{padding:5px 0;color:var(--txt2);font-size:13px;}
+  .insight-list.warn li{color:var(--orange-lt,#FBBF24);}
+  .insight-list.tip li{color:var(--cyan-lt);}
+
+  .donut-wrap{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+  .donut-card{
+    padding:16px;background:var(--surface-glass);border:1px solid var(--border);
+    border-radius:12px;text-align:center;
+  }
+  .donut-card svg{display:block;margin:0 auto;}
+  .donut-card .donut-title{font-size:11px;color:var(--txt3);text-transform:uppercase;
+    letter-spacing:.08em;font-weight:700;margin-bottom:8px;}
+
+  /* Chat flotante */
+  .chat-fab{
+    position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;
+    background:linear-gradient(135deg,#06B6D4,#1F6FEB);
+    box-shadow:0 8px 28px rgba(31,111,235,0.45);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;
+    cursor:pointer;z-index:998;transition:all 0.25s;border:none;
+  }
+  .chat-fab:hover{transform:scale(1.08);box-shadow:0 12px 36px rgba(6,182,212,0.55);}
+  .chat-fab .chat-badge{
+    position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-radius:50%;
+    background:#84CC16;border:2px solid var(--surface);
+  }
+  .chat-panel{
+    position:fixed;bottom:96px;right:24px;width:380px;max-width:calc(100vw - 48px);
+    height:520px;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.45);
+    display:none;flex-direction:column;z-index:999;overflow:hidden;
+    animation:slideUpFade 0.3s ease;
+  }
+  @keyframes slideUpFade{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+  .chat-panel.open{display:flex;}
+  .chat-head{
+    padding:14px 18px;background:linear-gradient(135deg,#1F6FEB,#06B6D4);
+    color:#fff;display:flex;justify-content:space-between;align-items:center;
+  }
+  .chat-head h3{margin:0;font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .chat-head .chat-x{cursor:pointer;font-size:22px;line-height:1;opacity:0.8;}
+  .chat-head .chat-x:hover{opacity:1;}
+  .chat-body{flex:1;overflow-y:auto;padding:14px;background:var(--surface2);}
+  .msg{margin-bottom:10px;display:flex;gap:8px;animation:fadeIn 0.3s;}
+  .msg.user{flex-direction:row-reverse;}
+  .msg-bub{
+    max-width:78%;padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.45;
+    color:var(--white);
+  }
+  .msg.user .msg-bub{background:linear-gradient(135deg,#1F6FEB,#06B6D4);}
+  .msg.bot .msg-bub{background:var(--surface3);border:1px solid var(--border);}
+  .msg-av{
+    width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:14px;flex-shrink:0;
+    background:linear-gradient(135deg,#1F6FEB,#06B6D4);color:#fff;
+  }
+  .msg.user .msg-av{background:linear-gradient(135deg,#84CC16,#22D3EE);}
+  .chat-foot{
+    padding:10px;border-top:1px solid var(--border);background:var(--surface);
+    display:flex;gap:6px;align-items:flex-end;
+  }
+  .chat-input{
+    flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:10px;
+    padding:9px 12px;color:var(--white);font-size:13px;font-family:inherit;
+    resize:none;max-height:80px;outline:none;
+  }
+  .chat-input:focus{border-color:#1F6FEB;}
+  .chat-send{
+    background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;border:none;
+    width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .chat-send:hover{transform:scale(1.06);}
+  .chat-send:disabled{opacity:0.5;cursor:not-allowed;}
+  .chat-quick{
+    display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--border);background:var(--surface2);
+    overflow-x:auto;
+  }
+  .chat-quick button{
+    background:var(--surface3);border:1px solid var(--border);color:var(--blue-lt);
+    padding:6px 10px;border-radius:99px;font-size:11px;cursor:pointer;white-space:nowrap;
+  }
+  .chat-quick button:hover{background:rgba(31,111,235,0.16);border-color:rgba(31,111,235,0.45);}
+
+  /* Nav buttons */
+  .nav-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+  .btn-cta{
+    background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;border:none;
+    padding:11px 22px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 14px rgba(31,111,235,0.35);transition:all 0.2s;
+    display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  }
+  .btn-cta:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(6,182,212,0.45);}
+  .btn-back{
+    background:transparent;color:var(--txt2);border:1px solid var(--border);
+    padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:all 0.2s;display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-back:hover{border-color:var(--txt2);color:var(--white);}
+
+  .data-summary{
+    padding:14px 18px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.20);
+    border-radius:10px;color:var(--txt2);font-size:13px;line-height:1.5;margin-bottom:14px;
+  }
+  .data-summary strong{color:var(--cyan-lt);}
+</style>
+
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='motor_ia' %}
+
+  <main class="main-content">
+
+    {# ════════════════ HERO ════════════════ #}
+    <div class="mia-hero">
+      <div>
+        <p class="mia-eyebrow">Motor IA Híbrido · CSP + LLM</p>
+        <h1>🤖 Asignación inteligente de horarios</h1>
+        <p>Optimización con <strong style="color:var(--cyan-lt);">OR-Tools CSP</strong> + análisis <strong style="color:var(--cyan-lt);">{{ ultima.parametros.llm_proveedor|default:"LLM" }}</strong>. Resuelve restricciones complejas en segundos.</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Periodo activo</p>
+        <p style="font-size:22px;color:var(--white);font-weight:800;margin-top:4px;">2026-2</p>
+      </div>
+    </div>
+
+    {# ════════════════ STEPPER ════════════════ #}
+    <div class="stepper">
+      <div class="step active" data-step="1"><div class="step-num">1</div><div class="step-label">Datos</div></div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="2"><div class="step-num">2</div><div class="step-label">Configurar</div></div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="3"><div class="step-num">3</div><div class="step-label">Ejecutar</div></div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="4"><div class="step-num">4</div><div class="step-label">Resultado</div></div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="5"><div class="step-num">5</div><div class="step-label">Publicar</div></div>
+    </div>
+
+    {# ════════════════ STEP 1: DATOS ════════════════ #}
+    <div class="step-panel active" data-panel="1">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📦 Verificación de datos del periodo</span>
+          <span class="tb-badge" style="background:rgba(132,204,22,0.18);color:var(--lime-lt);border-color:rgba(132,204,22,0.40);">✓ LISTO</span>
+        </div>
+        <p style="color:var(--txt2);margin-bottom:16px;">El Motor IA necesita los siguientes datos para optimizar la asignación. Si algo falta, completa la información primero.</p>
+
+        <div class="stat-grid">
+          <div class="stat-tile {% if kpis.matriculas > 0 %}ok{% else %}err{% endif %}">
+            <div class="stat-icon">🎓</div>
+            <div>
+              <div class="stat-num">{{ kpis.matriculas }}</div>
+              <div class="stat-lbl">Matrículas activas</div>
+            </div>
+          </div>
+          <div class="stat-tile ok">
+            <div class="stat-icon">📅</div>
+            <div>
+              <div class="stat-num">{{ kpis.horarios }}</div>
+              <div class="stat-lbl">Horarios actuales</div>
+            </div>
+          </div>
+          <div class="stat-tile {% if kpis.reglas > 0 %}ok{% else %}warn{% endif %}">
+            <div class="stat-icon">⚙️</div>
+            <div>
+              <div class="stat-num">{{ kpis.reglas }}</div>
+              <div class="stat-lbl">Reglas activas</div>
+            </div>
+          </div>
+          <div class="stat-tile {% if kpis.salones > 0 %}ok{% else %}err{% endif %}">
+            <div class="stat-icon">🚪</div>
+            <div>
+              <div class="stat-num">{{ kpis.salones }}</div>
+              <div class="stat-lbl">Salones disponibles</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-summary">
+          💡 <strong>¿Cómo funciona?</strong> El motor cargará tus matrículas, docentes con disponibilidad declarada, salones por capacidad y bloques horarios. Aplicará CSP (Constraint Satisfaction Problem) con OR-Tools para encontrar la asignación óptima, y un LLM (Gemini / GPT-4o / Claude) analizará el resultado.
+        </div>
+
+        <div class="nav-row">
+          <button class="btn-cta" onclick="gotoStep(2)">Continuar a configuración <span>→</span></button>
+        </div>
+      </div>
+    </div>
+
+    {# ════════════════ STEP 2: CONFIGURAR ════════════════ #}
+    <div class="step-panel" data-panel="2">
+
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">⚙️ Parámetros del motor</span>
+        </div>
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:6px 0 8px;">Modo de ejecución</p>
+        <div class="mode-pick">
+          <div class="mode-card selected" data-modo="COMPLETA" onclick="pickMode(this)">
+            <h4>🚀 Ejecución completa</h4>
+            <p>Genera y persiste todos los horarios. Recomendado para producción.</p>
+          </div>
+          <div class="mode-card" data-modo="SIMULACION" onclick="pickMode(this)">
+            <h4>🧪 Simulación</h4>
+            <p>Calcula sin guardar en BD. Útil para probar configuraciones.</p>
+          </div>
+        </div>
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 8px;">Motor de IA para análisis</p>
+        <div class="llm-pick">
+          <div class="llm-card selected" data-llm="" onclick="pickLlm(this)">
+            <span class="llm-emoji">✨</span>
+            <div class="llm-name">Auto</div>
+            <div class="llm-tag">Mejor disponible</div>
+          </div>
+          <div class="llm-card" data-llm="GEMINI" onclick="pickLlm(this)">
+            <span class="llm-emoji">🧠</span>
+            <div class="llm-name">Gemini 2.5 Flash</div>
+            <div class="llm-tag">Google</div>
+          </div>
+          <div class="llm-card" data-llm="OPENAI" onclick="pickLlm(this)">
+            <span class="llm-emoji">🟢</span>
+            <div class="llm-name">GPT-4o mini</div>
+            <div class="llm-tag">OpenAI</div>
+          </div>
+          <div class="llm-card" data-llm="ANTHROPIC" onclick="pickLlm(this)">
+            <span class="llm-emoji">🟣</span>
+            <div class="llm-name">Claude 3.5</div>
+            <div class="llm-tag">Anthropic</div>
+          </div>
+          <div class="llm-card" data-llm="HEURISTIC" onclick="pickLlm(this)">
+            <span class="llm-emoji">⚙️</span>
+            <div class="llm-name">Heurístico</div>
+            <div class="llm-tag">Local · sin red</div>
+          </div>
+        </div>
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:18px 0 10px;">Resumen de la configuración</p>
+        <div class="data-summary">
+          <strong>Periodo:</strong> 2026-2  ·  <strong>Modo:</strong> <span id="cfg-modo">Ejecución completa</span>  ·  <strong>IA:</strong> <span id="cfg-llm">Auto</span><br>
+          Restricciones a respetar: disponibilidad docente, capacidad de salones, no choque de bloques, regla institucional.
+        </div>
+
+        <div class="nav-row">
+          <button class="btn-back" onclick="gotoStep(1)"><span>←</span> Atrás</button>
+          <button class="btn-cta" onclick="gotoStep(3); ejecutarMotor();">🚀 Iniciar motor <span>→</span></button>
+        </div>
+      </div>
+    </div>
+
+    {# ════════════════ STEP 3: EJECUTAR ════════════════ #}
+    <div class="step-panel" data-panel="3">
+      <div class="card">
+        <div class="exec-stage">
+          <div class="exec-ring" id="exec-ring"></div>
+          <h3 id="exec-title">Inicializando motor CSP…</h3>
+          <div class="exec-sub" id="exec-sub">Cargando matrículas y restricciones</div>
+          <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:5%;"></div></div>
+
+          <div class="live-logs" id="live-logs">
+            <div class="log-line info"><span class="log-time">--:--</span><span>Esperando inicio…</span></div>
+          </div>
+        </div>
+
+        <div class="nav-row" id="exec-nav" style="display:none;">
+          <button class="btn-cta" onclick="gotoStep(4)">Ver resultado <span>→</span></button>
+        </div>
+      </div>
+    </div>
+
+    {# ════════════════ STEP 4: RESULTADO ════════════════ #}
+    <div class="step-panel" data-panel="4">
+      <div class="result-hero" id="result-hero">
+        <div class="checkmark">✓</div>
+        <h2>¡Asignación completada!</h2>
+        <span class="pct" id="res-pct">--%</span>
+        <p id="res-summary">El motor IA optimizó tu horario.</p>
+      </div>
+
+      <div class="donut-wrap">
+        <div class="donut-card">
+          <div class="donut-title">📊 Asignación</div>
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#1F2937" stroke-width="14"/>
+            <circle id="donut-asig" cx="60" cy="60" r="50" fill="none" stroke="#22D3EE" stroke-width="14"
+                    stroke-dasharray="314" stroke-dashoffset="314" transform="rotate(-90 60 60)"
+                    style="transition:stroke-dashoffset 1.2s ease;"/>
+            <text x="60" y="65" text-anchor="middle" font-size="22" font-weight="800" fill="#fff" id="donut-pct">0%</text>
+          </svg>
+          <p style="color:var(--txt2);font-size:11px;margin-top:6px;"><span id="res-asignadas">0</span> / <span id="res-total">0</span></p>
+        </div>
+        <div class="donut-card">
+          <div class="donut-title">🧠 Calidad IA</div>
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#1F2937" stroke-width="14"/>
+            <circle id="donut-score" cx="60" cy="60" r="50" fill="none" stroke="#84CC16" stroke-width="14"
+                    stroke-dasharray="314" stroke-dashoffset="314" transform="rotate(-90 60 60)"
+                    style="transition:stroke-dashoffset 1.2s ease;"/>
+            <text x="60" y="65" text-anchor="middle" font-size="22" font-weight="800" fill="#fff" id="donut-score-txt">0</text>
+          </svg>
+          <p style="color:var(--txt2);font-size:11px;margin-top:6px;">Score / 100</p>
+        </div>
+        <div class="donut-card">
+          <div class="donut-title">⚡ Performance</div>
+          <div style="height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <p style="font-size:30px;font-weight:800;color:var(--cyan-lt);" id="res-ms">--</p>
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;">ms · <span id="res-algo">CSP</span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <h4>📝 Resumen ejecutivo del LLM</h4>
+        <div class="insight-text" id="res-llm-text">El análisis aparecerá aquí.</div>
+        <p style="font-size:11px;color:var(--txt3);margin-top:10px;">Generado por <span id="res-llm-prov">—</span></p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="insight-card">
+          <h4>💡 Sugerencias</h4>
+          <ul class="insight-list tip" id="res-sug"><li style="color:var(--txt3);">Sin sugerencias</li></ul>
+        </div>
+        <div class="insight-card">
+          <h4>⚠️ Anomalías detectadas</h4>
+          <ul class="insight-list warn" id="res-ano"><li style="color:var(--txt3);">Sin anomalías</li></ul>
+        </div>
+      </div>
+
+      {# ═══ Revisión asistida por IA ═══ #}
+      <div class="card" style="margin-top:18px;border:1px solid rgba(34,211,238,.25);">
+        <div class="card-hdr" style="position:relative;">
+          <span class="card-title">🤖 Revisión asistida por IA</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="nuevoChat()" title="Empezar un chat nuevo"
+                    style="background:linear-gradient(135deg,#1F6FEB,#22D3EE);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;">🆕 Nuevo chat</button>
+            <button onclick="toggleHistorial()" title="Historial de chats"
+                    style="background:var(--surface2);color:var(--txt2);border:1px solid var(--border);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;">🕐 Historial</button>
+          </div>
+          <div id="rev-historial" style="display:none;position:absolute;top:46px;right:0;z-index:50;width:300px;max-height:320px;overflow-y:auto;background:#141a26;border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.55);"></div>
+        </div>
+        <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">
+          Sube <strong>uno o varios archivos</strong> (la IA los cruza y unifica), conversa para entender el resultado y pídele cambios
+          en lenguaje natural. La IA <strong>propone</strong> los cambios y tú los <strong>confirmas</strong> antes de aplicarlos.
+        </p>
+
+        {# Subida de archivo #}
+        <div id="drop-zone"
+             style="border:2px dashed rgba(34,211,238,.4);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:all .25s;background:rgba(34,211,238,.04);margin-bottom:14px;"
+             onclick="document.getElementById('ia-file').click()"
+             ondragover="event.preventDefault();this.style.background='rgba(34,211,238,.12)';"
+             ondragleave="this.style.background='rgba(34,211,238,.04)';"
+             ondrop="dropFile(event)">
+          <div style="font-size:28px;margin-bottom:6px;">📤</div>
+          <div id="drop-text" style="color:var(--white);font-weight:700;font-size:13px;">Arrastra uno o varios archivos o haz clic (CSV · XLSX · PDF · DOCX)</div>
+          <input type="file" id="ia-file" accept=".csv,.xlsx,.xls,.pdf,.docx" multiple style="display:none;" onchange="archivoSeleccionado(this)">
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;color:var(--txt2);font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="ia-forzar"> Forzar reanálisis (ignorar caché)
+          </label>
+          <button id="ia-analizar-btn" onclick="analizarArchivo()" disabled
+                  style="margin-left:auto;background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;opacity:.5;">
+            🔍 Analizar con IA
+          </button>
+        </div>
+        <div id="ia-resultado" style="display:none;margin-bottom:16px;"></div>
+
+        {# Conversación con la IA #}
+        <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div id="rev-chat" style="height:280px;overflow-y:auto;padding:14px;background:var(--surface2);display:flex;flex-direction:column;gap:10px;">
+            <div class="msg bot"><div class="msg-av">🤖</div><div class="msg-bub">Soy tu asistente de revisión. Pídeme cambios como: <em>"pasa las clases de lunes a martes"</em>, <em>"aprueba todos los de viernes"</em> o <em>"cancela la materia 0569"</em>. Te mostraré qué voy a cambiar y tú confirmas.</div></div>
+          </div>
+          {# Propuesta de cambio pendiente de confirmación #}
+          <div id="rev-propuesta" style="display:none;padding:14px;background:rgba(240,192,48,.10);border-top:1px solid rgba(240,192,48,.3);">
+            <div id="rev-propuesta-txt" style="color:var(--white);font-size:13px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="confirmarEdicion()" style="background:linear-gradient(135deg,#22C55E,#4ADE80);color:#062b13;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;">✅ Confirmar y aplicar</button>
+              <button onclick="cancelarPropuesta()" style="background:var(--surface);color:var(--txt2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;">Cancelar</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--surface);align-items:center;">
+            <input type="file" id="rev-file" accept=".csv,.xlsx,.xls,.pdf,.docx" multiple style="display:none;" onchange="adjuntarEnChat(this)">
+            <button onclick="document.getElementById('rev-file').click()" title="Adjuntar documentos"
+                    style="background:var(--surface2);color:var(--cyan-lt);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:15px;cursor:pointer;">📎</button>
+            <input type="text" id="rev-input" placeholder="Escribe una instrucción, pregunta o adjunta documentos…"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();enviarRevision();}"
+                   style="flex:1;background:var(--surface2);color:var(--white);border:1px solid var(--border);border-radius:9px;padding:10px 14px;font-size:13px;outline:none;">
+            <button onclick="enviarRevision()" id="rev-send" style="background:linear-gradient(135deg,#1F6FEB,#22D3EE);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;">↑</button>
+            <button onclick="nuevoChat()" title="Nuevo chat (borrar historial)"
+                    style="background:var(--surface2);color:var(--txt3);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:13px;cursor:pointer;">🗑</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 12px;background:var(--surface);">
+            <button onclick="quickRev('aprueba todos los horarios propuestos')" style="background:rgba(34,197,94,.12);color:#4ADE80;border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">✅ Aprobar todos</button>
+            <button onclick="quickRev('pasa las clases de lunes a martes')" style="background:rgba(31,111,235,.12);color:var(--blue-lt);border:1px solid rgba(77,155,255,.3);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">📅 Mover lunes→martes</button>
+            <button onclick="quickRev('¿cómo quedó la distribución por días?')" style="background:rgba(167,139,250,.12);color:#A78BFA;border:1px solid rgba(167,139,250,.3);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">💬 Explicar resultado</button>
+            <button onclick="publicarSisca()" style="background:rgba(34,211,238,.14);color:#22D3EE;border:1px solid rgba(34,211,238,.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">📡 Publicar en SISCA</button>
+            <button onclick="estadoSisca()" style="background:rgba(255,255,255,.06);color:var(--txt2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">🔌 Estado SISCA</button>
+            <button onclick="generarExcelChat()" style="background:rgba(34,197,94,.12);color:#4ADE80;border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">📥 Generar Excel</button>
+          </div>
+        </div>
+
+        {# Acciones finales de la sesión #}
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+          <form method="POST" action="{% url 'aprobar_horarios' %}" onsubmit="return confirm('¿Aprobar TODOS los horarios propuestos del periodo?');" style="flex:1;min-width:180px;">
+            {% csrf_token %}
+            <input type="hidden" name="ui" value="1">
+            <button type="submit" style="width:100%;background:linear-gradient(135deg,#22C55E,#4ADE80);color:#062b13;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">✅ Aprobar propuestos</button>
+          </form>
+          <form method="POST" action="{% url 'sisca_publicar_ui' %}" onsubmit="return confirm('¿Publicar los horarios APROBADOS en SISCA?');" style="flex:1;min-width:180px;">
+            {% csrf_token %}
+            <button type="submit" style="width:100%;background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">📡 Publicar en SISCA</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn-back" onclick="gotoStep(2)"><span>↻</span> Reconfigurar</button>
+        <a class="btn-cta" href="{% url 'revision_propuesta' %}" style="background:linear-gradient(135deg,#84CC16,#22D3EE);">📋 Abrir Panel de Revisión <span>→</span></a>
+        <button class="btn-cta" onclick="gotoStep(5)">Continuar a publicación <span>→</span></button>
+      </div>
+    </div>
+
+    {# ════════════════ STEP 5: PUBLICAR ════════════════ #}
+    <div class="step-panel" data-panel="5">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">🚀 Aprobar y publicar a SISCA</span>
+        </div>
+        <p style="color:var(--txt2);margin-bottom:14px;">El paso final es aprobar los horarios propuestos y publicarlos a SISCA. Esto sincronizará los horarios con el sistema institucional de control de asistencia.</p>
+
+        <div class="data-summary">
+          <strong>Flujo:</strong> Horarios PROPUESTO → APROBADO → PUBLICADO en SISCA Oracle.<br>
+          Una vez publicados, aparecerán en el panel <code>/siihapi/horarios</code> de SISCA y en los dashboards de docentes y estudiantes.
+        </div>
+
+        <div class="nav-row">
+          <button class="btn-back" onclick="gotoStep(4)"><span>←</span> Atrás</button>
+          <form method="POST" action="{% url 'aprobar_horarios' %}" style="display:inline;" onsubmit="return confirm('¿Aprobar TODOS los horarios propuestos?');">{% csrf_token %}<input type="hidden" name="ui" value="1"><button type="submit" class="btn-back">✅ Aprobar propuestos</button></form>
+          <a class="btn-cta" href="{% url 'centro_publicacion' %}">🚀 Ir al Centro de Publicación <span>→</span></a>
+        </div>
+      </div>
+    </div>
+
+    {# ════════════════ HISTORIAL ════════════════ #}
+    <div class="card" style="margin-top:22px;">
+      <div class="card-hdr">
+        <span class="card-title">📜 Historial de ejecuciones</span>
+        <a href="{% url 'motor_ia_metricas' %}" class="btn btn-ghost" style="font-size:11px;">📊 Ver métricas detalladas</a>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Job ID</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Periodo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asignadas</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Score</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Duración</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          </tr></thead>
+          <tbody>
+            {% for a in asignaciones %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ a.job_id }}</td>
+              <td style="padding:10px;color:var(--txt2);">{{ a.periodo.codigo }}</td>
+              <td style="padding:10px;">
+                {% if a.estado == 'COMPLETADA' %}<span style="color:var(--lime-lt);">✓ {{ a.estado }}</span>
+                {% elif a.estado == 'FALLIDA' %}<span style="color:var(--red-lt);">✗ {{ a.estado }}</span>
+                {% else %}<span style="color:var(--orange);">⏳ {{ a.estado }}</span>{% endif %}
+              </td>
+              <td style="padding:10px;text-align:right;color:var(--lime-lt);font-weight:700;">{{ a.asignaciones_exitosas }}</td>
+              <td style="padding:10px;text-align:right;color:var(--cyan-lt);">{{ a.parametros.score_calidad|default:"—" }}</td>
+              <td style="padding:10px;text-align:right;color:var(--txt2);">{{ a.duracion_ms|default:0 }} ms</td>
+              <td style="padding:10px;color:var(--txt3);font-size:12px;">{{ a.fecha_inicio|date:"d/m H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="padding:30px;text-align:center;color:var(--txt3);">Sin ejecuciones todavía. Empieza el wizard arriba.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+{# ════════════════ CHAT FLOTANTE ════════════════ #}
+<button class="chat-fab" onclick="toggleChat()" title="Chat con IA">
+  💬
+  <span class="chat-badge"></span>
+</button>
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-head">
+    <h3><span style="font-size:20px;">🤖</span> Asistente IA</h3>
+    <span class="chat-x" onclick="toggleChat()">×</span>
+  </div>
+  <div class="chat-body" id="chat-body">
+    <div class="msg bot">
+      <div class="msg-av">🤖</div>
+      <div class="msg-bub">¡Hola! Soy tu asistente IA para horarios. Puedo ayudarte a interpretar resultados, sugerir mejoras o explicar las restricciones del motor. ¿En qué puedo ayudarte?</div>
+    </div>
+  </div>
+  <div class="chat-quick">
+    <button onclick="quickMsg('Resume mi última ejecución')">📊 Resumen última ejecución</button>
+    <button onclick="quickMsg('¿Cómo mejorar la calidad del horario?')">💡 Mejorar calidad</button>
+    <button onclick="quickMsg('¿Qué restricciones aplica el solver?')">⚙️ Restricciones</button>
+  </div>
+  <div class="chat-foot">
+    <textarea class="chat-input" id="chat-input" rows="1" placeholder="Escribe tu pregunta..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
+    <button class="chat-send" id="chat-send" onclick="sendMsg()">↑</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ════════════════ State ════════════════
+  const state = { step: 1, modo: 'COMPLETA', llm: '' };
+  const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
+
+  // ════════════════ Stepper ════════════════
+  window.gotoStep = function(n) {
+    if (n < 1 || n > 5) return;
+    state.step = n;
+    document.querySelectorAll('.step').forEach(el => {
+      const s = parseInt(el.dataset.step);
+      el.classList.toggle('active', s === n);
+      el.classList.toggle('done', s < n);
+    });
+    document.querySelectorAll('.step-panel').forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.panel) === n);
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  document.querySelectorAll('.step').forEach(el => {
+    el.onclick = () => {
+      const s = parseInt(el.dataset.step);
+      if (el.classList.contains('done') || s === state.step) gotoStep(s);
+    };
+  });
+
+  // ════════════════ Mode / LLM picker ════════════════
+  const llmNames = {'':'Auto','GEMINI':'Gemini 2.5','OPENAI':'GPT-4o','ANTHROPIC':'Claude 3.5','HEURISTIC':'Heurístico local'};
+  const modoNames = {'COMPLETA':'Ejecución completa','SIMULACION':'Simulación'};
+
+  window.pickMode = function(el) {
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    state.modo = el.dataset.modo;
+    document.getElementById('cfg-modo').textContent = modoNames[state.modo];
+  };
+  window.pickLlm = function(el) {
+    document.querySelectorAll('.llm-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    state.llm = el.dataset.llm;
+    document.getElementById('cfg-llm').textContent = llmNames[state.llm];
+  };
+
+  // ════════════════ Live logs ════════════════
+  function addLog(text, type) {
+    const time = new Date().toTimeString().slice(0,8);
+    const cls = type ? 'log-line ' + type : 'log-line';
+    const $logs = document.getElementById('live-logs');
+    if ($logs.children.length === 1 && $logs.firstChild.textContent.includes('Esperando inicio')) {
+      $logs.innerHTML = '';
+    }
+    const div = document.createElement('div');
+    div.className = cls;
+    div.innerHTML = `<span class="log-time">${time}</span><span>${text}</span>`;
+    $logs.appendChild(div);
+    $logs.scrollTop = $logs.scrollHeight;
+  }
+  function setProgress(pct, title, sub) {
+    document.getElementById('prog-fill').style.width = pct + '%';
+    if (title) document.getElementById('exec-title').textContent = title;
+    if (sub) document.getElementById('exec-sub').textContent = sub;
+  }
+  function stopRing() {
+    const ring = document.getElementById('exec-ring');
+    ring.style.animation = 'none';
+    ring.style.background = 'conic-gradient(from 0deg, #84CC16, #22D3EE, #84CC16)';
+  }
+
+  // ════════════════ Ejecutar motor ════════════════
+  window.ejecutarMotor = async function() {
+    // Reset
+    document.getElementById('live-logs').innerHTML = '';
+    document.getElementById('exec-nav').style.display = 'none';
+    setProgress(8, 'Inicializando motor CSP…', 'Cargando matrículas y restricciones');
+    addLog('Iniciando motor IA híbrido (CSP + LLM)…', 'info');
+    await wait(300);
+    setProgress(20, 'Cargando datos…', 'Matrículas, docentes, salones, bloques');
+    addLog('Conectando con Oracle XE 21c…', 'info');
+    await wait(300);
+    addLog(`Modo: ${modoNames[state.modo]} · LLM: ${llmNames[state.llm]}`, 'info');
+    setProgress(35, 'Resolviendo CSP…', 'OR-Tools CP-SAT solver activo');
+    addLog('Aplicando restricciones de disponibilidad docente…', 'info');
+    await wait(400);
+    addLog('Verificando capacidad de salones por matrícula…', 'info');
+    setProgress(55, 'Optimizando asignaciones…', 'Backtracking con poda');
+
+    try {
+      const fd = new FormData();
+      fd.append('periodo', '2026-2');
+      fd.append('modo', state.modo);
+      if (state.llm) fd.append('llm', state.llm);
+      const r = await fetch('{% url "motor_ia_ejecutar" %}', {
+        method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd
+      });
+      const d = await r.json();
+
+      if (d.success) {
+        setProgress(85, 'Analizando con LLM…', `${d.llm?.proveedor || 'LLM'} procesando métricas`);
+        addLog(`CSP resuelto en ${d.duracion_ms} ms (${d.algoritmo})`, 'ok');
+        await wait(500);
+        addLog(`${d.asignadas}/${d.matriculas} asignaciones exitosas (${d.tasa_exito}%)`, 'ok');
+        if (d.conflictos > 0) addLog(`${d.conflictos} conflictos residuales detectados`, 'warn');
+        if (d.llm) {
+          addLog(`LLM ${d.llm.proveedor} · score ${d.llm.score}/100`, 'ok');
+        }
+        setProgress(100, '¡Optimización completa!', 'Resultado listo para revisar');
+        stopRing();
+        addLog('Motor IA finalizado correctamente ✓', 'ok');
+
+        // Llenar resultado
+        renderResult(d);
+        document.getElementById('exec-nav').style.display = 'flex';
+        // Auto-saltar al step 4 (resultado) que tiene el botón al panel de revisión
+        setTimeout(() => gotoStep(4), 1500);
+        // Banner sticky con CTA al panel
+        addLog('💡 Abre el "Panel de Revisión" para inspeccionar todo lo generado por la IA', 'info');
+      } else {
+        setProgress(100, '❌ Error en el motor', d.error || 'Error desconocido');
+        addLog('ERROR: ' + (d.error || 'desconocido'), 'warn');
+      }
+    } catch(e) {
+      setProgress(100, '❌ Error de conexión', e.message);
+      addLog('ERROR: ' + e.message, 'warn');
+    }
+  };
+
+  function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ════════════════ Render result ════════════════
+  function renderResult(d) {
+    document.getElementById('res-pct').textContent = (d.tasa_exito || 0) + '%';
+    document.getElementById('res-summary').textContent =
+      `${d.asignadas} de ${d.matriculas} matrículas asignadas · ${d.conflictos} conflictos · algoritmo ${d.algoritmo}`;
+    document.getElementById('res-asignadas').textContent = d.asignadas || 0;
+    document.getElementById('res-total').textContent = d.matriculas || 0;
+    document.getElementById('res-ms').textContent = d.duracion_ms || '--';
+    document.getElementById('res-algo').textContent = d.algoritmo || 'CSP';
+
+    // Donut asignación
+    const pct = d.tasa_exito || 0;
+    const C = 314;
+    document.getElementById('donut-asig').setAttribute('stroke-dashoffset', C - (C * pct / 100));
+    document.getElementById('donut-pct').textContent = pct + '%';
+
+    // Donut score
+    if (d.llm) {
+      const score = d.llm.score || 0;
+      document.getElementById('donut-score').setAttribute('stroke-dashoffset', C - (C * score / 100));
+      document.getElementById('donut-score-txt').textContent = score;
+      document.getElementById('res-llm-text').textContent = d.llm.resumen || 'Sin análisis';
+      document.getElementById('res-llm-prov').textContent = `${d.llm.proveedor} · ${d.llm.modelo}`;
+
+      const sugs = d.llm.sugerencias || [];
+      const sugUl = document.getElementById('res-sug');
+      sugUl.innerHTML = sugs.length
+        ? sugs.map(s => `<li>${s}</li>`).join('')
+        : '<li style="color:var(--txt3);">Sin sugerencias</li>';
+
+      const anos = d.llm.anomalias || [];
+      const anoUl = document.getElementById('res-ano');
+      anoUl.innerHTML = anos.length
+        ? anos.map(a => `<li>${a}</li>`).join('')
+        : '<li style="color:var(--txt3);">Sin anomalías</li>';
+    }
+  }
+
+  // ════════════════ Chat IA ════════════════
+  const chat = { historial: [] };
+  window.toggleChat = function() {
+    const p = document.getElementById('chat-panel');
+    p.classList.toggle('open');
+    if (p.classList.contains('open')) {
+      setTimeout(() => document.getElementById('chat-input').focus(), 100);
+    }
+  };
+  window.quickMsg = function(texto) {
+    document.getElementById('chat-input').value = texto;
+    sendMsg();
+  };
+  function addChatMsg(texto, who) {
+    const body = document.getElementById('chat-body');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
+    const av = who === 'user' ? '🧑' : '🤖';
+    wrap.innerHTML = `<div class="msg-av">${av}</div><div class="msg-bub">${(texto||'').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+    return wrap;
+  }
+  window.sendMsg = async function() {
+    const input = document.getElementById('chat-input');
+    const btn = document.getElementById('chat-send');
+    const msg = (input.value || '').trim();
+    if (!msg) return;
+    addChatMsg(msg, 'user');
+    chat.historial.push({ rol: 'user', texto: msg });
+    input.value = '';
+    btn.disabled = true;
+    const typing = addChatMsg('Pensando…', 'bot');
+    try {
+      const fd = new FormData();
+      fd.append('mensaje', msg);
+      fd.append('historial', JSON.stringify(chat.historial.slice(-10)));
+      const r = await fetch('{% url "motor_ia_chat_enviar" %}', {
+        method: 'POST', headers: { 'X-CSRFToken': csrftoken }, body: fd
+      });
+      const d = await r.json();
+      typing.remove();
+      const resp = d.respuesta || d.mensaje || d.error || 'Sin respuesta';
+      addChatMsg(resp, 'bot');
+      chat.historial.push({ rol: 'assistant', texto: resp });
+    } catch (e) {
+      typing.remove();
+      addChatMsg('Error de conexión: ' + e.message, 'bot');
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
+  };
+
+})();
+
+// ════════════════ Subida y análisis de archivo con IA (Paso 2) ════════════════
+let _iaFiles = [];
+function _csrfTok(){
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+function archivoSeleccionado(input){
+  if (input.files && input.files.length) {
+    _iaFiles = Array.from(input.files);
+    const nombres = _iaFiles.map(f=>f.name).join(', ');
+    const txt = _iaFiles.length === 1 ? '📄 ' + _iaFiles[0].name
+                                      : `📄 ${_iaFiles.length} archivos: ` + nombres;
+    document.getElementById('drop-text').textContent = txt;
+    const btn = document.getElementById('ia-analizar-btn');
+    btn.disabled = false; btn.style.opacity = '1';
+    // Marcar como pendientes de analizar y dar contexto preliminar al chat
+    window._docPendienteAnalisis = true;
+    window._docCtx = 'Archivos adjuntos por el usuario (aun sin analizar): ' + nombres;
+    const box = document.getElementById('rev-chat');
+    if (box) _revAdd('📎 Recibí <strong>' + nombres + '</strong>. Cuando me escribas, los analizo y trabajo sobre ellos (o pulsa "Analizar con IA").', 'bot');
+  }
+}
+function dropFile(ev){
+  ev.preventDefault();
+  ev.currentTarget.style.background = 'rgba(34,211,238,.04)';
+  if (ev.dataTransfer.files && ev.dataTransfer.files.length) {
+    const inp = document.getElementById('ia-file');
+    inp.files = ev.dataTransfer.files;
+    archivoSeleccionado(inp);
+  }
+}
+async function analizarArchivo(){
+  if (!_iaFiles || !_iaFiles.length) return;
+  const btn = document.getElementById('ia-analizar-btn');
+  const cont = document.getElementById('ia-resultado');
+  btn.disabled = true; btn.textContent = '⏳ Analizando…';
+  cont.style.display = 'block';
+  const msj = _iaFiles.length >= 2
+    ? '🤖 La IA está leyendo y <strong>cruzando</strong> tus ' + _iaFiles.length + ' documentos…'
+    : '🤖 La IA está leyendo y validando tu archivo…';
+  cont.innerHTML = '<div style="padding:18px;text-align:center;color:var(--txt2);">' + msj + '</div>';
+  try {
+    const fd = new FormData();
+    _iaFiles.forEach(f => fd.append('archivos', f));
+    fd.append('periodo', '2026-2');
+    fd.append('forzar_llm', document.getElementById('ia-forzar').checked ? 'true' : 'false');
+    const r = await fetch('{% url "motor_ia_analizar" %}', {
+      method: 'POST', headers: { 'X-CSRFToken': _csrfTok() }, body: fd
+    });
+    const d = await r.json();
+    if (!d.success) {
+      cont.innerHTML = `<div style="padding:14px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#F87171;">⚠️ ${d.error || 'No se pudo analizar'}</div>`;
+    } else {
+      window._docPendienteAnalisis = false;
+      window._docRegistros = d.registros || [];
+      const lineas = (d.registros||[]).map(x =>
+        `- [${x.codigo_materia||''}] ${x.nombre_materia||''} | ${x.dia||'(sin dia)'} ${x.hora_inicio||''}-${x.hora_fin||''} | docente: ${x.docente||'(sin asignar)'} | salon: ${x.salon||'(sin asignar)'}`
+      ).join('\n');
+      window._docCtx = `Documento(s) cargado(s): ${d.archivo}. Total clases: ${(d.registros||[]).length}. `
+        + `Confianza ${d.confianza||0}%. Horarios creados en BD: ${d.horarios_creados||0}.\nDETALLE DE LAS CLASES:\n` + lineas;
+      try { const box = document.getElementById('rev-chat');
+        if (box) _revAdd('📎 Ya cargué <strong>'+d.archivo+'</strong> ('+((d.registros||[]).length)+' clases). Pregúntame o pídeme cambios.', 'bot'); } catch(e){}
+
+      const conf = d.confianza || 0;
+      const color = conf >= 75 ? '#4ADE80' : (conf >= 50 ? '#F0C030' : '#F87171');
+      const adv = (d.advertencias || []).map(a => `<li>${a}</li>`).join('');
+      const errs = (d.errores_detalle || []).slice(0,8).map(e => `<li>${typeof e === 'string' ? e : JSON.stringify(e)}</li>`).join('');
+      const regs = d.registros || [];
+      const esc = (x)=> (x==null?'':String(x)).replace(/</g,'&lt;');
+      let tablaPrev = '';
+      if (regs.length){
+        const filasPrev = regs.map(p => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+            <td style="padding:5px 8px;color:var(--blue-lt);">${esc(p.dia)||'—'}</td>
+            <td style="padding:5px 8px;color:var(--txt3);font-family:monospace;font-size:11px;">${esc(p.hora_inicio)||''}${p.hora_fin?('–'+esc(p.hora_fin)):''}</td>
+            <td style="padding:5px 8px;color:var(--white);">[${esc(p.codigo_materia)}] ${esc(p.nombre_materia)}</td>
+            <td style="padding:5px 8px;color:var(--txt2);">${esc(p.docente)||'(sin asignar)'}</td>
+            <td style="padding:5px 8px;color:var(--cyan-lt);">${esc(p.salon)||'(sin asignar)'}</td>
+            <td style="padding:5px 8px;color:var(--txt3);">${esc(p.grupo)||''}</td>
+          </tr>`).join('');
+        tablaPrev = `
+          <div style="padding:0 16px 14px;">
+            <div style="font-size:12px;color:var(--txt2);font-weight:700;margin:4px 0 8px;">📋 Vista previa de las clases (${regs.length}):</div>
+            <div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr style="position:sticky;top:0;background:var(--surface3);">
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Día</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Horario</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Materia</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Docente</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Salón</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Grupo</th>
+                </tr></thead>
+                <tbody>${filasPrev}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }
+      cont.innerHTML = `
+        <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div style="padding:14px 16px;background:rgba(34,211,238,.08);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <strong style="color:var(--white);">📄 ${d.archivo}</strong>
+            <span style="font-family:monospace;color:${color};font-weight:800;">Confianza ${conf}%</span>
+          </div>
+          <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;">
+            <div><div style="font-size:22px;font-weight:800;color:#4ADE80;">${d.horarios_creados || 0}</div><div style="font-size:11px;color:var(--txt3);">Horarios creados</div></div>
+            <div><div style="font-size:22px;font-weight:800;color:var(--white);">${d.proveedor_llm || '—'}</div><div style="font-size:11px;color:var(--txt3);">Motor usado</div></div>
+            <div><div style="font-size:22px;font-weight:800;color:var(--white);">${d.tiempo_ms || 0} ms</div><div style="font-size:11px;color:var(--txt3);">Tiempo</div></div>
+            <div><div style="font-size:22px;font-weight:800;color:${d.requiere_revision ? '#F0C030' : '#4ADE80'};">${d.requiere_revision ? 'Sí' : 'No'}</div><div style="font-size:11px;color:var(--txt3);">Requiere revisión</div></div>
+          </div>
+          ${tablaPrev}
+          ${adv ? `<div style="padding:0 16px 12px;"><strong style="color:#F0C030;font-size:12px;">Advertencias:</strong><ul style="margin:6px 0 0 18px;color:var(--txt2);font-size:12px;">${adv}</ul></div>` : ''}
+          ${errs ? `<div style="padding:0 16px 14px;"><strong style="color:#F87171;font-size:12px;">Filas con problemas:</strong><ul style="margin:6px 0 0 18px;color:var(--txt2);font-size:12px;">${errs}</ul></div>` : ''}
+          ${d.horarios_creados > 0 ? `<div style="padding:12px 16px;background:rgba(34,197,94,.08);border-top:1px solid var(--border);"><a href="{% url 'revision_propuesta' %}" style="color:#4ADE80;font-weight:700;text-decoration:none;">✅ Ver propuestas creadas en el Panel de Revisión →</a></div>` : ''}
+        </div>`;
+    }
+  } catch (e) {
+    cont.innerHTML = `<div style="padding:14px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#F87171;">⚠️ Error de conexión: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 Analizar con IA';
+  }
+}
+
+// ===== Historial multi-conversacion (estilo Gemini) =====
+const _CHATS_KEY = 'siihapi_chats';
+const _ACTUAL_KEY = 'siihapi_chat_actual';
+function _chatsLeer(){ try { return JSON.parse(localStorage.getItem(_CHATS_KEY) || '[]'); } catch(e){ return []; } }
+function _chatsGuardar(arr){ try { localStorage.setItem(_CHATS_KEY, JSON.stringify(arr.slice(-30))); } catch(e){} }
+function _chatActualId(){ return localStorage.getItem(_ACTUAL_KEY) || ''; }
+function _chatActual(crearSiFalta){
+  const arr = _chatsLeer(); let id = _chatActualId();
+  let conv = arr.find(c => c.id === id);
+  if (!conv && crearSiFalta){ conv = { id:'c'+Date.now(), titulo:'Nuevo chat', ts:Date.now(), msgs:[] }; arr.push(conv); _chatsGuardar(arr); localStorage.setItem(_ACTUAL_KEY, conv.id); }
+  return conv;
+}
+function _revGuardar(texto, who){
+  try {
+    const arr = _chatsLeer(); let conv = arr.find(c => c.id === _chatActualId());
+    if (!conv){ conv = { id:'c'+Date.now(), titulo:'Nuevo chat', ts:Date.now(), msgs:[] }; arr.push(conv); localStorage.setItem(_ACTUAL_KEY, conv.id); }
+    conv.msgs.push({t: texto, w: who, ts: Date.now()}); conv.msgs = conv.msgs.slice(-120);
+    if (who === 'user' && (conv.titulo === 'Nuevo chat' || !conv.titulo)) conv.titulo = texto.replace(/<[^>]+>/g,'').slice(0,40);
+    conv.ts = Date.now(); _chatsGuardar(arr);
+  } catch(e){}
+}
+function _revRestaurar(){
+  try { const conv = _chatActual(false);
+    if (conv && conv.msgs && conv.msgs.length){ const box = document.getElementById('rev-chat'); if (box) box.innerHTML=''; conv.msgs.forEach(m => _revAdd(m.t, m.w, true)); }
+    _pintarHistorial();
+  } catch(e){}
+}
+function nuevoChat(){
+  const arr = _chatsLeer(); const conv = { id:'c'+Date.now(), titulo:'Nuevo chat', ts:Date.now(), msgs:[] };
+  arr.push(conv); _chatsGuardar(arr); localStorage.setItem(_ACTUAL_KEY, conv.id);
+  const box = document.getElementById('rev-chat');
+  if (box) box.innerHTML = '<div class="msg bot"><div class="msg-av">🤖</div><div class="msg-bub">🆕 Chat nuevo. Sube documentos o pídeme cambios cuando quieras.</div></div>';
+  _pintarHistorial();
+}
+function cargarChat(id){
+  localStorage.setItem(_ACTUAL_KEY, id);
+  const conv = _chatsLeer().find(c => c.id === id);
+  const box = document.getElementById('rev-chat');
+  if (box){ box.innerHTML=''; (conv && conv.msgs || []).forEach(m => _revAdd(m.t, m.w, true)); }
+  _pintarHistorial();
+  const panel = document.getElementById('rev-historial'); if (panel) panel.style.display='none';
+}
+function borrarChat(id, ev){
+  if (ev) ev.stopPropagation();
+  let arr = _chatsLeer().filter(c => c.id !== id); _chatsGuardar(arr);
+  if (_chatActualId() === id){ if (arr.length) cargarChat(arr[arr.length-1].id); else nuevoChat(); } else { _pintarHistorial(); }
+}
+function toggleHistorial(){
+  const p = document.getElementById('rev-historial'); if (!p) return;
+  p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+  if (p.style.display === 'block') _pintarHistorial();
+}
+function _pintarHistorial(){
+  const p = document.getElementById('rev-historial'); if (!p) return;
+  const arr = _chatsLeer().slice().reverse(); const act = _chatActualId();
+  if (!arr.length){ p.innerHTML = '<div style="padding:12px;color:var(--txt3);font-size:12px;">Sin conversaciones guardadas.</div>'; return; }
+  p.innerHTML = arr.map(c => {
+    const f = new Date(c.ts); const fecha = f.toLocaleDateString() + ' ' + f.toLocaleTimeString().slice(0,5);
+    const activo = c.id === act;
+    return `<div onclick="cargarChat('${c.id}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);${activo?'background:rgba(34,211,238,.10);':''}">
+      <div style="min-width:0;"><div style="font-size:12px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${activo?'▸ ':''}${(c.titulo||'Nuevo chat')}</div>
+      <div style="font-size:10px;color:var(--txt3);">${fecha} · ${(c.msgs||[]).length} msj</div></div>
+      <button onclick="borrarChat('${c.id}',event)" title="Eliminar" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:13px;flex-shrink:0;">🗑</button></div>`;
+  }).join('');
+}
+let _chatAdjuntos = [];
+function adjuntarEnChat(input){
+  if (!input.files || !input.files.length) return;
+  _chatAdjuntos = Array.from(input.files);
+  const nombres = _chatAdjuntos.map(f => f.name).join(', ');
+  _revAdd('📎 <strong>Archivos adjuntos:</strong> ' + nombres + '<br>Analizando y trabajando sobre ' + (_chatAdjuntos.length > 1 ? 'estos ' + _chatAdjuntos.length + ' documentos (los cruzaré)…' : 'este documento…'), 'user');
+  _iaFiles = _chatAdjuntos;
+  if (typeof analizarArchivo === 'function') analizarArchivo();
+}
+function _revAdd(texto, who, _norestore){
+  const box = document.getElementById('rev-chat');
+  const w = document.createElement('div');
+  w.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
+  const av = who === 'user' ? '🧑' : '🤖';
+  const cuerpo = (who === 'user') ? (texto||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>') : (texto||'');
+  w.innerHTML = `<div class="msg-av">${av}</div><div class="msg-bub">${cuerpo}</div>`;
+  box.appendChild(w); box.scrollTop = box.scrollHeight;
+  if (!_norestore) _revGuardar(texto, who);
+  return w;
+}
+function quickRev(t){ document.getElementById('rev-input').value = t; enviarRevision(); }
+function cancelarPropuesta(){
+  _revPlan = null;
+  document.getElementById('rev-propuesta').style.display = 'none';
+  _revAdd('Cambio cancelado. No se modificó nada.', 'bot');
+}
+async function enviarRevision(){
+  const input = document.getElementById('rev-input');
+  const msg = (input.value || '').trim();
+  if (!msg) return;
+  _revAdd(msg, 'user');
+  input.value = '';
+  if (_iaFiles && _iaFiles.length && window._docPendienteAnalisis) {
+    const t0 = _revAdd('📎 Analizando los documentos adjuntos antes de responder…', 'bot');
+    try { await analizarArchivo(); } catch(e){}
+    try { t0.remove(); } catch(e){}
+  }
+  if (window._pubPendiente) {
+    if (/\b(s[ií]|si\b|confirm|publica(r|lo)?|de acuerdo|correcto|ok|adelante|dale)\b/i.test(msg)) { window._pubPendiente = false; return _publicarAhora(); }
+    if (/\b(no|cancela|espera|cambi|aun no|todav[ií]a)\b/i.test(msg)) { window._pubPendiente = false; _revAdd('Entendido, no publico nada. Dime qué ajustes quieres.', 'bot'); return; }
+    window._pubPendiente = false;
+  }
+  if (/\b(genera|generar|descarga|descargar|exporta|exportar|documento|excel|archivo)\b/i.test(msg) && /\b(excel|documento|archivo|horario)\b/i.test(msg)) { return generarExcelChat(); }
+  try {
+    const fd = new FormData();
+    fd.append('instruccion', msg);
+    fd.append('periodo', '2026-2');
+    const r = await fetch('{% url "motor_ia_proponer_edicion" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd });
+    const d = await r.json();
+    if (d.success && d.plan) {
+      _revPlan = d.plan;
+      let tabla = '';
+      if (d.preview && d.preview.length) {
+        const filas = d.preview.map(p => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+            <td style="padding:5px 8px;color:var(--white);">${p.materia}</td>
+            <td style="padding:5px 8px;color:var(--txt2);">${p.estudiante}</td>
+            <td style="padding:5px 8px;color:var(--txt3);font-family:monospace;font-size:11px;">${p.bloque}</td>
+            <td style="padding:5px 8px;color:var(--cyan-lt);">${p.salon}</td>
+            <td style="padding:5px 8px;"><span style="color:var(--txt3);">${p.de}</span> → <span style="color:#4ADE80;font-weight:700;">${p.a}</span></td>
+          </tr>`).join('');
+        tabla = `<div style="margin-top:10px;max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead><tr style="position:sticky;top:0;background:var(--surface3);">
+                <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Materia</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Estudiante</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Bloque</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Salón</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">${d.campo}: antes → después</th>
+              </tr></thead><tbody>${filas}</tbody></table></div>
+          ${d.preview_truncado ? `<p style="font-size:11px;color:var(--txt3);margin-top:6px;">Mostrando 25 de ${d.afectados}. Se aplicará a los ${d.afectados}.</p>` : ''}`;
+      }
+      document.getElementById('rev-propuesta-txt').innerHTML = `🔧 <strong>Vista previa del cambio:</strong> ${d.descripcion}<br>📊 Afecta <strong>${d.afectados}</strong> horario(s). Revisa la tabla y confirma.` + tabla;
+      document.getElementById('rev-propuesta').style.display = 'block';
+      _revAdd(`Aquí tienes la <strong>vista previa</strong> de: ${d.descripcion} (${d.afectados} horarios). Revisa el recuadro y confirma.`, 'bot');
+      return;
+    }
+    if (!d.no_entendido && d.error) { _revAdd('⚠️ ' + d.error, 'bot'); return; }
+  } catch(e) { }
+  const typing = _revAdd('Pensando…', 'bot');
+  try {
+    const fd2 = new FormData();
+    const _ctx = window._docCtx ? ('[CONTEXTO DE LOS DOCUMENTOS YA CARGADOS POR EL USUARIO. No pidas que los suba de nuevo; trabaja con estos datos]\n' + window._docCtx + '\n\nPREGUNTA DEL USUARIO: ') : '';
+    fd2.append('mensaje', _ctx + msg);
+    fd2.append('historial', '[]');
+    const r2 = await fetch('{% url "motor_ia_chat_enviar" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd2 });
+    const d2 = await r2.json();
+    typing.remove();
+    _revAdd(d2.respuesta || d2.mensaje || d2.error || 'Sin respuesta', 'bot');
+  } catch(e) { typing.remove(); _revAdd('Error de conexión: ' + e.message, 'bot'); }
+}
+function generarExcelChat(){
+  _revAdd('📥 <strong>Generé el documento Excel del horario</strong> (incluye carrera, periodo y <strong>jornada</strong> de cada clase).<br>'
+    + '<a href="{% url "motor_ia_descargar_borrador" %}" target="_blank" style="display:inline-block;margin-top:8px;background:linear-gradient(135deg,#22C55E,#4ADE80);color:#062b13;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:800;">⬇ Descargar Excel del horario</a><br>'
+    + 'Recuerda: los estudiantes de Lunes a Viernes no llevan clases el sábado (ciclo especial aparte).', 'bot');
+}
+async function estadoSisca(){
+  const typing = _revAdd('Verificando conexión con SISCA…', 'bot');
+  try {
+    const r = await fetch('{% url "sisca_estado" %}'); const d = await r.json(); typing.remove();
+    const ico = d.conectado ? '🟢 conectado' : '🔴 sin conexión';
+    _revAdd(`<strong>SISCA ${ico}</strong> (${d.base_url})<br>📋 Aprobados: <strong>${d.horarios_aprobados}</strong> · 📡 Publicados: <strong>${d.horarios_publicados}</strong>`, 'bot');
+  } catch(e){ typing.remove(); _revAdd('No pude consultar SISCA: '+e.message, 'bot'); }
+}
+async function publicarSisca(){
+  const typing = _revAdd('Preparando la auditoría previa a SISCA…', 'bot');
+  let estado = null;
+  try { estado = await (await fetch('{% url "sisca_estado" %}')).json(); } catch(e){}
+  typing.remove();
+  const periodo = '2026-2';
+  _revAdd('🧐 <strong>Antes de publicar en SISCA, revisa el borrador.</strong><br>Descarga el archivo y verifica carrera, periodo ('+periodo+') y jornada.<br>'
+    + '<a href="{% url "motor_ia_descargar_borrador" %}" target="_blank" style="display:inline-block;margin-top:8px;background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;">📥 Descargar borrador (Excel)</a><br><br>'
+    + (estado && !estado.conectado ? '🔴 SISCA no responde en ' + (estado.base_url||'localhost:8080') + '.<br>' : '🟢 SISCA conectado.<br>')
+    + '¿El horario está correcto y deseas publicarlo? Responde <strong>"sí, publica"</strong> o pídeme cambios.', 'bot');
+  window._pubPendiente = true;
+}
+async function _publicarAhora(){
+  const typing = _revAdd('Publicando en SISCA…', 'bot');
+  try {
+    let estado = null;
+    try { estado = await (await fetch('{% url "sisca_estado" %}')).json(); } catch(e){}
+    if (estado && !estado.conectado) { typing.remove(); _revAdd('🔴 SISCA no responde. Inícialo y vuelve a confirmar.', 'bot'); return; }
+    const fd = new FormData(); fd.append('periodo', '2026-2');
+    const r = await fetch('{% url "sisca_publicar" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd });
+    const d = await r.json(); typing.remove();
+    if (d.success) { _revAdd('✅ <strong>Publicado en SISCA</strong>: ' + (d.total_publicados||'') + ' horario(s). Ya aparecen en SISCA y siguen visibles aquí en SIIHAPI.', 'bot'); }
+    else { _revAdd('⚠ ' + (d.error||'No se pudo publicar.') + (d.sugerencia ? '<br>'+d.sugerencia : ''), 'bot'); }
+  } catch(e){ typing.remove(); _revAdd('Error publicando en SISCA: '+e.message, 'bot'); }
+}
+async function confirmarEdicion(){
+  if (!_revPlan) return;
+  document.getElementById('rev-propuesta').style.display = 'none';
+  const typing = _revAdd('Aplicando cambios…', 'bot');
+  try {
+    const fd = new FormData(); fd.append('plan', JSON.stringify(_revPlan));
+    const r = await fetch('{% url "motor_ia_aplicar_edicion" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd });
+    const d = await r.json(); typing.remove();
+    if (d.success) { _revAdd(d.mensaje || ('✅ ' + (d.modificados||0) + ' horarios actualizados.'), 'bot'); }
+    else { _revAdd('⚠ ' + (d.error || 'No se pudo aplicar'), 'bot'); }
+  } catch(e) { typing.remove(); _revAdd('Error de conexión: ' + e.message, 'bot'); }
+  finally { _revPlan = null; }
+}
+try { window.addEventListener('DOMContentLoaded', _revRestaurar); } catch(e){}
+</script>
+{% endblock %}

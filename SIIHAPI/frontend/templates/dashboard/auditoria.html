@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}Auditoría · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='auditoria' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Reportes</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📋 Auditoría</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Bitácora completa del sistema</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Descargar reporte</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="{% url 'exportar_auditoria' 'xlsx' %}" class="btn btn-ghost" title="Excel"
+             style="display:flex;gap:6px;align-items:center;background:rgba(77,155,255,0.10);border-color:rgba(77,155,255,0.30);color:var(--lime-lt);">
+            📊 Excel
+          </a>
+          <a href="{% url 'exportar_auditoria' 'pdf' %}" class="btn btn-ghost" title="PDF"
+             style="display:flex;gap:6px;align-items:center;background:rgba(239,68,68,0.10);border-color:rgba(239,68,68,0.30);color:var(--red-lt);">
+            📄 PDF
+          </a>
+          <a href="{% url 'exportar_auditoria' 'docx' %}" class="btn btn-ghost" title="Word"
+             style="display:flex;gap:6px;align-items:center;background:rgba(31,111,235,0.10);border-color:rgba(31,111,235,0.30);color:var(--blue-lt);">
+            📝 Word
+          </a>
+          <a href="{% url 'exportar_auditoria' 'pptx' %}" class="btn btn-ghost" title="PowerPoint"
+             style="display:flex;gap:6px;align-items:center;background:rgba(245,158,11,0.10);border-color:rgba(245,158,11,0.30);color:var(--orange);">
+            🎞️ PowerPoint
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">Logins exitosos</div><div class="kpi-val" style="color:var(--lime-lt);">{{ stats.logins_exitosos }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Logins fallidos</div><div class="kpi-val" style="color:var(--orange);">{{ stats.logins_fallidos }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">Eventos SISCA</div><div class="kpi-val">{{ stats.eventos_sisca }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Ejecuciones IA</div><div class="kpi-val">{{ stats.ejecuciones_ia }}</div></div>
+    </div>
+
+    {# ─── Exportar Auditoría filtrada por categoría ─── #}
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">📋 Exportar Auditoría filtrada</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:6px;">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">🏛️ Facultad</label>
+          <select id="aud-facultad" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todas</option>
+            {% for f in facultades %}<option value="{{ f.id_facultad }}">{{ f.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">📚 Programa</label>
+          <select id="aud-programa" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todos</option>
+            {% for p in programas %}<option value="{{ p.id_programa }}" data-fac="{{ p.facultad_id }}">{{ p.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+          <a id="aud-btn-pdf" href="{% url 'auditoria_pdf_categorias' %}" class="btn"
+             style="display:flex;gap:6px;align-items:center;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.35);color:var(--red-lt);">
+            📄 Descargar PDF filtrado
+          </a>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--txt3);margin-top:10px;">Para reportes completos por categoría con tabla resumen, usa el módulo <a href="{% url 'reportes_categoria' %}" style="color:var(--blue-lt);">📊 Reportes</a>.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">Intentos de Login (últimos 100)</span></div>
+      <div style="overflow-x:auto;max-height:360px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">IP</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Resultado</th>
+        </tr></thead>
+        <tbody>
+          {% for i in intentos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:8px 10px;color:var(--txt2);font-size:12px;">{{ i.fecha|date:"d/m H:i:s" }}</td>
+            <td style="padding:8px 10px;color:var(--white);">{{ i.correo }}</td>
+            <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt3);">{{ i.ip|default:"—" }}</td>
+            <td style="padding:8px 10px;color:{% if i.exitoso %}var(--lime-lt){% else %}var(--red-lt){% endif %};">{% if i.exitoso %}✅ Exitoso{% else %}❌ Fallido{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--txt3);">Sin intentos registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Eventos SISCA</span></div>
+        {% for l in logs_sisca %}
+        <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;">
+          <p style="color:{% if l.estado == 'EXITO' %}var(--lime-lt){% else %}var(--orange){% endif %};">{{ l.operacion }} · {{ l.estado }}</p>
+          <p style="color:var(--txt3);">{{ l.fecha|date:"d/m H:i:s" }}{% if l.mensaje %} · {{ l.mensaje|truncatechars:60 }}{% endif %}</p>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);padding:10px 0;">Sin eventos.</p>
+        {% endfor %}
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Ejecuciones del Motor IA</span></div>
+        {% for a in asignaciones %}
+        <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;">
+          <p style="font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ a.job_id }}</p>
+          <p style="color:var(--txt3);">{{ a.fecha_inicio|date:"d/m H:i" }} · {{ a.estado }} · {{ a.asignaciones_exitosas }}/{{ a.total_matriculas }}</p>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);padding:10px 0;">Sin ejecuciones.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  (function(){
+    var URL_AUD = "{% url 'auditoria_pdf_categorias' %}";
+    var fSel = document.getElementById('aud-facultad');
+    var pSel = document.getElementById('aud-programa');
+    var btn  = document.getElementById('aud-btn-pdf');
+    if (!fSel || !pSel || !btn) return;
+
+    function filtrarProg(){
+      var fac = fSel.value, actual = pSel.value, ok = false;
+      for (var i=0;i<pSel.options.length;i++){
+        var op = pSel.options[i];
+        if (!op.value){ op.hidden=false; continue; }
+        var m = (!fac || op.getAttribute('data-fac')===fac);
+        op.hidden = !m;
+        if (op.value===actual && m) ok = true;
+      }
+      if (!ok) pSel.value = '';
+    }
+    function build(){
+      var q=[];
+      if (fSel.value) q.push('facultad_id='+encodeURIComponent(fSel.value));
+      if (pSel.value) q.push('programa_id='+encodeURIComponent(pSel.value));
+      btn.href = URL_AUD + (q.length ? '?'+q.join('&') : '');
+    }
+    fSel.addEventListener('change', function(){ filtrarProg(); build(); });
+    pSel.addEventListener('change', build);
+    filtrarProg(); build();
+  })();
+</script>
+{% endblock %}

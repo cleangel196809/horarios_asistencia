@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block title %}Integración con SISCA{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='sisca' %}
+
+  <main class="main-content">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-bottom:4px;">Operación · Integración con sistemas externos</p>
+        <h1 style="font-size:32px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">🔗 Integración con SISCA</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Sistema Institucional de Control de Asistencia · API REST sobre Oracle XE 21c (esquema separado)</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <span id="estadoBadge" class="tb-badge" style="font-size:12px;padding:8px 16px;">⏳ Verificando…</span>
+        <button class="btn btn-ghost" onclick="cargarTodo()">↻ Actualizar</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">🌐 Configuración del enlace</span></div>
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;">
+        <span style="color:var(--txt2);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">URL SISCA</span>
+        <code style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--blue-lt);padding:8px 14px;background:rgba(8,12,20,0.55);border:1px solid var(--border);border-radius:10px;">{{ sisca_url }}</code>
+        <span style="color:var(--txt3);font-size:12px;">Protocolo: HTTP · Auth: JWT</span>
+        <button class="btn btn-cyan btn-sm" onclick="cargarTodo()">🩺 Probar</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi accent"><div class="kpi-lbl">📡 Estado</div><div class="kpi-val" id="kpiEstado" style="font-size:22px;">—</div></div>
+      <div class="kpi"><div class="kpi-lbl">✅ Exitosas 24h</div><div class="kpi-val" id="kpiExitos">0</div></div>
+      <div class="kpi"><div class="kpi-lbl">❌ Errores 24h</div><div class="kpi-val" id="kpiErrores">0</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">📤 Última publicación</div><div class="kpi-val" id="kpiUltima" style="font-size:16px;">—</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:22px;margin-top:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📤 Publicar horarios aprobados</span></div>
+        <p style="color:var(--txt2);margin-bottom:14px;font-size:13px;">Envía a SISCA todos los horarios <strong>APROBADOS</strong> del periodo para que cree las sesiones de clase.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input id="periodoInput" type="text" value="2026-2" maxlength="10" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;width:100px;">
+          <button class="btn btn-primary" id="btnPublicar">📤 Publicar a SISCA</button>
+          <span style="color:var(--txt3);font-size:12px;">Aprobados pendientes: <strong id="aprobadosCnt" style="color:var(--lime-lt);">0</strong></span>
+        </div>
+        <div id="pubOut" style="display:none;margin-top:14px;padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📊 Estado actual</span></div>
+        <p style="font-size:13px;color:var(--txt2);">Horarios publicados en SISCA: <strong id="publCnt" style="color:var(--cyan);">0</strong></p>
+        <p style="font-size:13px;color:var(--txt2);margin-top:6px;">Aprobados pendientes: <strong id="aprobCnt" style="color:var(--lime-lt);">0</strong></p>
+        <p style="font-size:13px;color:var(--txt2);margin-top:6px;">Total eventos log: <strong id="totalLogs">0</strong></p>
+        <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+        <p style="font-size:12px;color:var(--txt3);">Los publicados quedan marcados como <code>PUBLICADO</code> y se les asigna su <code>id_sisca</code>.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px;">
+      <div class="card-hdr"><span class="card-title">📋 Últimos eventos de integración</span><span class="tb-badge">Registro de actividad</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Operación</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Endpoint</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">HTTP</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Duración</th>
+        </tr></thead>
+        <tbody id="logsBody">
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">Cargando…</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+
+async function cargarEstado() {
+  try {
+    const r = await fetch('{% url "sisca_estado" %}', {
+      headers: {'Accept': 'application/json'},
+      credentials: 'same-origin',
+    });
+    const txt = await r.text();
+    let d;
+    try { d = JSON.parse(txt); }
+    catch(e) {
+      document.getElementById('estadoBadge').textContent = '⚠ Respuesta invalida';
+      document.getElementById('estadoBadge').style.color = 'var(--orange)';
+      return;
+    }
+    document.getElementById('kpiEstado').textContent = d.conectado ? '🟢 Conectado' : '🔴 Offline';
+    document.getElementById('kpiEstado').style.color = d.conectado ? 'var(--lime-lt)' : 'var(--red-lt)';
+    document.getElementById('estadoBadge').textContent = d.conectado ? '🟢 SISCA Conectado' : '🔴 SISCA Offline';
+    document.getElementById('estadoBadge').style.color = d.conectado ? 'var(--lime-lt)' : 'var(--red-lt)';
+    document.getElementById('kpiExitos').textContent = d.logs_24h.exitos;
+    document.getElementById('kpiErrores').textContent = d.logs_24h.errores;
+    document.getElementById('kpiUltima').textContent = d.ultima_publicacion
+      ? new Date(d.ultima_publicacion).toLocaleString('es-CO', {dateStyle:'short', timeStyle:'short'})
+      : 'Sin datos';
+    document.getElementById('totalLogs').textContent = d.total_logs;
+    document.getElementById('publCnt').textContent = d.horarios_publicados;
+    document.getElementById('aprobCnt').textContent = d.horarios_aprobados;
+    document.getElementById('aprobadosCnt').textContent = d.horarios_aprobados;
+  } catch(e) {
+    document.getElementById('estadoBadge').textContent = '⚠ Error';
+    document.getElementById('estadoBadge').style.color = 'var(--red-lt)';
+  }
+}
+
+async function cargarLogs() {
+  const tbody = document.getElementById('logsBody');
+  try {
+    const r = await fetch('{% url "sisca_logs" %}?limit=30', {
+      headers: {'Accept': 'application/json'},
+      credentials: 'same-origin',
+    });
+    const txt = await r.text();
+    let d;
+    try {
+      d = JSON.parse(txt);
+    } catch(parseErr) {
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:20px;color:var(--orange);">El servidor no devolvió JSON. ¿Estás logueado? Recarga la página.</td></tr>`;
+      return;
+    }
+    if (!d.logs || !d.logs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">Sin eventos todavía. Ejecuta una operación para ver registros aquí.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.logs.map(l => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+        <td style="padding:10px;color:var(--txt2);font-size:12px;">${l.fecha ? new Date(l.fecha).toLocaleString('es-CO', {dateStyle:'short', timeStyle:'medium'}) : '—'}</td>
+        <td style="padding:10px;color:var(--white);">${l.operacion || '—'}</td>
+        <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--cyan);font-size:11px;">${l.endpoint || '—'}</td>
+        <td style="padding:10px;color:${l.estado==='EXITO'?'var(--lime-lt)':'var(--red-lt)'};">${l.estado || '—'}</td>
+        <td style="padding:10px;text-align:right;color:var(--txt2);">${l.codigo_http || '—'}</td>
+        <td style="padding:10px;text-align:right;color:var(--txt2);">${l.duracion_ms || 0} ms</td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:20px;color:var(--red-lt);">Error: ${e.message}</td></tr>`;
+  }
+}
+
+async function publicar() {
+  const periodo = document.getElementById('periodoInput').value.trim();
+  const $out = document.getElementById('pubOut');
+  $out.style.display='block';
+  $out.style.color='var(--blue-lt)';
+  $out.innerHTML='⏳ Publicando a SISCA...';
+  try {
+    const fd = new FormData();
+    fd.append('periodo', periodo);
+    const r = await fetch('{% url "sisca_publicar" %}', {method:'POST',headers:{'X-CSRFToken':csrftoken},body:fd});
+    const d = await r.json();
+    if (d.success) {
+      $out.style.color='var(--lime-lt)';
+      $out.innerHTML = `✅ ${d.mensaje}<br>Total publicados: ${d.total_publicados}<br>${d.sisca_respuesta?.mensaje||''}`;
+      cargarEstado(); cargarLogs();
+    } else {
+      $out.style.color='var(--red-lt)';
+      $out.innerHTML = `❌ ${d.error}<br>${d.sugerencia||''}`;
+    }
+  } catch(e) {
+    $out.style.color='var(--red-lt)';
+    $out.innerHTML='❌ '+e.message;
+  }
+}
+
+function cargarTodo() {
+  cargarEstado();
+  cargarLogs();
+}
+
+document.getElementById('btnPublicar').addEventListener('click', publicar);
+cargarTodo();
+setInterval(cargarEstado, 30000);
+</script>
+{% endblock %}

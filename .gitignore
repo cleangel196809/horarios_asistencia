@@ -1,0 +1,135 @@
+# ════════════════════════════════════════════════════════════════
+# SISCA + SIIHAPI · .gitignore profesional
+# ════════════════════════════════════════════════════════════════
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ─── Virtualenvs ───
+venv/
+env/
+ENV/
+.venv
+**/venv/
+**/env/
+
+# ─── Django ───
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+**/migrations/0*.py
+!**/migrations/__init__.py
+
+# ─── Flask ───
+instance/
+.webassets-cache
+
+# ─── IDEs / editores ───
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# ─── Secrets / env ───
+.env
+.env.local
+.env.production
+.env.*.local
+*.pem
+*.key
+credentials.json
+secret_key.txt
+
+# ─── Backups / tmp ───
+*.bak
+*.tmp
+*.old
+*.orig
+*~
+
+# ─── Logs ───
+logs/
+*.log.*
+*.out
+
+# ─── Node (SISCA-Mobile) ───
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnp.*
+
+# ─── Build / Android ───
+SISCA-Mobile/android/build/
+SISCA-Mobile/android/app/build/
+SISCA-Mobile/android/.gradle/
+SISCA-Mobile/dist/
+SISCA-Mobile/www/
+
+# ─── Oracle / DB exports ───
+*.dmp
+*.dbf
+*.ctl
+*.bad
+*.dat
+
+# ─── Coverage / tests ───
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# ─── OS ───
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─── Archivos generados por la app ───
+app/static/uploads/
+SIIHAPI/backend/media/
+SIIHAPI/backend/staticfiles/
+
+# ─── Archivos de auditoría / legacy a eliminar manualmente ───
+seed_fix.py
+create_bat.py
+SIHAPI_DocumentoTecnico.docx
+preview_diapo5.jpg
+
+# ─── Notas temporales de credenciales ───
+admin@pi.edu.co
+admin@politecnico.edu.co
+

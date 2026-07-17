@@ -1,0 +1,16 @@
+cedula,correo,nombre,apellido,tipo_contrato,carga_horaria_max
+80123456,carolina.medina@pi.edu.co,Carolina,Medina,TC,40
+79234567,ricardo.bermudez@pi.edu.co,Ricardo,Bermudez,TC,40
+52345678,luz.castaneda@pi.edu.co,Luz Marina,Castaneda,TC,38
+80456789,andres.bohorquez@pi.edu.co,Andres Felipe,Bohorquez,MT,24
+52567890,paola.escobar@pi.edu.co,Paola Andrea,Escobar,MT,20
+79678901,javier.salgado@pi.edu.co,Javier,Salgado,CATEDRA,12
+1018789012,natalia.urrego@pi.edu.co,Natalia,Urrego,CATEDRA,16
+52890123,sandra.guzman@pi.edu.co,Sandra Liliana,Guzman,TC,40
+79901234,oscar.delgado@pi.edu.co,Oscar Mauricio,Delgado,MT,22
+1015012345,daniela.romero@pi.edu.co,Daniela,Romero,CATEDRA,10
+80112233,fernando.aristizabal@pi.edu.co,Fernando,Aristizabal,TC,40
+52223344,monica.galvis@pi.edu.co,Monica,Galvis,MT,20
+1018334455,sebastian.cardona@pi.edu.co,Sebastian,Cardona,CATEDRA,14
+79445566,patricia.beltran@pi.edu.co,Patricia,Beltran,TC,38
+80556677,jhon.cardenas@pi.edu.co,Jhon Alexander,Cardenas,MT,24

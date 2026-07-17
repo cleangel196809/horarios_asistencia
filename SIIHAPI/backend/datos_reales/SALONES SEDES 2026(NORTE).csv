@@ -1,0 +1,38 @@
+﻿PLANTA;NOMBRE DE SALÓN;CAPACIDAD;IDENTIFICADOR UXII;OBSERVACIONES;;;;;;
+Piso 1;REPOSTERIA 1-101-SEDE NORTE;25;REP 1;;;;;;;
+Piso 1;REPOSTERIA 2-102-SEDE NORTE;25;REP 2;;;;;;;
+Piso 1;COCINA 1-103-SEDE NORTE;30;COC 1;;;PISO 1;7;; TOTAL ESPACIOS ; # 
+Piso 1;COCINA 2-104-SEDE NORTE;30;COC 2;;;Cocinas;4;;Salas de Sistemas;3
+Piso 1;COCINA 3-105-SEDE NORTE;30;COC 3;;;Cocina Gourmet;1;;Laboratorios Enfermería;3
+Piso 1;COCINA 4-106-SEDE NORTE;25;COC 4;;;Reposterias;2;;Cocinas;6
+Piso 1;COCINA 5-107-SEDE NORTE;20;COC 5;Cocina Gourmet;;PISO 2;12;;Laboratorios Salud;4
+Piso 2;SALON 200-SEDE NORTE;16;OF 200;Uso Administrativo  (Camara);;Laboratorios Salud;4;;Gimnasio;1
+Piso 2;SALON 202 - SEDE NORTE;25;202;Video Beam;;Mesa y Bar  Hospitalidad;2;;Salon;4
+Piso 2;MESA Y BAR 203-SEDE NORTE;24;MYB 203;;;Salones;2;;Reposterias;2
+Piso 2;SALON 204-SEDE NORTE;30;204;Silla Salud;;Salas de Sistemas;3;;23;
+Piso 2;SALON 205-SEDE NORTE;30;205;Sala de JUNTAS, Video Beam, Televisor;;Sala de Juntas;1;;;
+Piso 2;SALA DE SISTEMAS SOFT 206-SEDE NORTE;20;INF 206;Sala de sistemas, Video Beam (Camara);;;;;;
+Piso 2;SALA DE SISTEMAS SOFT 207-SEDE NORTE;24;INF 207;Sala de sistemas (Camara);;PISO 3;8;;;
+Piso 2;SALA DE SISTEMAS 208 - SEDE NORTE;16;INF 208;16 computadores de mesa;;Salones;2;;;
+Piso 2;MESA Y BAR 209 - SEDE NORTE;24;MYB 209;;;Laboratorios Enfermería;3;;;
+Piso 2;MESA Y BAR 210 - SEDE NORTE;24;MYB 210;;;Cosinas;2;;;
+Piso 2;SALON 211 - SEDE NORTE;20;211;;;Mesa y Bar  Hospitalidad;1;;;
+Piso 2;BIBLIOTECA 212 - SEDE NORTE;15;BBTC 212;;;Gimnasio;1;;;
+Piso 3;Salón 301;30;301;"Auditorio o Charlas no cuenta con Pupitres, 
+solo sillas 
+Video Beam";;;;;;
+Piso 3;CATA Y COCTELERIA 302 - SEDE NORTE;30;CATA;"Auditorio o Charlas no cuenta con Pupitres, 
+solo sillas
+Video Beam";;;;;;
+Piso 3;Gimnasio;20;GYM;(Camara);;;;;;
+Piso 3;SALA DE DOCENTES 303;15;MYB 305;Sala de Docentes                                (Camara);;;;;;
+Piso 3;COCINA 6-304-SEDE NORTE;25;COC 6;;;;;;;
+Piso 3;COCINA 7-305-SEDE NORTE;25;COC 7;;;;;;;
+Piso 3;COCINA 8-306- SEDE NORTE;25;COC 8;;;;;;;
+Piso 3;REPOSTERIA 3 - 307- SEDE NORTE;25;REP3;Video Beam                                         ;;;;;;
+Piso 3;SALON 308-SEDE NORTE;30;308;;;;;;;
+Piso 3;SALON 309-SEDE NORTE;25;309;Maria Jose                                                         Enfermeria                                                   Video Beam                                              Camilla;;;;;;
+Piso 3;SALON 310-SEDE NORTE;25;310;Nohelia                                                Enfermeria                                                   Video Beam                                              Camilla;;;;;;
+Piso 3;SALON 311-SEDE NORTE;25;311;"Enfermeria 
+asignar siempre Asistencia                    Video Beam                                              Camilla
+Lab Cirugia                                                                                                                           Lavamanos";;;;;;

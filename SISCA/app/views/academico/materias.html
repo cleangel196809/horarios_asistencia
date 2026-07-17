@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Materias{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Académico</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('admin.usuarios') }}"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item active"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title"><h2>📚 Gestión de Materias</h2><p>Crear, editar y asignar materias a docentes</p></div>
+  <div class="pg-actions"><button class="btn btn-primary" onclick="abrirModal()">+ Nueva Materia</button></div>
+</div>
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Materia</th><th>Código</th><th>Carrera</th><th>Docente</th><th>Créditos</th><th>Mín. Asist.</th><th>Acciones</th></tr></thead>
+      <tbody>
+      {% for m in materias %}
+      <tr>
+        <td style="font-weight:600;">{{ m.nombre_materia }}</td>
+        <td><span class="badge b-gray" style="font-family:'JetBrains Mono',mono;font-size:11px;">{{ m.codigo or 'N/A' }}</span></td>
+        <td style="font-size:12px;">{{ m.nombre_carrera or '—' }}</td>
+        <td style="font-size:12px;">{{ m.docente_nombre or '—' }}</td>
+        <td style="text-align:center;">{{ m.creditos or '—' }}</td>
+        <td><span class="badge b-gold">{{ m.porcentaje_min }}%</span></td>
+        <td>
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;"
+                  onclick="editarMateria({{ m|tojson }})">✏️ Editar</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--txt3);">No hay materias creadas. Crea la primera.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modalBg" class="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div id="modalBox" class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="modalTitle">+ Nueva Materia</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('academico.guardar_materia') }}">
+      <input type="hidden" name="id_materia" id="fldId">
+      <div class="form-row">
+        <div class="form-group"><label>Nombre Materia *</label><input type="text" name="nombre_materia" id="fldNombre" required placeholder="Ej: Programación Web"></div>
+        <div class="form-group"><label>Código</label><input type="text" name="codigo" id="fldCodigo" placeholder="Ej: PROG-401"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Carrera</label>
+          <select name="id_carrera" id="fldCarrera" class="filter-select" style="width:100%;">
+            <option value="">-- Sin carrera --</option>
+            {% for c in carreras %}<option value="{{ c.id_carrera }}">{{ c.nombre_carrera }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group"><label>Docente</label>
+          <select name="id_docente" id="fldDocente" class="filter-select" style="width:100%;">
+            <option value="">-- Sin docente --</option>
+            {% for d in docentes %}<option value="{{ d.id_docente }}">{{ d.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Créditos</label><input type="number" name="creditos" id="fldCreditos" min="1" max="10" placeholder="3"></div>
+        <div class="form-group"><label>Semestre</label><input type="number" name="semestre" id="fldSemestre" min="1" max="10" placeholder="1"></div>
+      </div>
+      <div class="form-group"><label>% Mínimo de Asistencia</label>
+        <input type="number" name="porcentaje_min" id="fldPct" min="0" max="100" step="0.5" value="75" placeholder="75">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Guardar Materia</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function abrirModal(){ document.getElementById('fldId').value=''; document.getElementById('modalTitle').textContent='+ Nueva Materia'; document.getElementById('modalBg').classList.add('open'); }
+function closeModal(){ document.getElementById('modalBg').classList.remove('open'); }
+function editarMateria(m){
+  document.getElementById('fldId').value=m.id_materia||'';
+  document.getElementById('fldNombre').value=m.nombre_materia||'';
+  document.getElementById('fldCodigo').value=m.codigo||'';
+  document.getElementById('fldCreditos').value=m.creditos||'';
+  document.getElementById('fldSemestre').value=m.semestre||'';
+  document.getElementById('fldPct').value=m.porcentaje_min||75;
+  document.getElementById('modalTitle').textContent='✏️ Editar Materia';
+  document.getElementById('modalBg').classList.add('open');
+}
+</script>
+{% endblock %}

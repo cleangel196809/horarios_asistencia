@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width:800px;margin:40px auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;">
+  <div style="text-align:center;margin-bottom:30px;">
+    <h1 style="font-size:24px;color:var(--white);">{{ titulo }}</h1>
+    <p style="color:var(--txt2);">Politécnico Internacional · Sistema SISCA</p>
+  </div>
+
+  <div style="color:var(--txt2);line-height:1.6;font-size:14px;">
+    {% if tipo == 'habeas-data' %}
+      <h3>Política de Habeas Data</h3>
+      <p>En cumplimiento de la Ley Estatutaria 1581 de 2012 y el Decreto Reglamentario 1377 de 2013, el Politécnico Internacional garantiza a todos los usuarios registrados en el sistema SISCA el derecho constitucional a conocer, actualizar y rectificar la información que se haya recogido sobre ellos en bases de datos o archivos.</p>
+      <p>Los datos recolectados (nombre, documento, correo, roles y registros de asistencia) tienen como finalidad exclusiva la gestión académica y el control de asistencia institucional.</p>
+    {% elif tipo == 'tratamiento' %}
+      <h3>Tratamiento de Datos Personales</h3>
+      <p>El tratamiento de los datos personales ingresados al sistema SISCA se rige bajo estrictos protocolos de confidencialidad y seguridad. La información recolectada se utiliza únicamente para:</p>
+      <ul>
+        <li>Validación de identidad en el ingreso a las instalaciones.</li>
+        <li>Generación de reportes académicos y de asistencia.</li>
+        <li>Auditoría de seguridad y accesos al sistema.</li>
+      </ul>
+      <p>El Politécnico Internacional no compartirá ni comercializará estos datos con terceros sin el consentimiento expreso y escrito del titular.</p>
+    {% elif tipo == 'transparencia' %}
+      <h3>Transparencia y Acceso a la Información Pública</h3>
+      <p>De acuerdo con la Ley 1712 de 2014 de Transparencia y del Derecho de Acceso a la Información Pública Nacional, SISCA mantiene un registro auditable de todas las interacciones del sistema.</p>
+      <p>Cualquier solicitud formal de información referente a los registros almacenados será tramitada de acuerdo a los tiempos establecidos por la ley, garantizando siempre el principio de máxima publicidad y la protección de datos personales de terceros.</p>
+    {% elif tipo == 'acta' %}
+      <h3>Acta de Creación e Implementación de la Política</h3>
+      <p><strong>FECHA DE IMPLEMENTACIÓN:</strong> Mayo de 2026</p>
+      <p><strong>SISTEMA:</strong> Sistema Institucional de Control de Asistencia (SISCA v1.0)</p>
+      <p>Por medio del presente documento, se certifica la implementación oficial de las políticas de privacidad y protección de datos dentro de la plataforma tecnológica SISCA. Las tecnologías subyacentes, algoritmos de encriptación y manejo de bases de datos Oracle han sido auditados para asegurar su pleno cumplimiento normativo vigente en el territorio colombiano.</p>
+    {% endif %}
+  </div>
+
+  <div style="text-align:center;margin-top:40px;">
+    <a href="{{ request.referrer or url_for('auth.landing') }}" class="btn btn-primary">Volver atrás</a>
+  </div>
+</div>
+{% endblock %}

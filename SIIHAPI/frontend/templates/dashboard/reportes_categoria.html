@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block title %}Reportes por Categoría · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='reportes' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Reportes</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📊 Reportes por Categoría</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Genera el horario para enviar a estudiantes: elige facultad y programa, ajusta modalidad / jornada / ciclo y descarga en PDF o Excel.</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">Horarios</div><div class="kpi-val" style="color:var(--lime-lt);">{{ kpis.total_horarios }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Programas</div><div class="kpi-val">{{ kpis.total_programas }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Facultades</div><div class="kpi-val">{{ kpis.total_facultades }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Materias</div><div class="kpi-val">{{ kpis.total_materias }}</div></div>
+    </div>
+
+    {# ───────── PASO 1 · Facultad y Programa ───────── #}
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">① Selecciona facultad y programa</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:6px;">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">🏛️ Facultad</label>
+          <select id="f-facultad" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todas las facultades</option>
+            {% for f in facultades %}
+            <option value="{{ f.id_facultad }}">{{ f.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">📚 Programa / Carrera</label>
+          <select id="f-programa" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todos los programas</option>
+            {% for p in programas %}
+            <option value="{{ p.id_programa }}" data-fac="{{ p.facultad_id }}" data-mod="{{ p.modalidad }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {# ───────── PASO 2 · Opciones de descarga (se despliega) ───────── #}
+    <div id="panel-descarga" class="card" style="margin-bottom:22px;display:none;">
+      <div class="card-hdr"><span class="card-title">② Ajusta y descarga</span>
+        <span id="resumen-sel" style="font-size:12px;color:var(--txt3);"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:6px;">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">🎓 Modalidad</label>
+          <select id="f-modalidad" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todas</option>
+            {% for code, label in modalidades %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">🕑 Jornada</label>
+          <select id="f-jornada" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todas</option>
+            {% for code, label in jornadas %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px;">🔢 Ciclo</label>
+          <select id="f-ciclo" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todos los ciclos</option>
+            {% for c in ciclos %}
+            <option value="{{ c }}">Ciclo {{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+        <a id="btn-pdf-horarios" href="#" target="_blank" rel="noopener" class="btn"
+           style="display:flex;gap:6px;align-items:center;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.35);color:var(--red-lt);">
+          📄 PDF Horarios
+        </a>
+        <a id="btn-xlsx-horarios" href="#" class="btn"
+           style="display:flex;gap:6px;align-items:center;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);color:var(--lime-lt);">
+          📊 Excel Horarios
+        </a>
+        <a id="btn-pdf-auditoria" href="#" class="btn btn-ghost"
+           style="display:flex;gap:6px;align-items:center;background:rgba(31,111,235,0.12);border:1px solid rgba(31,111,235,0.32);color:var(--blue-lt);">
+          📋 PDF Auditoría
+        </a>
+      </div>
+      <p style="font-size:12px;color:var(--txt3);margin-top:10px;">El PDF usa el formato oficial «Politécnico Internacional» con la categoría en el título. El Excel es ideal para enviar a estudiantes o coordinación.</p>
+    </div>
+
+    {# ───────── Resumen general ───────── #}
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Resumen · Horarios por categoría</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Facultad</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Programa</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Horarios</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docentes</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiantes</th>
+        </tr></thead>
+        <tbody>
+          {% regroup resumen by facultad as grupos %}
+          {% for g in grupos %}
+            {% for r in g.list %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px 10px;color:var(--txt2);">{% if forloop.first %}{{ g.grouper }}{% endif %}</td>
+              <td style="padding:8px 10px;color:var(--white);">{{ r.programa }}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--lime-lt);font-weight:700;">{{ r.total }}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--txt2);">{{ r.docentes }}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--txt2);">{{ r.estudiantes }}</td>
+            </tr>
+            {% endfor %}
+          {% empty %}
+          <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--txt3);">No hay horarios registrados todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  var URL_HORARIOS_PDF  = "{% url 'horarios_exportar_pdf_completo' %}";
+  var URL_HORARIOS_XLSX = "{% url 'horarios_exportar_excel_completo' %}";
+  var URL_AUDITORIA     = "{% url 'auditoria_pdf_categorias' %}";
+
+  var facSel  = document.getElementById('f-facultad');
+  var progSel = document.getElementById('f-programa');
+  var modSel  = document.getElementById('f-modalidad');
+  var jorSel  = document.getElementById('f-jornada');
+  var cicSel  = document.getElementById('f-ciclo');
+  var panel   = document.getElementById('panel-descarga');
+  var resumenSel = document.getElementById('resumen-sel');
+
+  function filtrarProgramas() {
+    var fac = facSel.value, actual = progSel.value, ok = false;
+    for (var i = 0; i < progSel.options.length; i++) {
+      var op = progSel.options[i];
+      if (!op.value) { op.hidden = false; continue; }
+      var match = (!fac || op.getAttribute('data-fac') === fac);
+      op.hidden = !match;
+      if (op.value === actual && match) ok = true;
+    }
+    if (!ok) progSel.value = '';
+  }
+
+  function togglePanel() {
+    // Se despliega cuando hay facultad o programa elegido
+    var visible = !!(facSel.value || progSel.value);
+    panel.style.display = visible ? 'block' : 'none';
+    // Si el programa trae modalidad, sugerirla automáticamente
+    var op = progSel.options[progSel.selectedIndex];
+    if (op && op.getAttribute('data-mod') && !modSel.dataset.touched) {
+      modSel.value = op.getAttribute('data-mod') || '';
+    }
+    var partes = [];
+    if (facSel.value) partes.push(facSel.options[facSel.selectedIndex].text);
+    if (progSel.value) partes.push(progSel.options[progSel.selectedIndex].text);
+    resumenSel.textContent = partes.length ? '· ' + partes.join(' › ') : '';
+  }
+
+  function build() {
+    var fac = facSel.value, prog = progSel.value, mod = modSel.value,
+        jor = jorSel.value, cic = cicSel.value;
+
+    var qH = [];
+    if (fac) qH.push('facultad_id=' + encodeURIComponent(fac));
+    if (prog) qH.push('programa_id=' + encodeURIComponent(prog));
+    if (cic) qH.push('ciclo_cat=' + encodeURIComponent(cic));
+    if (mod) qH.push('modalidad=' + encodeURIComponent(mod));
+    if (jor) qH.push('jornada=' + encodeURIComponent(jor));
+    var qs = qH.length ? '?' + qH.join('&') : '';
+    document.getElementById('btn-pdf-horarios').href = URL_HORARIOS_PDF + qs;
+    document.getElementById('btn-xlsx-horarios').href = URL_HORARIOS_XLSX + qs;
+
+    var qA = [];
+    if (fac) qA.push('facultad_id=' + encodeURIComponent(fac));
+    if (prog) qA.push('programa_id=' + encodeURIComponent(prog));
+    document.getElementById('btn-pdf-auditoria').href =
+        URL_AUDITORIA + (qA.length ? '?' + qA.join('&') : '');
+  }
+
+  facSel.addEventListener('change', function(){ filtrarProgramas(); togglePanel(); build(); });
+  progSel.addEventListener('change', function(){ togglePanel(); build(); });
+  modSel.addEventListener('change', function(){ modSel.dataset.touched = '1'; build(); });
+  jorSel.addEventListener('change', build);
+  cicSel.addEventListener('change', build);
+
+  filtrarProgramas(); togglePanel(); build();
+</script>
+{% endblock %}

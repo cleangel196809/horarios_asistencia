@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>Iniciar Sesión · SISCA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}">
+</head>
+<body>
+<div class="auth-wrap">
+
+  <!-- Topbar mínimo -->
+  <header class="topbar">
+    <a href="{{ url_for('auth.landing') }}" class="tb-logo">
+      <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Politécnico" height="36" onerror="this.style.display='none'">
+      <div class="tb-logo-text">
+        <span class="tb-logo-name">Politécnico Internacional</span>
+        <span class="tb-logo-sub">SISCA · Control de Asistencia</span>
+      </div>
+    </a>
+    <div class="tb-spacer"></div>
+    <a href="{{ url_for('auth.landing') }}" class="btn btn-ghost" style="font-size:12px;">← Inicio</a>
+  </header>
+
+  <!-- Mensajes -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div style="position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;">
+    {% for cat, msg in messages %}
+    <div class="toast {{ 'success' if cat=='success' else 'error' if cat=='error' else 'info' }}" id="toast{{ loop.index }}">
+      <span class="toast-ico">{{ '✅' if cat=='success' else '❌' if cat=='error' else 'ℹ️' }}</span>
+      <div class="toast-txt">{{ msg }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="auth-body">
+    <div class="auth-card">
+
+      <!-- ═══════════════════════════════════════════════════════
+           LOGO — Para cambiar la imagen:
+           1. Copia tu logo a: SISCA/app/static/img/logo_politecnico.svg
+           2. O edita la línea img src a tu ruta personalizada.
+           ═══════════════════════════════════════════════════════ -->
+      <div style="text-align:center;margin-bottom:24px;">
+        <div id="logo-container" style="display:flex;justify-content:center;margin-bottom:14px;">
+          <img
+            id="logo-img"
+            src="{{ url_for('static', filename='img/logo_politecnico.svg') }}"
+            alt="Politécnico Internacional"
+            style="height:72px;width:auto;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(31,111,235,.3));"
+            onerror="document.getElementById('logo-fallback').style.display='flex';this.style.display='none';"
+          >
+          <!-- Contenedor genérico si no existe la imagen -->
+          <div id="logo-fallback" style="display:none;width:72px;height:72px;border-radius:16px;
+            background:linear-gradient(135deg,#1A3A6B,#1F6FEB);
+            align-items:center;justify-content:center;font-size:32px;
+            box-shadow:0 4px 20px rgba(31,111,235,.35);">🏛️</div>
+        </div>
+        <div style="font-size:20px;font-weight:700;color:var(--white);margin-bottom:4px;">Iniciar Sesión</div>
+        <div style="font-size:13px;color:var(--txt2);">SISCA · Politécnico Internacional</div>
+      </div>
+
+      <!-- Selector de Rol -->
+      {% set default_rol = rol if rol in ['admin', 'docente', 'estudiante'] else 'estudiante' %}
+      <div style="margin-bottom:20px;">
+        <label style="font-size:11px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:8px;">Acceder como</label>
+        <div class="role-selector" id="roleSelector">
+          <label class="role-opt {% if default_rol=='admin' %}selected{% endif %}" onclick="selectRole('admin', this)">
+            <input type="radio" name="rol_vis" value="admin" {% if default_rol=='admin' %}checked{% endif %}>
+            <span class="role-opt-ico">⚙️</span>
+            <span class="role-opt-lbl">Admin</span>
+          </label>
+          <label class="role-opt {% if default_rol=='docente' %}selected{% endif %}" onclick="selectRole('docente', this)">
+            <input type="radio" name="rol_vis" value="docente" {% if default_rol=='docente' %}checked{% endif %}>
+            <span class="role-opt-ico">👨‍🏫</span>
+            <span class="role-opt-lbl">Docente</span>
+          </label>
+          <label class="role-opt {% if default_rol=='estudiante' %}selected{% endif %}" onclick="selectRole('estudiante', this)">
+            <input type="radio" name="rol_vis" value="estudiante" {% if default_rol=='estudiante' %}checked{% endif %}>
+            <span class="role-opt-ico">🎓</span>
+            <span class="role-opt-lbl">Estudiante</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Formulario -->
+      <form method="POST" action="{{ url_for('auth.login') }}">
+        <input type="hidden" name="rol" id="rolHidden" value="{{ default_rol }}">
+
+        <div class="form-group">
+          <label for="correo">Correo Electrónico</label>
+          <input type="email" id="correo" name="correo"
+                 placeholder="correo@politecnico.edu.co"
+                 required autocomplete="email">
+        </div>
+
+        <div class="form-group" style="position:relative;">
+          <label for="contrasena">Contraseña</label>
+          <input type="password" id="contrasena" name="contrasena"
+                 placeholder="••••••••" required autocomplete="current-password">
+          <button type="button" onclick="togglePwd('contrasena')"
+                  style="position:absolute;right:10px;top:30px;background:none;border:none;color:var(--txt3);cursor:pointer;font-size:16px;">👁</button>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-top:4px;">
+          🔐 Ingresar al Sistema
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <p>¿Nuevo usuario?
+          <a href="{{ url_for('auth.register', rol='DOCENTE') }}">Registrar Docente</a> ·
+          <a href="{{ url_for('auth.register', rol='ESTUDIANTE') }}">Registrar Estudiante</a>
+        </p>
+        <p style="margin-top:6px;">
+          <a href="{{ url_for('auth.recuperar') }}" style="color:var(--txt3);">¿Olvidaste tu contraseña?</a>
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <footer style="background:var(--surface);border-top:1px solid var(--border);padding:12px 24px;text-align:center;">
+    <div style="font-size:11px;color:var(--txt3);display:flex;justify-content:center;flex-wrap:wrap;gap:12px;">
+      <span>© 2026 Politécnico Internacional · SNES {{ snies }}</span>
+      <a href="{{ url_for('auth.legal', tipo='habeas-data') }}" style="color:var(--txt3);">Habeas Data</a>
+      <a href="{{ url_for('auth.legal', tipo='tratamiento') }}" style="color:var(--txt3);">Tratamiento de Datos</a>
+      <a href="{{ url_for('auth.legal', tipo='transparencia') }}" style="color:var(--txt3);">Transparencia</a>
+      <a href="{{ url_for('auth.legal', tipo='acta') }}" style="color:var(--txt3);">Acta de Creación</a>
+    </div>
+  </footer>
+
+</div>
+<script>
+function selectRole(val, el){
+  document.getElementById('rolHidden').value = val;
+  document.querySelectorAll('.role-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function togglePwd(id){
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+setTimeout(()=>document.querySelectorAll('.toast').forEach(t=>{
+  t.style.opacity='0';setTimeout(()=>t.remove(),300);
+}),4000);
+</script>
+<script src="{{ url_for('static', filename='js/sisca-bg3d.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/sisca-fx.js') }}" defer></script>
+</body>
+</html>

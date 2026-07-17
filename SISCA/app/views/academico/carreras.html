@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Carreras{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Académico</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item active"><span class="ico">🏫</span> Carreras</a>
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title"><h2>🏫 Gestión de Carreras</h2><p>Administra las carreras y programas académicos</p></div>
+  <div class="pg-actions"><button class="btn btn-primary" onclick="abrirNuevaCarrera()">+ Nueva Carrera</button></div>
+</div>
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Carrera</th><th>Código</th><th>Facultad</th><th>Estado</th><th style="text-align:center;">Acciones</th></tr></thead>
+      <tbody>
+      {% for c in carreras %}
+      <tr>
+        <td style="font-weight:600;">{{ c.nombre_carrera }}</td>
+        <td><span class="badge b-gray" style="font-family:'JetBrains Mono',mono;font-size:11px;">{{ c.codigo_carrera or 'N/A' }}</span></td>
+        <td style="font-size:12px;">{{ c.facultad or '—' }}</td>
+        <td><span class="badge {% if c.estado=='A' %}b-green{% else %}b-red{% endif %}">{{ 'Activa' if c.estado=='A' else 'Inactiva' }}</span></td>
+        <td style="text-align:center;">
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="editarCarrera({{ c.id_carrera }}, '{{ c.nombre_carrera|escape }}', '{{ (c.codigo_carrera or '')|escape }}', '{{ (c.facultad or '')|escape }}')">✏️ Editar</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--txt3);">No hay carreras. Crea la primera.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div id="modalBg" class="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="modalTitleText">+ Nueva Carrera</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('academico.guardar_carrera') }}">
+      <input type="hidden" name="id_carrera" id="edit_id_carrera" value="">
+      <div class="form-group"><label>Nombre de la Carrera *</label><input type="text" name="nombre_carrera" required placeholder="Ej: Ingeniería de Sistemas"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Código</label><input type="text" name="codigo_carrera" placeholder="Ej: ING-SIS"></div>
+        <div class="form-group"><label>Facultad</label><input type="text" name="facultad" placeholder="Ej: Ingeniería"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function closeModal(){
+  document.getElementById('modalBg').classList.remove('open');
+}
+function abrirNuevaCarrera() {
+  document.getElementById('edit_id_carrera').value = '';
+  document.getElementsByName('nombre_carrera')[0].value = '';
+  document.getElementsByName('codigo_carrera')[0].value = '';
+  document.getElementsByName('facultad')[0].value = '';
+  document.getElementById('modalTitleText').textContent = '+ Nueva Carrera';
+  document.getElementById('modalBg').classList.add('open');
+}
+function editarCarrera(id, nombre, codigo, facultad) {
+  document.getElementById('edit_id_carrera').value = id;
+  document.getElementsByName('nombre_carrera')[0].value = nombre;
+  document.getElementsByName('codigo_carrera')[0].value = codigo;
+  document.getElementsByName('facultad')[0].value = facultad;
+  document.getElementById('modalTitleText').textContent = '✏️ Editar Carrera';
+  document.getElementById('modalBg').classList.add('open');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Usuarios{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Administración</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item active"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item" href="{{ url_for('admin.carga_masiva') }}"><span class="ico">📥</span> Carga Masiva CSV</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title"><h2>👥 Gestión de Usuarios</h2><p>Administrar docentes, estudiantes y administradores</p></div>
+  <div class="pg-actions">
+    <a href="{{ url_for('auth.register', rol='DOCENTE') }}" class="btn btn-teal">+ Docente</a>
+    <a href="{{ url_for('auth.register', rol='ESTUDIANTE') }}" class="btn btn-green">+ Estudiante</a>
+    <a href="{{ url_for('auth.register', rol='ADMINISTRADOR') }}" class="btn btn-primary">+ Admin</a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card" style="margin-bottom:16px;">
+  <form method="GET" action="{{ url_for('admin.usuarios') }}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:200px;">
+      <label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:4px;">Buscar</label>
+      <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Nombre o correo...">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:4px;">Rol</label>
+      <select class="filter-select" name="rol">
+        <option value="">Todos</option>
+        <option value="ADMINISTRADOR" {% if rol_f=='ADMINISTRADOR' %}selected{% endif %}>Administrador</option>
+        <option value="DOCENTE" {% if rol_f=='DOCENTE' %}selected{% endif %}>Docente</option>
+        <option value="ESTUDIANTE" {% if rol_f=='ESTUDIANTE' %}selected{% endif %}>Estudiante</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-ghost">✕ Limpiar</a>
+  </form>
+</div>
+
+<!-- Tabla -->
+<div class="card">
+  <div class="card-hdr">
+    <span class="card-title">{{ usuarios|length }} usuario(s) encontrado(s)</span>
+    <div style="display:flex;gap:6px;">
+      <span class="badge b-blue">Admin: {{ usuarios|selectattr('rol','eq','ADMINISTRADOR')|list|length }}</span>
+      <span class="badge b-teal">Docente: {{ usuarios|selectattr('rol','eq','DOCENTE')|list|length }}</span>
+      <span class="badge b-green">Estudiante: {{ usuarios|selectattr('rol','eq','ESTUDIANTE')|list|length }}</span>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table id="tblUsuarios">
+      <thead>
+        <tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Términos</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td>
+          <div class="user-cell">
+            <div class="av" style="background:linear-gradient(135deg,{% if u.rol=='ADMINISTRADOR' %}#1F6FEB,#388BFD{% elif u.rol=='DOCENTE' %}#0EA5E9,#0369A1{% else %}#2EA043,#3FB950{% endif %});">
+              {{ u.nombre[0]|upper }}{{ u.apellido[0]|upper }}
+            </div>
+            <div>
+              <div style="font-weight:600;">{{ u.nombre }} {{ u.apellido }}</div>
+              <div style="font-size:11px;color:var(--txt3);">{{ u.correo }}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="badge {% if u.rol=='ADMINISTRADOR' %}b-blue{% elif u.rol=='DOCENTE' %}b-teal{% else %}b-green{% endif %}">{{ u.rol }}</span></td>
+        <td><span class="badge {% if u.estado=='A' %}b-green{% else %}b-red{% endif %}">{{ 'Activo' if u.estado=='A' else 'Inactivo' }}</span></td>
+        <td><span class="badge {% if u.acepta_terminos=='S' %}b-green{% else %}b-orange{% endif %}">{{ 'Aceptó' if u.acepta_terminos=='S' else 'Pendiente' }}</span></td>
+        <td>
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;"
+                  onclick="toggleUsuario({{ u.id_usuario }}, this)"
+                  id="btnToggle{{ u.id_usuario }}">
+            {{ '🔴 Desactivar' if u.estado=='A' else '🟢 Activar' }}
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--txt3);">No se encontraron usuarios</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function toggleUsuario(uid, btn){
+  const r = await fetch(`/admin/usuarios/toggle/${uid}`, {method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'}});
+  const d = await r.json();
+  if(d.ok){
+    btn.textContent = d.nuevo_estado==='A' ? '🔴 Desactivar' : '🟢 Activar';
+    showToast(d.nuevo_estado==='A' ? 'Usuario activado' : 'Usuario desactivado', d.nuevo_estado==='A'?'success':'warn');
+    const row = btn.closest('tr');
+    const badge = row.querySelector('td:nth-child(3) .badge');
+    if(badge){ badge.textContent = d.nuevo_estado==='A'?'Activo':'Inactivo'; badge.className='badge '+(d.nuevo_estado==='A'?'b-green':'b-red'); }
+  }
+}
+</script>
+{% endblock %}

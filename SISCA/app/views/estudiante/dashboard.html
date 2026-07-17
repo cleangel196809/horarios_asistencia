@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% block title %}Panel Estudiante{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Estudiante</span>
+<a class="sb-item active"><span class="ico">🏠</span> Mi Panel</a>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Mi Historial</a>
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>🎓 Panel del Estudiante</h2>
+    <p>Bienvenido, <strong>{{ session.nombre }}</strong> · Tu resumen académico</p>
+  </div>
+</div>
+
+{% if not est %}
+<div style="text-align:center;padding:60px;color:var(--txt3);">⚠️ Perfil de estudiante no encontrado. Contacta al administrador.</div>
+{% else %}
+
+<!-- ══ SESIÓN ACTIVA BANNER ══════════════════════════════════════════ -->
+{% if sesion_activa %}
+<div id="sesion-activa-banner" style="
+  background:linear-gradient(135deg,rgba(46,160,67,.15),rgba(63,185,80,.08));
+  border:2px solid rgba(46,160,67,.4);
+  border-radius:14px;
+  padding:20px 22px;
+  margin-bottom:20px;
+  position:relative;
+  overflow:hidden;
+  cursor:pointer;
+  transition:transform .2s, box-shadow .2s;
+" onclick="registrarAsistenciaQR()" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 40px rgba(46,160,67,.2)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+
+  <!-- Pulso animado -->
+  <div style="position:absolute;top:16px;right:18px;display:flex;align-items:center;gap:6px;">
+    <span class="pulse"></span>
+    <span style="font-size:11px;color:var(--green-lt);font-weight:600;">EN VIVO</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="font-size:40px;">📡</div>
+    <div style="flex:1;">
+      <div style="font-size:11px;font-weight:700;color:var(--green-lt);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">
+        ¡Sesión activa ahora!
+      </div>
+      <div style="font-size:18px;font-weight:700;color:var(--white);margin-bottom:4px;">
+        {{ sesion_activa.nombre_materia }}
+      </div>
+      <div style="font-size:12px;color:var(--txt2);">
+        📍 Aula <strong>{{ sesion_activa.aula or 'N/A' }}</strong> ·
+        📅 {{ sesion_activa.fecha_sesion|string|truncate(10,True,'') }} ·
+        <span class="badge {% if sesion_activa.modo_conexion=='ONLINE' %}b-blue{% else %}b-orange{% endif %}">{{ sesion_activa.modo_conexion }}</span>
+      </div>
+    </div>
+    <div style="text-align:center;flex-shrink:0;">
+      <div style="background:var(--green);color:#fff;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;">
+        ✅ Registrar Asistencia
+      </div>
+      <div style="font-size:10px;color:var(--txt3);margin-top:4px;">Haz clic para confirmar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Formulario oculto para POST de asistencia -->
+<form id="formRegistroAsistencia" method="GET" action="{{ url_for('asistencia.registrar_por_qr', token=sesion_activa.qr_token) if sesion_activa.qr_token else '#' }}" style="display:none;"></form>
+{% else %}
+<!-- Sin sesión activa -->
+<div class="pwa-banner" style="margin-bottom:20px;">
+  <span style="font-size:24px;">📱</span>
+  <p>
+    <strong style="color:var(--white);">¿Tu docente tiene una sesión activa?</strong><br>
+    Cuando el docente inicie una sesión verás aquí el botón para registrar tu asistencia, o escanea el QR que proyecte en el aula.
+  </p>
+</div>
+{% endif %}
+
+<!-- ══ MIS MATERIAS ══════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-hdr">
+    <span class="card-title">📚 Mis Materias y Asistencia</span>
+    <span class="badge b-blue">{{ inscripciones|length }} materias</span>
+  </div>
+
+  {% if inscripciones %}
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    {% for i in inscripciones %}
+    {% set pct = i.pct|default(0)|float %}
+    {% set minimo = i.porcentaje_min|default(75)|float %}
+    {% set ok = pct >= minimo %}
+    <div style="background:var(--surface3);border:1px solid {{ 'rgba(46,160,67,.3)' if ok else 'rgba(218,54,51,.3)' }};border-radius:10px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--white);">{{ i.nombre_materia }}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px;">Mínimo requerido: <strong style="color:var(--gold-lt);">{{ minimo }}%</strong></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:26px;font-weight:700;font-family:'JetBrains Mono',mono;color:{{ 'var(--green-lt)' if ok else 'var(--red-lt)' }};">{{ pct }}%</div>
+          <span class="badge {{ 'b-green' if ok else 'b-red' }}">{{ '✅ En regla' if ok else '⚠️ En riesgo' }}</span>
+        </div>
+      </div>
+      <div class="prog">
+        <div class="prog-fill {{ '' if ok else 'danger' }}" style="width:{{ [pct,100]|min }}%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-top:4px;">
+        <span>0%</span><span>Mínimo: {{ minimo }}%</span><span>100%</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:48px;color:var(--txt3);">
+    <div style="font-size:48px;margin-bottom:12px;">📚</div>
+    <p>No tienes materias inscritas aún.<br>Contacta al administrador para inscribirte.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ MI HORARIO SEMANAL ═════════════════════════════════════════════ -->
+{% if horario_grilla %}
+{% set dias_orden = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'] %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-hdr">
+    <span class="card-title">📅 Mi Horario Semanal</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="badge b-teal">{{ horario_grilla|length }} día(s)</span>
+      <a href="{{ url_for('estudiante.descargar_horario_pdf') }}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" title="Descargar horario en PDF">
+        📄 Descargar PDF
+      </a>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+    {% for dia in dias_orden %}
+    {% if dia in horario_grilla %}
+    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--blue-lt);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+        {{ dia }}
+      </div>
+      {% for h in horario_grilla[dia] %}
+      <div style="background:rgba(31,111,235,.08);border:1px solid rgba(31,111,235,.2);border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;color:var(--white);margin-bottom:3px;">{{ h.nombre_materia }}</div>
+        <div style="font-size:10px;color:var(--txt3);">
+          🕐 {{ h.hora_inicio }} – {{ h.hora_fin }}<br>
+          📍 Aula {{ h.aula or 'N/A' }}<br>
+          👨‍🏫 {{ h.docente_nombre }}
+          {% if h.codigo %} · <span style="font-family:'JetBrains Mono',mono;color:var(--gold-lt);">{{ h.codigo }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ══ MI INFORMACIÓN ════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-hdr"><span class="card-title">👤 Mi Información</span></div>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;">
+    <div><span style="font-size:11px;color:var(--txt3);">Nombre</span><div style="font-size:14px;color:var(--txt);">{{ session.nombre }}</div></div>
+    <div><span style="font-size:11px;color:var(--txt3);">Correo</span><div style="font-size:13px;color:var(--txt);">{{ session.correo }}</div></div>
+    <div><span style="font-size:11px;color:var(--txt3);">Código</span><div style="font-size:14px;color:var(--blue-lt);font-family:'JetBrains Mono',mono;">{{ est.codigo_estudiante or 'N/A' }}</div></div>
+    <div><span style="font-size:11px;color:var(--txt3);">Semestre</span><div style="font-size:14px;color:var(--txt);">{{ est.semestre or 'N/A' }}</div></div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function registrarAsistenciaQR(){
+  const form = document.getElementById('formRegistroAsistencia');
+  if(form && form.action && form.action !== '#'){
+    showToast('Redirigiendo para registrar asistencia…','info');
+    setTimeout(()=>{ window.location.href = form.action; }, 600);
+  } else {
+    showToast('No hay QR activo para esta sesión. Escanea el código QR del aula.','warn');
+  }
+}
+
+// Polling mejorado exclusivo de la vista del estudiante
+(function initEstudiantePoll() {
+  const banner = document.getElementById('sesion-activa-banner');
+  const form = document.getElementById('formRegistroAsistencia');
+  
+  setInterval(async () => {
+    try {
+      const r = await fetch('/estudiante/sesion-activa/poll');
+      if (!r.ok) return;
+      const d = await r.json();
+      
+      if (d.activa) {
+        if (!banner) {
+          // Nueva sesión iniciada, recargar para mostrar el banner
+          showToast('📡 ¡Tu docente inició una sesión! Recargando…', 'info');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          // La sesión sigue activa. Actualizar token si cambió
+          if (d.qr_token && form) {
+            const newAction = `/asistencia/registrar/${d.qr_token}`;
+            if (!form.action.includes(d.qr_token)) {
+              form.action = newAction;
+              console.log("Token de asistencia actualizado en vivo.");
+            }
+          }
+        }
+      } else {
+        if (banner) {
+          // La sesión finalizó, recargar para quitar el banner
+          showToast('La sesión de clase ha finalizado.', 'warn');
+          setTimeout(() => location.reload(), 1500);
+        }
+      }
+    } catch (e) {}
+  }, 5000); // Polling rápido de 5s para excelente responsividad
+})();
+</script>
+{% endblock %}

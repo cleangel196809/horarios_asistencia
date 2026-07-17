@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% block title %}Panel Docente{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Docente</span>
+<a class="sb-item active"><span class="ico">🏠</span> Mi Panel</a>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Reportes</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_pdf') }}"><span class="ico">📄</span> Exportar PDF</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_excel') }}"><span class="ico">📊</span> Exportar Excel</a>
+{% endblock %}
+{% block content %}
+
+<!-- PAGE HEADER -->
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>👨‍🏫 Panel del Docente</h2>
+    <p>Bienvenido, <strong>{{ session.nombre }}</strong> · Gestiona tus clases en tiempo real</p>
+  </div>
+  <div class="pg-actions">
+    {% if materias %}
+    <button class="btn btn-primary" onclick="abrirModalSesion()">▶ Iniciar Sesión de Clase</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if materias %}
+
+<!-- KPIs -->
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+  <div class="kpi">
+    <div class="kpi-lbl">Mis Materias <span>📚</span></div>
+    <div class="kpi-val" style="color:var(--blue-lt)">{{ materias|length }}</div>
+    <div class="kpi-delta up">Asignadas</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Sesiones Activas <span>🟢</span></div>
+    <div class="kpi-val" style="color:var(--green-lt)">{{ sesiones_activas|length }}</div>
+    <div class="kpi-delta up">En curso ahora</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Asistentes Hoy <span>✅</span></div>
+    <div class="kpi-val">{{ (sesiones_activas|sum(attribute='total_asist'))|default(0) }}</div>
+    <div class="kpi-delta">Registros totales</div>
+  </div>
+</div>
+
+<!-- SESIONES ACTIVAS CON QR -->
+{% if sesiones_activas %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-hdr">
+    <span class="card-title" style="color:var(--green-lt);">🟢 Sesiones Activas Ahora</span>
+    <span class="badge b-green">{{ sesiones_activas|length }} activa(s)</span>
+  </div>
+  {% for s in sesiones_activas %}
+  <div id="sesion-card-{{ s.id_sesion }}" style="background:rgba(46,160,67,.07);border:1px solid rgba(46,160,67,.2);border-radius:10px;padding:18px;margin-bottom:12px;">
+
+    <!-- Info + acciones top -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--white);">{{ s.nombre_materia }}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:3px;">
+          {{ s.dia }} · Aula <strong>{{ s.aula or 'N/A' }}</strong> ·
+          <span class="badge {% if s.modo_conexion=='ONLINE' %}b-blue{% else %}b-orange{% endif %}">{{ s.modo_conexion }}</span>
+          · Sesión <strong style="color:var(--blue-lt);">#{{ s.id_sesion }}</strong>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:26px;font-weight:700;color:var(--green-lt);font-family:'JetBrains Mono',mono;">{{ s.total_asist }}</div>
+          <div style="font-size:10px;color:var(--txt3);">presentes</div>
+        </div>
+        <a href="{{ url_for('asistencia.sesion_activa', id_sesion=s.id_sesion) }}" class="btn btn-primary" style="font-size:11px;">👁 Ver Sesión</a>
+        <button class="btn btn-teal" style="font-size:11px;" onclick="toggleQRPanel({{ s.id_sesion }})">📱 QR</button>
+        <button class="btn btn-gold" style="font-size:11px;" onclick="proyectarQR({{ s.id_sesion }})">🖥 Proyectar</button>
+        <form method="POST" action="{{ url_for('asistencia.cerrar_sesion', id_sesion=s.id_sesion) }}" style="display:inline;" onsubmit="return confirm('¿Cerrar esta sesión de clase?')">
+          <button type="submit" class="btn btn-red" style="font-size:11px;">⏹ Cerrar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Panel QR expandible -->
+    <div id="qr-panel-{{ s.id_sesion }}" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:4px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.08em;">Código QR — {{ s.nombre_materia }}</div>
+
+        <!-- QR Image Container -->
+        <div id="qr-img-wrap-{{ s.id_sesion }}" class="qr-box">
+          <div style="text-align:center;color:var(--txt3);">
+            <div style="font-size:32px;margin-bottom:8px;opacity:.4;">📱</div>
+            <div style="font-size:11px;">Genera el QR para esta sesión</div>
+          </div>
+        </div>
+
+        <!-- URL -->
+        <div id="qr-url-{{ s.id_sesion }}" style="display:none;font-family:'JetBrains Mono',mono;font-size:10px;color:var(--txt3);background:var(--surface3);padding:6px 12px;border-radius:6px;border:1px solid var(--border);word-break:break-all;max-width:340px;text-align:center;"></div>
+
+        <!-- Timer -->
+        <div id="qr-timer-wrap-{{ s.id_sesion }}" style="display:none;text-align:center;">
+          <div class="prog" style="width:200px;margin:0 auto 4px;">
+            <div class="prog-fill" id="qr-timer-bar-{{ s.id_sesion }}" style="width:100%;"></div>
+          </div>
+          <span id="qr-timer-{{ s.id_sesion }}" style="font-family:'JetBrains Mono',mono;font-size:16px;color:var(--green-lt);font-weight:700;">10:00</span>
+          <span style="font-size:10px;color:var(--txt3);display:block;">tiempo restante</span>
+        </div>
+
+        <!-- Botones -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+          <button class="btn btn-primary" onclick="generarQRDocente({{ s.id_sesion }})">⚡ Generar / Renovar QR</button>
+          <button class="btn btn-ghost" id="btn-copiar-{{ s.id_sesion }}" style="display:none;" onclick="copiarEnlaceQR({{ s.id_sesion }})">📋 Copiar Enlace</button>
+          <button class="btn btn-teal" id="btn-proyectar-{{ s.id_sesion }}" style="display:none;" onclick="proyectarQR({{ s.id_sesion }})">🖥 Proyectar en Pantalla</button>
+          <a id="btn-abrir-{{ s.id_sesion }}" style="display:none;" href="#" target="_blank" class="btn btn-ghost">🔗 Abrir enlace</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- MI HORARIO SEMANAL -->
+{% if horario_grilla %}
+{% set dias_orden = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'] %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-hdr">
+    <span class="card-title">📅 Mi Horario Semanal</span>
+    <span class="badge b-teal">{{ horario_grilla|length }} día(s)</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+    {% for dia in dias_orden %}
+    {% if dia in horario_grilla %}
+    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--blue-lt);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+        {{ dia }}
+      </div>
+      {% for h in horario_grilla[dia] %}
+      <div style="background:rgba(31,111,235,.08);border:1px solid rgba(31,111,235,.2);border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;color:var(--white);margin-bottom:3px;">{{ h.nombre_materia }}</div>
+        <div style="font-size:10px;color:var(--txt3);">
+          🕐 {{ h.hora_inicio }} – {{ h.hora_fin }}<br>
+          📍 Aula {{ h.aula or 'N/A' }}
+          {% if h.codigo %} · <span style="font-family:'JetBrains Mono',mono;color:var(--gold-lt);">{{ h.codigo }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- MIS MATERIAS -->
+<div class="card">
+  <div class="card-hdr">
+    <span class="card-title">📚 Mis Materias Asignadas</span>
+    <span class="badge b-blue">{{ materias|length }}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+    {% for m in materias %}
+    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:14px;font-weight:700;color:var(--white);margin-bottom:4px;">{{ m.nombre_materia }}</div>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;">
+        Código: {{ m.codigo or 'N/A' }} · {{ m.creditos or 0 }} créditos · Semestre {{ m.semestre or 'N/A' }}<br>
+        Asistencia mínima: <strong style="color:var(--gold-lt);">{{ m.porcentaje_min }}%</strong>
+      </div>
+      <button class="btn btn-primary btn-full" style="font-size:11px;"
+              onclick="iniciarSesionRapido({{ m.id_materia }}, '{{ m.nombre_materia|e }}')">
+        ▶ Iniciar Sesión de Clase
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+<!-- SIN MATERIAS -->
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;">
+  <div style="font-size:64px;margin-bottom:16px;">📚</div>
+  <h2 style="color:var(--txt2);margin-bottom:8px;">Sin materias asignadas</h2>
+  <p style="color:var(--txt3);max-width:400px;">El administrador aún no te ha asignado materias. Contacta al administrador del sistema.</p>
+</div>
+{% endif %}
+
+<!-- MODAL INICIAR SESIÓN -->
+<div id="modalSesionBg" class="modal-bg" onclick="if(event.target===this)closeModalSesion()">
+  <div id="modalSesionBox" class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">▶ Iniciar Sesión de Clase</span>
+      <button class="modal-close" onclick="closeModalSesion()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('asistencia.iniciar_sesion') }}">
+      <div class="form-group">
+        <label>Materia</label>
+        <select name="id_horario" id="selectMateria" required class="filter-select" style="width:100%;">
+          <option value="">-- Seleccionar materia --</option>
+          {% for m in materias %}
+          <option value="{{ m.id_materia }}">{{ m.nombre_materia }} (Sem. {{ m.semestre }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Modo de Conexión</label>
+        <select name="modo" class="filter-select" style="width:100%;">
+          <option value="ONLINE">🌐 Online (Internet)</option>
+          <option value="OFFLINE">📡 Offline (Red Local / LAN)</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModalSesion()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">▶ Iniciar Sesión</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL PROYECCIÓN QR (pantalla completa) -->
+<div id="qrProjectionModal" style="display:none;position:fixed;inset:0;background:#000;z-index:9999;flex-direction:column;align-items:center;justify-content:center;">
+  <button onclick="cerrarProyeccion()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">✕ Cerrar</button>
+  <div style="text-align:center;padding:20px;">
+    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;">SISCA · Politécnico Internacional</div>
+    <div id="proj-materia" style="font-size:clamp(18px,3vw,32px);font-weight:700;color:#fff;margin-bottom:24px;"></div>
+    <div id="proj-qr-wrap" style="background:#fff;border-radius:20px;padding:20px;display:inline-block;box-shadow:0 0 60px rgba(31,111,235,.4);">
+      <img id="proj-qr-img" src="" alt="QR Asistencia" style="width:clamp(200px,30vw,400px);height:auto;display:block;">
+    </div>
+    <div style="margin-top:20px;">
+      <div style="font-size:clamp(12px,1.5vw,16px);color:rgba(255,255,255,.5);margin-bottom:6px;">Escanea para registrar tu asistencia</div>
+      <div id="proj-url" style="font-family:'JetBrains Mono',mono;font-size:clamp(10px,1.2vw,14px);color:rgba(255,255,255,.4);"></div>
+    </div>
+    <div style="margin-top:16px;">
+      <span id="proj-timer" style="font-family:'JetBrains Mono',mono;font-size:clamp(20px,3vw,40px);color:#3FB950;font-weight:700;">10:00</span>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);">tiempo restante</div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+// ── Estado QR ────────────────────────────────────────────────
+const qrData = {};  // { [id_sesion]: { token, url, expiryTs } }
+
+function abrirModalSesion(){
+  document.getElementById('modalSesionBg').classList.add('open');
+}
+function iniciarSesionRapido(matId, matNombre){
+  document.getElementById('selectMateria').value = matId;
+  abrirModalSesion();
+}
+function closeModalSesion(){
+  document.getElementById('modalSesionBg').classList.remove('open');
+}
+
+function toggleQRPanel(sid){
+  const panel = document.getElementById('qr-panel-' + sid);
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Generar QR ───────────────────────────────────────────────
+async function generarQRDocente(sid){
+  showToast('Generando código QR…', 'info');
+  try {
+    const r = await fetch(`/asistencia/qr/generar/${sid}`, {method:'POST'});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if(!d.ok) throw new Error(d.msg || 'Error desconocido');
+
+    qrData[sid] = { token: d.token, url: d.url, ip: d.ip, expiryMin: d.expiry_min };
+
+    // Actualizar imagen QR
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(d.url)}`;
+    document.getElementById('qr-img-wrap-' + sid).innerHTML =
+      `<img src="${qrUrl}" width="200" height="200" alt="QR SISCA" style="border-radius:8px;">
+       <div class="qr-scan-line"></div>`;
+
+    // Mostrar URL
+    const urlEl = document.getElementById('qr-url-' + sid);
+    urlEl.textContent = d.url;
+    urlEl.style.display = 'block';
+
+    // Mostrar botones
+    document.getElementById('btn-copiar-' + sid).style.display = '';
+    document.getElementById('btn-proyectar-' + sid).style.display = '';
+    const btnAbrir = document.getElementById('btn-abrir-' + sid);
+    btnAbrir.href = d.url;
+    btnAbrir.style.display = '';
+
+    // Iniciar timer
+    const timerWrap = document.getElementById('qr-timer-wrap-' + sid);
+    timerWrap.style.display = 'block';
+    iniciarTimerQR(sid, d.expiry_min * 60);
+
+    // Mostrar panel si está oculto
+    document.getElementById('qr-panel-' + sid).style.display = 'block';
+    showToast('✅ QR generado. Comparte la URL con tus estudiantes.', 'success');
+  } catch(e) {
+    showToast('Error al generar QR: ' + e.message, 'error');
+  }
+}
+
+function copiarEnlaceQR(sid){
+  const url = document.getElementById('qr-url-' + sid).textContent;
+  if(!url){ showToast('Primero genera el QR', 'warn'); return; }
+  navigator.clipboard.writeText(url).then(()=> showToast('Enlace copiado al portapapeles', 'success'));
+}
+
+// ── Timer ───────────────────────────────────────────────────
+const timers = {};
+function iniciarTimerQR(sid, totalSec){
+  if(timers[sid]) clearInterval(timers[sid]);
+  let remaining = totalSec;
+  const barEl   = document.getElementById('qr-timer-bar-' + sid);
+  const txtEl   = document.getElementById('qr-timer-' + sid);
+  const projTxt = document.getElementById('proj-timer');
+
+  timers[sid] = setInterval(()=>{
+    remaining--;
+    if(remaining <= 0){
+      clearInterval(timers[sid]);
+      if(barEl) barEl.className = 'prog-fill danger';
+      if(txtEl) txtEl.textContent = 'EXPIRADO';
+      if(projTxt) projTxt.style.color = '#F85149';
+      showToast('⚠️ QR expirado. Genera uno nuevo.', 'warn');
+      return;
+    }
+    const m = Math.floor(remaining/60).toString().padStart(2,'0');
+    const s = (remaining%60).toString().padStart(2,'0');
+    const pct = (remaining/totalSec*100).toFixed(1);
+    if(txtEl)   txtEl.textContent = `${m}:${s}`;
+    if(barEl)   barEl.style.width = pct + '%';
+    if(projTxt) projTxt.textContent = `${m}:${s}`;
+    if(remaining <= 60 && barEl) barEl.className = 'prog-fill danger';
+  }, 1000);
+}
+
+// ── Proyectar QR ────────────────────────────────────────────
+function proyectarQR(sid){
+  const modal = document.getElementById('qrProjectionModal');
+  const data  = qrData[sid];
+
+  if(!data){
+    showToast('Primero genera el QR de esta sesión', 'warn');
+    toggleQRPanel(sid);
+    return;
+  }
+
+  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(data.url)}`;
+  document.getElementById('proj-qr-img').src = qrImgUrl;
+  document.getElementById('proj-url').textContent = data.url;
+
+  // Buscar nombre de materia
+  const card = document.getElementById('sesion-card-' + sid);
+  const matEl = card ? card.querySelector('[style*="font-size:16px"]') : null;
+  document.getElementById('proj-materia').textContent = matEl ? matEl.textContent : 'Sesión #' + sid;
+
+  modal.style.display = 'flex';
+}
+
+function cerrarProyeccion(){
+  document.getElementById('qrProjectionModal').style.display = 'none';
+}
+
+// Cerrar proyección con Escape
+document.addEventListener('keydown', e => { if(e.key==='Escape') cerrarProyeccion(); });
+</script>
+{% endblock %}

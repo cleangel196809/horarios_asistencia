@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Plan de Grupos · SIIHAPI{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='motor_ia' %}
+  <main class="main-content">
+    <div style="margin-bottom:20px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Motor IA · Fase 1</p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);">👥 Generación automática de grupos</h1>
+      <p style="color:var(--txt2);margin-top:6px;">grupos = ⌈ estudiantes / capacidad ⌉ · Virtual 8–30 · Presencial por capacidad de salón</p>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+      <div class="kpi"><div class="kpi-lbl">Asignaturas</div><div class="kpi-val" style="color:#A78BFA;">{{ tot_asignaturas }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Estudiantes</div><div class="kpi-val" style="color:#22D3EE;">{{ tot_est }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Grupos a generar</div><div class="kpi-val" style="color:#4ADE80;">{{ tot_grupos }}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Plan de grupos por asignatura</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Programa</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Modalidad</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Ciclo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asignatura</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiantes</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">N° Grupos</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Est./Grupo</th>
+        </tr></thead>
+        <tbody>
+          {% for p in plan %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:9px 10px;color:var(--txt2);">{{ p.programa|truncatechars:32 }}</td>
+            <td style="padding:9px 10px;"><span style="color:{% if p.modalidad == 'Virtual' %}#A78BFA{% else %}#22D3EE{% endif %};">{{ p.modalidad }}</span></td>
+            <td style="padding:9px 10px;text-align:center;color:var(--txt2);">{{ p.ciclo }}</td>
+            <td style="padding:9px 10px;color:var(--white);">{{ p.asignatura|truncatechars:38 }}</td>
+            <td style="padding:9px 10px;text-align:center;color:var(--cyan-lt);font-weight:700;">{{ p.estudiantes }}</td>
+            <td style="padding:9px 10px;text-align:center;color:#4ADE80;font-weight:800;">{{ p.num_grupos }}</td>
+            <td style="padding:9px 10px;text-align:center;color:var(--txt2);">{{ p.estudiantes_por_grupo }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" style="padding:30px;text-align:center;color:var(--txt3);">No hay matrículas activas para calcular grupos. Carga estudiantes/matrículas primero.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

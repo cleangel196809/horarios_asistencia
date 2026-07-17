@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% block title %}Chat IA · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='motor_ia' %}
+
+  <main class="main-content" style="display:flex;flex-direction:column;height:calc(100vh - 64px);padding-bottom:0;">
+
+    <div style="margin-bottom:20px;flex-shrink:0;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Asistente IA</p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);">💬 Chat con IA</h1>
+      <p style="color:var(--txt2);margin-top:4px;font-size:13px;">
+        Conversa con la IA, sube archivos CSV/Excel y obtén ayuda para generar horarios.
+        <span class="tb-badge" id="estadoBadge" style="margin-left:10px;">{{ proveedor_activo }}</span>
+        <a href="{% url 'motor_ia' %}" style="color:var(--blue-lt);margin-left:14px;font-size:12px;">← Volver al Motor IA</a>
+      </p>
+    </div>
+
+    {# Ventana de chat #}
+    <div id="chat-window" style="
+      flex:1;
+      overflow-y:auto;
+      background:var(--surface-glass);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:22px;
+      margin-bottom:14px;
+      backdrop-filter:blur(20px);
+    ">
+      <div class="msg msg-ai" style="display:flex;gap:12px;margin-bottom:18px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue-lt),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🤖</div>
+        <div style="flex:1;padding:14px 18px;background:var(--surface);border-radius:14px 14px 14px 4px;border:1px solid var(--border);">
+          <p style="color:var(--white);line-height:1.6;font-size:14px;">
+            <strong>¡Hola, soy el asistente IA de SIIHAPI!</strong> 👋<br><br>
+            Puedo ayudarte con:
+          </p>
+          <ul style="color:var(--txt2);font-size:13px;margin-top:8px;padding-left:20px;line-height:1.7;">
+            <li>📄 Analizar archivos CSV/Excel con datos de estudiantes, docentes o materias</li>
+            <li>📅 Sugerir cómo armar horarios óptimos</li>
+            <li>🤖 Explicarte cómo funciona el Motor IA y los algoritmos CSP</li>
+            <li>🔗 Guiarte en el flujo Motor IA → Aprobar → Publicar a SISCA</li>
+            <li>⚠ Detectar conflictos en tus datos</li>
+          </ul>
+          <p style="color:var(--txt2);font-size:13px;margin-top:12px;">
+            <strong>Prueba decirme:</strong> "explícame cómo funciona el Motor IA" o sube un archivo CSV con docentes.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {# Input #}
+    <div style="flex-shrink:0;padding-bottom:16px;">
+      {# Archivo adjunto #}
+      <div id="archivo-preview" style="display:none;margin-bottom:8px;padding:8px 12px;background:var(--surface-glass);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--cyan);">
+        📎 <span id="archivo-nombre"></span>
+        <button onclick="quitarArchivo()" style="background:none;border:none;color:var(--red-lt);cursor:pointer;margin-left:8px;">✕ Quitar</button>
+      </div>
+
+      <form id="chat-form" style="display:flex;gap:8px;align-items:flex-end;">
+        {% csrf_token %}
+        <label style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;color:var(--blue-lt);font-size:18px;" title="Adjuntar archivo CSV/XLSX/PDF">
+          📎
+          <input type="file" id="archivo-input" accept=".csv,.xlsx,.xls,.pdf,.txt" style="display:none;" onchange="archivoSeleccionado(event)">
+        </label>
+
+        <select id="proveedor-select" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 12px;font-size:12px;flex-shrink:0;" title="Proveedor LLM">
+          <option value="">🤖 Auto</option>
+          <option value="GEMINI">🧠 Gemini</option>
+          <option value="OPENAI">🟢 OpenAI</option>
+          <option value="ANTHROPIC">🟣 Claude</option>
+          <option value="HEURISTIC">⚙️ Offline</option>
+        </select>
+
+        <textarea
+          id="mensaje-input"
+          placeholder="Pregunta lo que quieras a la IA..."
+          rows="1"
+          style="flex:1;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 18px;resize:none;font-family:inherit;font-size:14px;line-height:1.5;"
+          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviar();}"
+        ></textarea>
+
+        <button type="button" id="btn-enviar" onclick="enviar()" class="btn btn-primary" style="padding:14px 22px;flex-shrink:0;">
+          ➤
+        </button>
+      </form>
+
+      <p style="font-size:11px;color:var(--txt3);margin-top:8px;text-align:center;">
+        Enter para enviar · Shift+Enter para nueva linea · Soporta CSV, XLSX, PDF, TXT
+      </p>
+    </div>
+  </main>
+</div>
+
+<script>
+const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+const $window = document.getElementById('chat-window');
+const $input = document.getElementById('mensaje-input');
+const $btn = document.getElementById('btn-enviar');
+const $archivoInput = document.getElementById('archivo-input');
+const $archivoPreview = document.getElementById('archivo-preview');
+const $archivoNombre = document.getElementById('archivo-nombre');
+const $proveedor = document.getElementById('proveedor-select');
+
+let historial = [];   // [{rol: 'user'|'assistant', texto: '...'}]
+let archivoSel = null;
+
+// Autoexpand textarea
+$input.addEventListener('input', () => {
+  $input.style.height = 'auto';
+  $input.style.height = Math.min($input.scrollHeight, 200) + 'px';
+});
+
+function archivoSeleccionado(ev) {
+  archivoSel = ev.target.files[0];
+  if (archivoSel) {
+    $archivoNombre.textContent = `${archivoSel.name} (${(archivoSel.size/1024).toFixed(1)} KB)`;
+    $archivoPreview.style.display = 'block';
+  }
+}
+
+function quitarArchivo() {
+  archivoSel = null;
+  $archivoInput.value = '';
+  $archivoPreview.style.display = 'none';
+}
+
+function escapeHtml(s) {
+  return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function formatRespuesta(txt) {
+  // Soporta **negritas**, listas, codigo simple
+  return escapeHtml(txt)
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--blue-lt);">$1</strong>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(8,12,20,0.55);padding:2px 6px;border-radius:4px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--cyan);">$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+function agregarMensaje(rol, texto, meta) {
+  const esUser = rol === 'user';
+  const avatar = esUser ? '👤' : '🤖';
+  const grad = esUser
+    ? 'linear-gradient(135deg,var(--lime-lt),var(--green))'
+    : 'linear-gradient(135deg,var(--blue-lt),var(--cyan))';
+  const bgBubble = esUser ? 'rgba(31,111,235,0.08)' : 'var(--surface)';
+  const radius = esUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px';
+
+  const html = `
+    <div class="msg" style="display:flex;gap:12px;margin-bottom:18px;${esUser?'flex-direction:row-reverse;':''}">
+      <div style="width:36px;height:36px;border-radius:50%;background:${grad};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">${avatar}</div>
+      <div style="max-width:75%;padding:14px 18px;background:${bgBubble};border-radius:${radius};border:1px solid var(--border);">
+        <div style="color:var(--white);line-height:1.6;font-size:14px;">${formatRespuesta(texto)}</div>
+        ${meta ? `<p style="font-size:10px;color:var(--txt3);margin-top:8px;text-transform:uppercase;letter-spacing:.06em;">${meta}</p>` : ''}
+      </div>
+    </div>`;
+  $window.insertAdjacentHTML('beforeend', html);
+  $window.scrollTop = $window.scrollHeight;
+}
+
+function loader() {
+  const id = 'loader-' + Date.now();
+  const html = `
+    <div class="msg" id="${id}" style="display:flex;gap:12px;margin-bottom:18px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue-lt),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🤖</div>
+      <div style="padding:14px 18px;background:var(--surface);border-radius:14px 14px 14px 4px;border:1px solid var(--border);">
+        <span style="color:var(--blue-lt);font-size:13px;">Pensando<span class="dots">...</span></span>
+      </div>
+    </div>`;
+  $window.insertAdjacentHTML('beforeend', html);
+  $window.scrollTop = $window.scrollHeight;
+  return id;
+}
+
+async function enviar() {
+  const txt = $input.value.trim();
+  if (!txt) return;
+
+  $btn.disabled = true;
+  $input.disabled = true;
+
+  agregarMensaje('user', txt, archivoSel ? `📎 ${archivoSel.name}` : null);
+  historial.push({rol: 'user', texto: txt});
+
+  $input.value = '';
+  $input.style.height = 'auto';
+  const loaderId = loader();
+
+  try {
+    const fd = new FormData();
+    fd.append('mensaje', txt);
+    fd.append('historial', JSON.stringify(historial.slice(0, -1)));  // sin el actual
+    if (archivoSel) fd.append('archivo', archivoSel);
+    if ($proveedor.value) fd.append('proveedor', $proveedor.value);
+
+    const r = await fetch('{% url "motor_ia_chat_enviar" %}', {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrftoken},
+      body: fd,
+    });
+    const d = await r.json();
+
+    document.getElementById(loaderId)?.remove();
+
+    if (d.success) {
+      agregarMensaje('assistant', d.respuesta, `${d.proveedor} · ${d.modelo}`);
+      historial.push({rol: 'assistant', texto: d.respuesta});
+    } else {
+      agregarMensaje('assistant',
+        '⚠ ' + (d.error || 'Error desconocido') + '\n\n' + (d.respuesta || ''),
+        d.proveedor);
+    }
+    quitarArchivo();
+  } catch(e) {
+    document.getElementById(loaderId)?.remove();
+    agregarMensaje('assistant', '❌ Error de red: ' + e.message);
+  } finally {
+    $btn.disabled = false;
+    $input.disabled = false;
+    $input.focus();
+  }
+}
+
+// Auto-focus al cargar
+$input.focus();
+
+// Animacion de puntos
+let dotsState = 0;
+setInterval(() => {
+  dotsState = (dotsState + 1) % 4;
+  const dots = document.querySelectorAll('.dots');
+  dots.forEach(d => { d.textContent = '.'.repeat(dotsState); });
+}, 400);
+</script>
+{% endblock %}

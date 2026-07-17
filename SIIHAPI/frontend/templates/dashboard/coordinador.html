@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Coordinador · SIIHAPI{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='dashboard' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:28px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Bienvenido</p>
+      <h1 style="font-size:32px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">{{ request.user.nombre }} {{ request.user.apellido }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Rol: <strong style="color:var(--cyan-lt);">Coordinador Académico</strong> · Periodo: <strong style="color:var(--blue-lt);">{{ kpis.periodo }}</strong></p>
+    </div>
+
+    <div class="kpi-grid">
+      <a href="{% url 'docentes' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">👨‍🏫 Docentes</div><div class="kpi-val">{{ kpis.docentes }}</div></a>
+      <a href="{% url 'estudiantes' %}" class="kpi" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">🎓 Estudiantes</div><div class="kpi-val">{{ kpis.estudiantes }}</div></a>
+      <a href="{% url 'horarios' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">📅 Horarios totales</div><div class="kpi-val">{{ kpis.horarios }}</div></a>
+      <a href="{% url 'horarios' %}?estado=PUBLICADO" class="kpi" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">📤 Publicados</div><div class="kpi-val">{{ kpis.publicados }}</div></a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📅 Flujo del Periodo {{ kpis.periodo }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
+          <div style="padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);">
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Propuestos por IA</p>
+            <p style="font-size:24px;font-weight:800;color:var(--blue-lt);margin-top:6px;">{{ kpis.propuestos }}</p>
+          </div>
+          <div style="padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid rgba(34,211,238,0.3);">
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Aprobados</p>
+            <p style="font-size:24px;font-weight:800;color:var(--lime-lt);margin-top:6px;">{{ kpis.aprobados }}</p>
+          </div>
+          <div style="padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid rgba(34,211,238,0.3);">
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Publicados a SISCA</p>
+            <p style="font-size:24px;font-weight:800;color:var(--cyan);margin-top:6px;">{{ kpis.publicados }}</p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-ej">🤖 Ejecutar Motor IA</button>
+          <button class="btn btn-cyan" id="btn-aprobar">✅ Aprobar propuestos</button>
+          <a class="btn btn-lime" href="{% url 'integracion_sisca' %}">📤 Publicar a SISCA</a>
+        </div>
+        <div id="coord-out" style="display:none;margin-top:14px;padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Última ejecución IA</span></div>
+        {% if ultima_ia %}
+        <p style="font-family:'JetBrains Mono',monospace;color:var(--blue-lt);font-size:13px;">{{ ultima_ia.job_id }}</p>
+        <p style="color:var(--txt2);margin-top:8px;">Estado: <strong style="color:var(--lime-lt);">{{ ultima_ia.estado }}</strong></p>
+        <p style="color:var(--txt2);">Asignadas: <strong>{{ ultima_ia.asignaciones_exitosas }}</strong></p>
+        <p style="color:var(--txt2);">Conflictos: <strong style="color:var(--orange);">{{ ultima_ia.conflictos_residuales }}</strong></p>
+        <p style="color:var(--txt3);font-size:12px;margin-top:8px;">{{ ultima_ia.fecha_inicio|date:"d/m H:i" }} · {{ ultima_ia.duracion_ms }} ms</p>
+        {% else %}
+        <p style="color:var(--txt3);">Sin ejecuciones todavía.</p>
+        {% endif %}
+        <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">Último evento SISCA</p>
+        {% if ultimo_log_sisca %}
+        <p style="font-size:12px;color:{% if ultimo_log_sisca.estado == 'EXITO' %}var(--lime-lt){% else %}var(--orange){% endif %};">{{ ultimo_log_sisca.get_operacion_display }}</p>
+        <p style="font-size:11px;color:var(--txt3);">{{ ultimo_log_sisca.fecha|date:"d/m H:i:s" }}</p>
+        {% else %}
+        <p style="color:var(--txt3);font-size:12px;">Sin actividad SISCA.</p>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function() {
+  const $out = document.getElementById('coord-out');
+  const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+
+  async function POST(url, modo) {
+    $out.style.display='block';
+    $out.style.color='var(--blue-lt)';
+    $out.innerHTML='⏳ Procesando...';
+    try {
+      const fd = new FormData();
+      fd.append('periodo', '{{ kpis.periodo }}');
+      if (modo) fd.append('modo', modo);
+      const r = await fetch(url, {method:'POST',headers:{'X-CSRFToken':csrftoken},body:fd});
+      const d = await r.json();
+      if (d.success) {
+        $out.style.color='var(--lime-lt)';
+        $out.innerHTML = '✅ ' + (d.mensaje || 'OK') + '<br><a href="javascript:location.reload()" style="color:var(--blue-lt);">↻ Refrescar</a>';
+      } else {
+        $out.style.color='var(--red-lt)';
+        $out.innerHTML='❌ '+ (d.error || 'Error');
+      }
+    } catch(e) {
+      $out.style.color='var(--red-lt)';
+      $out.innerHTML='❌ '+e.message;
+    }
+  }
+
+  document.getElementById('btn-ej').onclick = () => POST('{% url "motor_ia_ejecutar" %}', 'COMPLETA');
+  document.getElementById('btn-aprobar').onclick = () => POST('{% url "aprobar_horarios" %}');
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>{% block title %}SISCA{% endblock %} · Politécnico Internacional</title>
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body data-rol="{{ session.rol|default('') }}">
+
+<!-- Canvas WebGL de fondo cinemático (3D) -->
+<canvas id="bg3d" aria-hidden="true"></canvas>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Menú">☰</button>
+  <a href="{{ url_for('auth.landing') }}" class="tb-logo" style="text-decoration:none;">
+    <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}"
+         alt="Politécnico" height="34"
+         onerror="this.style.display='none'">
+    <div class="tb-logo-text">
+      <span class="tb-logo-name">SISCA</span>
+      <span class="tb-logo-sub">Politécnico Internacional</span>
+    </div>
+  </a>
+  <div class="tb-spacer"></div>
+
+  {% if session.rol %}
+  <span class="tb-badge {{ session.rol|lower }}">{{ session.rol }}</span>
+  <div class="tb-user">
+    <div class="tb-avatar">{{ session.avatar_initials|default('US') }}</div>
+    <span class="tb-uname d-none-sm">{{ session.nombre|default('')|truncate(20) }}</span>
+    <span class="tb-logout" title="Cerrar sesión" onclick="location.href='{{ url_for('auth.logout') }}'" style="cursor:pointer;">⏻</span>
+  </div>
+  {% endif %}
+</header>
+
+<!-- FLASHED MESSAGES -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="toast-wrap" id="toastWrap">
+  {% for cat, msg in messages %}
+  <div class="toast {{ 'success' if cat=='success' else 'error' if cat=='error' else 'info' }}">
+    <span class="toast-ico">{{ '✅' if cat=='success' else '❌' if cat=='error' else 'ℹ️' }}</span>
+    <div class="toast-txt">{{ msg }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- SHELL -->
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar" id="sidebar">
+    {% block sidebar %}{% endblock %}
+    <div class="sb-spacer"></div>
+    <div class="sb-status">
+      <span class="pulse"></span>
+      <span style="font-size:11px;color:var(--txt2);">Sistema Activo</span>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modalBg" class="modal-bg" onclick="closeModalOnBg(event)">
+  <div id="modalBox" class="modal"></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/sisca.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sisca-bg3d.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/sisca-fx.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+<script>
+// Auto-dismiss toasts
+setTimeout(()=>{
+  document.querySelectorAll('.toast').forEach(t=>{
+    t.style.animation='toastIn .3s ease reverse';
+    setTimeout(()=>t.remove(),300);
+  });
+},4000);
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+}
+function closeModalOnBg(e){
+  if(e.target===document.getElementById('modalBg')) closeModal();
+}
+function closeModal(){
+  document.getElementById('modalBg').classList.remove('open');
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>

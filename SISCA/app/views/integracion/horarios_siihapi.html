@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+{% block title %}Integración SIIHAPI{% endblock %}
+
+{% block sidebar %}
+<span class="sb-lbl">Académico</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('admin.usuarios') }}"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+
+<span class="sb-lbl" style="margin-top:14px;">Integración</span>
+<a class="sb-item active"><span class="ico">🔗</span> Horarios SIIHAPI</a>
+
+<span class="sb-lbl" style="margin-top:14px;">Reportes</span>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Asistencia</a>
+<a class="sb-item" href="{{ url_for('reportes.auditoria') }}"><span class="ico">🔍</span> Auditoría</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  .int-hero{
+    background:linear-gradient(135deg,rgba(31,111,235,0.10),rgba(6,182,212,0.04));
+    border:1px solid rgba(31,111,235,0.30);border-radius:14px;
+    padding:20px 24px;margin-bottom:18px;position:relative;overflow:hidden;
+  }
+  .int-hero::before{
+    content:'';position:absolute;top:-40%;right:-8%;width:280px;height:280px;
+    background:radial-gradient(circle,rgba(6,182,212,0.18) 0%,transparent 70%);pointer-events:none;
+  }
+  .int-hero h2{font-size:24px;color:var(--blue-lt);margin:6px 0 4px;font-weight:800;}
+  .int-hero .int-eyebrow{
+    font-size:11px;color:var(--teal);text-transform:uppercase;
+    letter-spacing:.14em;font-weight:800;display:flex;align-items:center;gap:8px;
+  }
+  .int-hero .int-eyebrow::before{
+    content:'';width:7px;height:7px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 12px rgba(6,182,212,0.7);animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .status-bar{
+    display:flex;gap:14px;align-items:center;margin-top:12px;flex-wrap:wrap;
+    padding-top:14px;border-top:1px solid rgba(31,111,235,0.18);
+  }
+  .status-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt2);}
+  .status-item strong{color:var(--blue-lt);font-weight:700;}
+  .status-dot{width:9px;height:9px;border-radius:50%;background:#84CC16;box-shadow:0 0 8px rgba(132,204,22,0.5);}
+  .status-dot.warn{background:#FBBF24;box-shadow:0 0 8px rgba(251,191,36,0.5);}
+  .status-dot.err{background:#EF4444;box-shadow:0 0 8px rgba(239,68,68,0.5);}
+
+  .int-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;}
+  .int-kpi{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+    transition:all .25s;position:relative;overflow:hidden;backdrop-filter:blur(8px);
+  }
+  .int-kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow-glow);border-color:var(--teal);}
+  .int-kpi .kpi-ico{position:absolute;top:8px;right:10px;font-size:24px;opacity:0.25;}
+  .int-kpi .kpi-num{font-size:28px;font-weight:800;color:var(--blue-lt);line-height:1;}
+  .int-kpi .kpi-lbl{font-size:11px;color:var(--txt2);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:8px;}
+  .int-kpi.cyan .kpi-num{color:var(--teal);}
+  .int-kpi.indigo .kpi-num{color:var(--indigo);}
+  .int-kpi.lime .kpi-num{color:var(--green-lt);}
+  .int-kpi.cyan-lt .kpi-num{color:var(--blue-lt);}
+
+  .int-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:18px;}
+  @media(max-width:1100px){.int-grid{grid-template-columns:1fr;}}
+
+  .int-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;backdrop-filter:blur(8px);
+  }
+  .int-card h3{margin:0 0 14px;color:var(--blue-lt);font-size:15px;font-weight:800;
+    display:flex;align-items:center;gap:8px;}
+
+  .dist-bars{display:flex;flex-direction:column;gap:10px;}
+  .dist-row{display:grid;grid-template-columns:80px 1fr 40px;gap:10px;align-items:center;font-size:12px;}
+  .dist-lbl{color:var(--txt2);font-weight:700;}
+  .dist-track{background:var(--surface3);border-radius:99px;height:12px;overflow:hidden;}
+  .dist-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--blue-lt));border-radius:99px;transition:width .8s;}
+  .dist-num{color:var(--blue-lt);font-weight:800;text-align:right;}
+
+  .flow-step{
+    display:flex;align-items:center;gap:12px;padding:10px 12px;
+    background:var(--surface2);border-radius:10px;margin-bottom:8px;
+  }
+  .flow-icon{
+    width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--blue-lt));
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;
+  }
+  .flow-text{flex:1;font-size:12px;color:var(--txt2);}
+  .flow-text strong{color:var(--blue-lt);}
+
+  .filter-bar{
+    background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;
+    display:flex;gap:10px;align-items:end;flex-wrap:wrap;
+  }
+  .filter-bar input, .filter-bar select{
+    background:var(--surface3);border:1px solid var(--border);border-radius:8px;
+    padding:8px 12px;font-size:13px;color:var(--txt);
+  }
+  .filter-bar input:focus, .filter-bar select:focus{border-color:var(--teal);outline:none;}
+
+  .empty-state{
+    text-align:center;padding:48px 24px;background:var(--surface);border:1px dashed var(--border2);border-radius:12px;
+  }
+  .empty-state h3{color:var(--blue-lt);font-size:16px;margin:12px 0 4px;}
+  .empty-state p{color:var(--txt2);font-size:13px;}
+</style>
+
+{# ──────── HERO de integración ──────── #}
+<div class="int-hero">
+  <p class="int-eyebrow">Integración bidireccional · SIIHAPI ⇄ SISCA</p>
+  <h2>🔗 Horarios sincronizados desde SIIHAPI</h2>
+  <p style="color:var(--txt2);font-size:13px;margin:0;">
+    Los horarios generados por el Motor IA de SIIHAPI se publican aquí automáticamente vía API REST.
+    Una vez sincronizados, alimentan los reportes de asistencia y los dashboards de docentes y estudiantes.
+  </p>
+  <div class="status-bar">
+    <div class="status-item"><span class="status-dot"></span>API: <strong>Conectada</strong></div>
+    <div class="status-item">🕐 Última sincronización: <strong>{{ kpis.ultima_sync }}</strong></div>
+    <div class="status-item">📅 Periodo activo: <strong>2026-2</strong></div>
+    <a class="btn btn-primary" href="http://localhost:8000/dashboard/integracion-sisca/" target="_blank"
+       style="margin-left:auto;background:linear-gradient(135deg,var(--teal),var(--blue-lt));text-decoration:none;font-size:12px;padding:8px 14px;">
+      ↗ Abrir SIIHAPI
+    </a>
+  </div>
+</div>
+
+{# ──────── KPIs ──────── #}
+<div class="int-kpis">
+  <div class="int-kpi">
+    <span class="kpi-ico">🕐</span>
+    <div class="kpi-num">{{ kpis.total_horarios }}</div>
+    <div class="kpi-lbl">Horarios sincronizados</div>
+  </div>
+  <div class="int-kpi cyan">
+    <span class="kpi-ico">📚</span>
+    <div class="kpi-num">{{ kpis.total_materias }}</div>
+    <div class="kpi-lbl">Materias</div>
+  </div>
+  <div class="int-kpi indigo">
+    <span class="kpi-ico">👨‍🏫</span>
+    <div class="kpi-num">{{ kpis.total_docentes }}</div>
+    <div class="kpi-lbl">Docentes activos</div>
+  </div>
+  <div class="int-kpi cyan-lt">
+    <span class="kpi-ico">🏛️</span>
+    <div class="kpi-num">{{ kpis.total_aulas }}</div>
+    <div class="kpi-lbl">Aulas usadas</div>
+  </div>
+  <div class="int-kpi lime">
+    <span class="kpi-ico">📋</span>
+    <div class="kpi-num">{{ kpis.total_sesiones }}</div>
+    <div class="kpi-lbl">Sesiones activas</div>
+  </div>
+</div>
+
+{# ──────── Grid: Distribución + Flujo ──────── #}
+<div class="int-grid">
+
+  <div class="int-card">
+    <h3>📊 Distribución por día de la semana</h3>
+    {% if dist_dia %}
+    <div class="dist-bars">
+      {% set max_total = dist_dia|map(attribute='total')|max %}
+      {% for d in dist_dia %}
+      <div class="dist-row">
+        <div class="dist-lbl">{{ d.dia|capitalize }}</div>
+        <div class="dist-track">
+          <div class="dist-fill" style="width:{{ ((d.total / max_total) * 100)|round|int if max_total else 0 }}%;"></div>
+        </div>
+        <div class="dist-num">{{ d.total }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--txt3);font-size:13px;">Sin horarios registrados.</p>
+    {% endif %}
+  </div>
+
+  <div class="int-card">
+    <h3>🔄 Flujo de integración</h3>
+    <div class="flow-step">
+      <div class="flow-icon">1</div>
+      <div class="flow-text"><strong>SIIHAPI</strong> · Motor IA genera horarios</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-icon">2</div>
+      <div class="flow-text">Coordinador <strong>aprueba</strong> propuestas</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-icon">3</div>
+      <div class="flow-text">POST <strong>/api/v1/horarios/publicar</strong></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-icon">4</div>
+      <div class="flow-text"><strong>SISCA</strong> recibe e inserta en Oracle</div>
+    </div>
+    <div class="flow-step" style="background:linear-gradient(135deg,rgba(132,204,22,0.10),rgba(34,211,238,0.04));border:1px solid rgba(132,204,22,0.30);">
+      <div class="flow-icon" style="background:linear-gradient(135deg,#84CC16,#22D3EE);">✓</div>
+      <div class="flow-text"><strong style="color:#84CC16;">Activo</strong> · Asistencia disponible</div>
+    </div>
+  </div>
+</div>
+
+{# ──────── Filtros ──────── #}
+<div class="filter-bar">
+  <form method="GET" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;flex:1;">
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Día</label>
+      <select name="dia" onchange="this.form.submit()" style="width:140px;">
+        <option value="">— Todos —</option>
+        {% for d in ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'] %}
+        <option value="{{ d }}" {% if dia_filtro == d %}selected{% endif %}>{{ d|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Aula</label>
+      <input type="text" name="aula" value="{{ aula_filtro }}" placeholder="ej: 301" style="width:140px;">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Código materia</label>
+      <input type="text" name="codigo" value="{{ codigo_filtro }}" placeholder="ej: ENF" style="width:130px;">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Carrera</label>
+      <select name="carrera" style="width:170px;">
+        <option value="">— Todas —</option>
+        {% for c in carreras %}<option value="{{ c.nombre_carrera }}" {% if carrera_filtro == c.nombre_carrera %}selected{% endif %}>{{ c.nombre_carrera|truncate(26,True) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Semestre</label>
+      <select name="semestre" style="width:110px;">
+        <option value="">— Todos —</option>
+        {% for sm in semestres %}<option value="{{ sm.semestre }}" {% if semestre_filtro == sm.semestre|string %}selected{% endif %}>Sem {{ sm.semestre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Jornada</label>
+      <select name="jornada" style="width:150px;">
+        <option value="">— Todas —</option>
+        <option value="DIURNA"   {% if jornada_filtro == 'DIURNA' %}selected{% endif %}>Diurna (07–10)</option>
+        <option value="ESPECIAL" {% if jornada_filtro == 'ESPECIAL' %}selected{% endif %}>Especial (10–13)</option>
+        <option value="NOCTURNA" {% if jornada_filtro == 'NOCTURNA' %}selected{% endif %}>Nocturna (18–21)</option>
+        <option value="SABADO"   {% if jornada_filtro == 'SABADO' %}selected{% endif %}>Sábados</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt2);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Docente</label>
+      <input type="text" name="docente" value="{{ docente_filtro }}" placeholder="ej: Edgar" style="width:140px;">
+    </div>
+    <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,var(--teal),var(--blue-lt));">🔍 Filtrar</button>
+    <a href="{{ url_for('ui_siihapi.panel_horarios_siihapi') }}" class="btn">Limpiar</a>
+  </form>
+  <a href="{{ url_for('ui_siihapi.exportar_horarios_pdf_completo', dia=dia_filtro, aula=aula_filtro, codigo=codigo_filtro, carrera=carrera_filtro, semestre=semestre_filtro, jornada=jornada_filtro, docente=docente_filtro) }}"
+     class="btn btn-primary"
+     style="background:linear-gradient(135deg,#84CC16,#22D3EE);text-decoration:none;margin-left:auto;">
+    📄 Descargar PDF Politécnico
+  </a>
+</div>
+
+{# ──────── Tabla principal ──────── #}
+<div class="int-card" style="padding:0;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+    <h3 style="margin:0;">📋 Lista de horarios sincronizados</h3>
+    <span class="badge b-blue" style="background:rgba(31,111,235,0.15);color:var(--blue-lt);border:1px solid rgba(77,155,255,0.20);padding:5px 12px;border-radius:99px;font-weight:700;">{{ horarios|length }} horario{{ 's' if horarios|length != 1 else '' }}</span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Materia</th>
+          <th>Día</th>
+          <th>Hora Inicio</th>
+          <th>Hora Fin</th>
+          <th>Aula</th>
+          <th>Docente</th>
+          <th style="text-align:center;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in horarios %}
+        <tr style="cursor:pointer;transition:background 0.2s;"
+            onmouseover="this.style.background='rgba(255,255,255,0.03)'"
+            onmouseout="this.style.background=''"
+            onclick="if(!event.target.closest('.no-row-click')) window.location='{{ url_for('ui_siihapi.detalle_horario', id_horario=h.id_horario) }}'">
+          <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--blue-lt);">{{ h.codigo }}</td>
+          <td style="font-weight:600;">{{ h.nombre_materia|truncate(40,True,'...') }}</td>
+          <td>
+            <span class="badge" style="
+              {% if h.dia == 'LUNES' %}background:rgba(31,111,235,0.15);color:var(--blue-lt);
+              {% elif h.dia == 'MARTES' %}background:rgba(6,182,212,0.15);color:var(--teal);
+              {% elif h.dia == 'MIERCOLES' %}background:rgba(99,102,241,0.15);color:var(--indigo);
+              {% elif h.dia == 'JUEVES' %}background:rgba(34,211,238,0.15);color:var(--teal);
+              {% elif h.dia == 'VIERNES' %}background:rgba(125,211,252,0.15);color:var(--blue-lt);
+              {% else %}background:var(--surface3);color:var(--txt2);
+              {% endif %}padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;">
+              {{ h.dia|capitalize }}
+            </span>
+          </td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">{{ h.hora_inicio }}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">{{ h.hora_fin }}</td>
+          <td><span class="badge" style="background:rgba(31,111,235,0.15);color:var(--blue-lt);font-weight:700;padding:3px 10px;border-radius:6px;">{{ h.aula }}</span></td>
+          <td style="color:var(--txt2);font-size:13px;">{{ h.docente|truncate(28,True,'...') }}</td>
+          <td style="text-align:center;white-space:nowrap;">
+            <a href="{{ url_for('ui_siihapi.detalle_horario', id_horario=h.id_horario) }}"
+               class="no-row-click" style="color:var(--blue-lt);text-decoration:none;font-weight:600;font-size:12px;">Ver ▸</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="padding:34px;text-align:center;color:var(--txt3);">
+          No hay horarios para los filtros seleccionados.
+          <a href="{{ url_for('ui_siihapi.panel_horarios_siihapi') }}" style="color:var(--blue-lt);">Limpiar filtros</a>.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

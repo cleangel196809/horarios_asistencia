@@ -1,0 +1,19 @@
+{# Sidebar reutilizable para vistas de ESTUDIANTE #}
+<nav class="sidebar">
+  <div class="sb-lbl">Mi panel</div>
+  <a class="sb-item {% if active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><span class="ico">🏠</span> Inicio</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Académico</div>
+  <a class="sb-item {% if active == 'mi_horario' %}active{% endif %}" href="{% url 'estudiante_mi_horario' %}"><span class="ico">📅</span> Mi horario</a>
+  <a class="sb-item {% if active == 'mis_materias' %}active{% endif %}" href="{% url 'estudiante_mis_materias' %}"><span class="ico">📚</span> Mis materias</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Seguimiento</div>
+  <a class="sb-item {% if active == 'asistencia' %}active{% endif %}" href="{% url 'estudiante_asistencia' %}"><span class="ico">📋</span> Mi asistencia</a>
+  <a class="sb-item {% if active == 'notas' %}active{% endif %}" href="{% url 'estudiante_notas' %}"><span class="ico">📈</span> Mis notas</a>
+
+  <div class="sb-spacer"></div>
+  <div class="sb-status">
+    <span class="pulse"></span>
+    <span style="font-size:11px;color:var(--txt2);">Sistema Activo</span>
+  </div>
+</nav>

@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Estudiantes · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='estudiantes' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Estudiantes</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Total estudiantes activos: <strong style="color:var(--blue-lt);">{{ total }}</strong></p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Lista de estudiantes</span></div>
+      <form method="GET" style="margin-bottom:16px;">
+        <select name="programa" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+          <option value="">— Todos los programas —</option>
+          {% for p in programas %}<option value="{{ p.codigo }}" {% if programa_filtro == p.codigo %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+        </select>
+      </form>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Programa</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Semestre</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in estudiantes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ e.codigo }}</td>
+            <td style="padding:10px;color:var(--white);">{{ e.usuario.nombre }} {{ e.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ e.programa.nombre }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ e.semestre_actual }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">No hay estudiantes registrados aún.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

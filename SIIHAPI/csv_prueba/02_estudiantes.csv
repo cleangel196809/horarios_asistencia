@@ -1,0 +1,41 @@
+cedula,correo,nombre,apellido,programa_codigo,semestre
+1018100001,santiago.alvarez@pi.edu.co,Santiago,Alvarez,TL01,2
+1018100002,valentina.castro@pi.edu.co,Valentina,Castro,TL01,3
+1018100003,juan.diaz@pi.edu.co,Juan David,Diaz,TL01,1
+1018100004,maria.fernanda.rojas@pi.edu.co,Maria Fernanda,Rojas,TL01,4
+1018100005,daniel.suarez@pi.edu.co,Daniel,Suarez,TL01,2
+1018100006,laura.ramirez@pi.edu.co,Laura Sofia,Ramirez,TL07,3
+1018100007,andres.moreno@pi.edu.co,Andres Felipe,Moreno,TL07,2
+1018100008,camila.vargas@pi.edu.co,Camila,Vargas,TL07,1
+1018100009,sebastian.parra@pi.edu.co,Sebastian,Parra,TL07,4
+1018100010,natalia.acosta@pi.edu.co,Natalia,Acosta,TL07,3
+1018100011,carlos.ortiz@pi.edu.co,Carlos Mario,Ortiz,TL06,2
+1018100012,sofia.salazar@pi.edu.co,Sofia,Salazar,TL06,1
+1018100013,jose.guerrero@pi.edu.co,Jose Luis,Guerrero,TL06,3
+1018100014,paula.bedoya@pi.edu.co,Paula Andrea,Bedoya,TL06,2
+1018100015,david.cubillos@pi.edu.co,David,Cubillos,TL06,4
+1018100016,isabella.uribe@pi.edu.co,Isabella,Uribe,PR01,5
+1018100017,nicolas.benavides@pi.edu.co,Nicolas,Benavides,PR01,3
+1018100018,mariana.herrera@pi.edu.co,Mariana,Herrera,PR01,4
+1018100019,alejandro.lozano@pi.edu.co,Alejandro,Lozano,PR01,6
+1018100020,gabriela.pinilla@pi.edu.co,Gabriela,Pinilla,PR01,5
+1018100021,julian.cortes@pi.edu.co,Julian Andres,Cortes,PR06,3
+1018100022,manuela.osorio@pi.edu.co,Manuela,Osorio,PR06,4
+1018100023,emilio.figueroa@pi.edu.co,Emilio,Figueroa,PR06,2
+1018100024,luciana.mejia@pi.edu.co,Luciana,Mejia,PR06,5
+1018100025,mateo.henao@pi.edu.co,Mateo,Henao,PR06,3
+1018100026,salome.ramos@pi.edu.co,Salome,Ramos,TE01,2
+1018100027,esteban.barreto@pi.edu.co,Esteban,Barreto,TE01,3
+1018100028,antonella.mora@pi.edu.co,Antonella,Mora,TE02,4
+1018100029,samuel.cifuentes@pi.edu.co,Samuel,Cifuentes,TE02,2
+1018100030,renata.giraldo@pi.edu.co,Renata,Giraldo,TE03,3
+1018100031,maximiliano.osorio@pi.edu.co,Maximiliano,Osorio,TL08,2
+1018100032,emilia.cespedes@pi.edu.co,Emilia,Cespedes,TL08,3
+1018100033,joaquin.rodas@pi.edu.co,Joaquin,Rodas,TL09,1
+1018100034,catalina.zapata@pi.edu.co,Catalina,Zapata,TL09,4
+1018100035,benjamin.gallego@pi.edu.co,Benjamin,Gallego,TL11,2
+1018100036,amelia.tovar@pi.edu.co,Amelia,Tovar,TL11,3
+1018100037,bruno.cardenas@pi.edu.co,Bruno,Cardenas,IN01,1
+1018100038,olivia.castano@pi.edu.co,Olivia,Castano,IN01,1
+1018100039,thomas.giraldo@pi.edu.co,Thomas,Giraldo,TL03,2
+1018100040,martina.posada@pi.edu.co,Martina,Posada,TL03,3

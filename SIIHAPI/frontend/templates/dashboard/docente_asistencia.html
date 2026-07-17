@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Asistencia SISCA · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='asistencia' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📋 Asistencia desde SISCA</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Consulta consolidada de asistencia por materia (datos en vivo desde SISCA)</p>
+    </div>
+
+    {% if error_sisca %}
+    <div style="padding:14px 18px;border-radius:10px;margin-bottom:18px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);color:var(--red-lt);font-size:13px;">
+      ⚠️ <strong>SISCA no respondió:</strong> {{ error_sisca }}<br>
+      Verifica que el servidor SISCA esté corriendo en <code>http://localhost:8080</code>.
+    </div>
+    {% endif %}
+
+    {% if materias_resumen %}
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      {% for r in materias_resumen %}
+      <div class="kpi {% cycle 'accent' '' %}">
+        <div class="kpi-lbl">📖 {{ r.materia.codigo }}</div>
+        <div class="kpi-val">{{ r.data.porcentaje_asistencia_promedio|default:"—" }}<span style="font-size:14px;color:var(--txt3);">%</span></div>
+        <p style="font-size:11px;color:var(--txt3);margin-top:4px;">{{ r.data.sesiones_realizadas|default:0 }}/{{ r.data.sesiones_totales|default:0 }} sesiones</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Detalle por materia</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Sesiones</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">% Asistencia</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">En riesgo</th>
+        </tr></thead>
+        <tbody>
+          {% for r in materias_resumen %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ r.materia.codigo }} — {{ r.materia.nombre|truncatechars:35 }}</td>
+            <td style="padding:10px;text-align:right;color:var(--txt2);">{{ r.data.sesiones_realizadas }}/{{ r.data.sesiones_totales }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);font-weight:700;">{{ r.data.porcentaje_asistencia_promedio }}%</td>
+            <td style="padding:10px;text-align:right;color:var(--orange);">{{ r.data.estudiantes_en_riesgo|default:0 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">{% if error_sisca %}Sin datos por error de conexión a SISCA.{% else %}No hay materias publicadas en SISCA todavía.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}

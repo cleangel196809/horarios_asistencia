@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block title %}Detalle Horario · {{ h.codigo or 'SISCA' }}{% endblock %}
+
+{% block sidebar %}
+<span class="sb-lbl">Académico</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+
+<span class="sb-lbl" style="margin-top:14px;">Integración</span>
+<a class="sb-item active" href="{{ url_for('ui_siihapi.panel_horarios_siihapi') }}"><span class="ico">🔗</span> Horarios SIIHAPI</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>📋 {{ h.codigo or 'Horario' }}</h2>
+    <p>{{ h.nombre_materia or '—' }}</p>
+  </div>
+  <div class="pg-actions">
+    <a class="btn btn-primary" href="{{ url_for('ui_siihapi.exportar_horario_pdf', id_horario=h.id_horario) }}"
+       style="background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;font-weight:700;">
+      📄 Descargar PDF
+    </a>
+    <button class="btn" onclick="window.print()">🖨 Imprimir</button>
+    <a class="btn" href="{{ url_for('academico.horarios') }}">← Volver</a>
+  </div>
+</div>
+
+{# Badges de estado #}
+<div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+  <span class="badge" style="font-size:13px;padding:8px 16px;background:{% if h.estado == 'A' %}rgba(31,111,235,0.15);color:#1F6FEB{% else %}rgba(239,68,68,0.15);color:#EF4444{% endif %};font-weight:700;">
+    {% if h.estado == 'A' %}🟢 ACTIVO{% else %}🔴 INACTIVO{% endif %}
+  </span>
+  <span class="badge" style="font-size:11px;padding:6px 12px;font-family:'JetBrains Mono',monospace;background:#E0EBFF;color:#1F6FEB;">
+    ID SISCA: {{ h.id_horario }}
+  </span>
+  <span class="badge" style="font-size:11px;padding:6px 12px;background:rgba(99,102,241,0.10);color:#6366F1;">
+    🔗 Sincronizado desde SIIHAPI
+  </span>
+</div>
+
+{# Grid principal con info #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
+
+  {# Materia #}
+  <div class="card">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">📚 Materia</h3>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:14px;">
+      <span style="color:#64748b;font-weight:600;">Código:</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">{{ h.codigo or '—' }}</span>
+      <span style="color:#64748b;font-weight:600;">Nombre:</span>
+      <span style="font-weight:600;">{{ h.nombre_materia or '—' }}</span>
+      <span style="color:#64748b;font-weight:600;">Carrera:</span>
+      <span style="color:#06B6D4;font-weight:600;">{{ h.nombre_carrera or '—' }}</span>
+      <span style="color:#64748b;font-weight:600;">Créditos:</span>
+      <span style="color:#1F6FEB;font-weight:700;">{{ h.creditos if h.creditos is not none else '—' }}</span>
+      <span style="color:#64748b;font-weight:600;">Semestre:</span>
+      <span style="font-weight:600;">{{ h.semestre if h.semestre is not none else '—' }}</span>
+    </div>
+  </div>
+
+  {# Día y Hora #}
+  <div class="card" style="background:linear-gradient(135deg,rgba(31,111,235,0.06),rgba(6,182,212,0.04));border:1px solid rgba(31,111,235,0.20);">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">📅 Día y Hora</h3>
+    </div>
+    <div style="text-align:center;padding:18px;">
+      <p style="font-size:42px;font-weight:800;color:#06B6D4;margin-bottom:8px;">{{ (h.dia or '—')|capitalize }}</p>
+      <p style="font-size:28px;font-weight:700;color:#1F6FEB;font-family:'JetBrains Mono',monospace;">
+        {{ h.hora_inicio or '--:--' }} — {{ h.hora_fin or '--:--' }}
+      </p>
+    </div>
+  </div>
+
+  {# Docente #}
+  <div class="card">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">👨‍🏫 Docente</h3>
+    </div>
+    {% set _dn = h.doc_nombre or '' %}
+    {% set _da = h.doc_apellido or '' %}
+    {% set _ini = (_dn[0] if _dn else '?') ~ (_da[0] if _da else '') %}
+    {% if _dn or _da %}
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;">
+      <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1F6FEB,#06B6D4);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;font-weight:700;">
+        {{ _ini|upper }}
+      </div>
+      <div>
+        <p style="font-weight:700;font-size:16px;color:#1e293b;">{{ _dn }} {{ _da }}</p>
+        <p style="color:#64748b;font-size:12px;">{{ h.doc_correo or '—' }}</p>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;padding-top:10px;border-top:1px solid #e2e8f0;">
+      <span style="color:#64748b;">Especialidad:</span>
+      <span style="color:#06B6D4;font-weight:600;">{{ h.especialidad or '—' }}</span>
+      <span style="color:#64748b;">ID Docente:</span>
+      <span style="font-family:'JetBrains Mono',monospace;">{{ h.id_docente if h.id_docente is not none else '—' }}</span>
+    </div>
+    {% else %}
+    <p style="color:#94a3b8;text-align:center;padding:24px;">Sin docente asignado</p>
+    {% endif %}
+  </div>
+
+  {# Aula #}
+  <div class="card">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">🏛️ Aula</h3>
+    </div>
+    <p style="font-size:42px;font-weight:800;color:#06B6D4;font-family:'JetBrains Mono',monospace;text-align:center;margin-bottom:14px;">{{ h.aula or '—' }}</p>
+    <p style="text-align:center;color:#64748b;font-size:13px;">
+      Información detallada disponible en SIIHAPI
+    </p>
+  </div>
+</div>
+
+{# Sesiones de clase #}
+{% if sesiones %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-hdr" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+    <h3 style="margin:0;color:#1F6FEB;">📋 Sesiones de Clase</h3>
+    <span class="badge b-blue">{{ sesiones|length }} sesiones</span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>ID Sesión</th><th>Fecha</th><th>Estado</th><th>Modo</th></tr></thead>
+      <tbody>
+        {% for s in sesiones %}
+        <tr>
+          <td style="font-family:'JetBrains Mono',monospace;color:#1F6FEB;">#{{ s.id_sesion }}</td>
+          <td>{{ s.fecha or '—' }}</td>
+          <td>
+            <span class="badge" style="background:{% if s.estado_sesion == 'ACTIVA' %}rgba(31,111,235,0.15);color:#1F6FEB{% else %}rgba(100,116,139,0.15);color:#64748b{% endif %};">
+              {{ s.estado_sesion or '—' }}
+            </span>
+          </td>
+          <td>{{ s.modo_conexion or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# Cross-referencias #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+  <div class="card">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">🗓 Otras clases del docente</h3>
+    </div>
+    <div class="tbl-wrap">
+      <table style="font-size:13px;">
+        <thead><tr><th>Día</th><th>Hora</th><th>Materia</th><th>Aula</th></tr></thead>
+        <tbody>
+          {% for o in otras_doc %}
+          <tr>
+            <td><span class="badge" style="background:rgba(31,111,235,0.10);color:#1F6FEB;font-size:11px;">{{ (o.dia or '—')|capitalize }}</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">{{ o.hora_inicio or '—' }}</td>
+            <td style="font-weight:600;">{{ o.codigo or '—' }}</td>
+            <td><span class="badge" style="background:#E0EBFF;color:#1F6FEB;font-size:11px;">{{ o.aula or '—' }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;padding:20px;color:#94a3b8;">No tiene otras clases</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr" style="margin-bottom:14px;">
+      <h3 style="margin:0;color:#1F6FEB;">🏛 Otras clases en esta aula</h3>
+    </div>
+    <div class="tbl-wrap">
+      <table style="font-size:13px;">
+        <thead><tr><th>Día</th><th>Hora</th><th>Materia</th><th>Docente</th></tr></thead>
+        <tbody>
+          {% for o in otras_aula %}
+          <tr>
+            <td><span class="badge" style="background:rgba(31,111,235,0.10);color:#1F6FEB;font-size:11px;">{{ (o.dia or '—')|capitalize }}</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">{{ o.hora_inicio or '—' }}</td>
+            <td style="font-weight:600;">{{ o.codigo or '—' }}</td>
+            <td style="color:#64748b;">{{ (o.docente or '—')|truncate(20,True,'...') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;padding:20px;color:#94a3b8;">No hay otras clases</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# Banner integración #}
+<div style="padding:14px 18px;background:linear-gradient(135deg,rgba(31,111,235,0.08),rgba(6,182,212,0.04));border:1px solid rgba(31,111,235,0.25);border-radius:10px;margin-top:18px;display:flex;gap:14px;align-items:center;">
+  <span style="font-size:28px;">🔗</span>
+  <div style="flex:1;">
+    <p style="color:#1F6FEB;font-weight:700;margin:0;">Sincronizado desde SIIHAPI</p>
+    <p style="font-size:12px;color:#64748b;margin-top:4px;">
+      Este horario fue generado por el Motor IA de SIIHAPI y publicado a SISCA vía API REST.
+      Para modificarlo, accede a <a href="http://localhost:8000/dashboard/horarios/" target="_blank" style="color:#1F6FEB;">SIIHAPI Horarios</a>.
+    </p>
+  </div>
+</div>
+
+{% endblock %}

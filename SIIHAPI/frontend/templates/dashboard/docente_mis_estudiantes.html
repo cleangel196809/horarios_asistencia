@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Mis Estudiantes{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="fas fa-users"></i> Mis Estudiantes</h1>
+</div>
+
+{% if estudiantes %}
+<div class="card">
+  <div class="card-header">
+    <h3>Estudiantes asignados ({{ estudiantes|length }})</h3>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Materia</th>
+            <th>Semestre</th>
+            <th>% Asistencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in estudiantes %}
+          <tr>
+            <td>{{ e.nombre }} {{ e.apellido }}</td>
+            <td>{{ e.correo }}</td>
+            <td>{{ e.materia }}</td>
+            <td>{{ e.semestre }}</td>
+            <td>
+              <span class="badge {% if e.pct_asistencia >= 75 %}bg-success{% else %}bg-danger{% endif %}">
+                {{ e.pct_asistencia|default:0 }}%
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+  <i class="fas fa-info-circle"></i>
+  No tienes estudiantes asignados aún.
+</div>
+{% endif %}
+{% endblock %}

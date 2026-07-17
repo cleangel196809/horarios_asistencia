@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Mi Panel · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='dashboard' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:28px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Bienvenido</p>
+      <h1 style="font-size:32px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Prof. {{ request.user.nombre }} {{ request.user.apellido }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Rol: <strong style="color:var(--cyan-lt);">Docente</strong> · Periodo: <strong style="color:var(--blue-lt);">{{ kpis.periodo }}</strong>{% if docente %} · Contrato: <strong style="color:var(--lime-lt);">{{ docente.get_tipo_contrato_display }}</strong>{% endif %}</p>
+    </div>
+
+    <div class="kpi-grid">
+      <a href="{% url 'docente_mi_horario' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">📅 Mis horarios</div><div class="kpi-val">{{ kpis.mis_horarios }}</div></a>
+      <a href="{% url 'docente_mis_materias' %}" class="kpi" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">📚 Mis materias</div><div class="kpi-val">{{ kpis.mis_materias }}</div></a>
+      <a href="{% url 'docente_disponibilidad' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">🕐 Restricciones</div><div class="kpi-val">{{ kpis.restricciones }}</div></a>
+      <div class="kpi"><div class="kpi-lbl">📅 Periodo</div><div class="kpi-val" style="font-size:22px;">{{ kpis.periodo }}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📅 Mis próximos compromisos</span>
+          <a class="tb-badge" href="{% url 'docente_mi_horario' %}" style="cursor:pointer;text-decoration:none;">Ver horario completo →</a>
+        </div>
+        {% if proximos %}
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+            <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Hora</th>
+            <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+            <th style="text-align:left;padding:8px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+          </tr></thead>
+          <tbody>
+            {% for h in proximos %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px;color:var(--blue-lt);">{{ h.get_dia_display }}</td>
+              <td style="padding:8px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }}</td>
+              <td style="padding:8px;color:var(--white);">{{ h.materia.codigo }}</td>
+              <td style="padding:8px;color:var(--cyan);">{{ h.salon.codigo }} ({{ h.salon.sede.nombre }})</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p style="color:var(--txt3);padding:14px 0;">No tienes horarios asignados todavía. Pídele al Coordinador que ejecute el Motor IA.</p>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">⚡ Acciones rápidas</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <a class="btn btn-primary" href="{% url 'docente_mi_horario' %}">📅 Ver mi horario semanal</a>
+          <a class="btn btn-cyan" href="{% url 'docente_disponibilidad' %}">🕐 Declarar disponibilidad</a>
+          <a class="btn btn-ghost" href="{% url 'docente_asistencia' %}">📋 Consultar asistencia SISCA</a>
+          <a class="btn btn-ghost" href="{% url 'docente_mis_estudiantes' %}">👥 Ver mis estudiantes</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

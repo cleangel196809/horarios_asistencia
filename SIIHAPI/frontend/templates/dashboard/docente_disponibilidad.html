@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Mi Disponibilidad · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='disponibilidad' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🕐 Mi Disponibilidad</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Declara los bloques en los que NO puedes dar clase. El Motor IA los respetará.</p>
+    </div>
+
+    {% if messages %}
+      {% for m in messages %}
+      <div style="padding:12px 18px;border-radius:10px;margin-bottom:16px;background:var(--surface-glass);border:1px solid var(--border);color:var(--blue-lt);">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">➕ Declarar restricción</span></div>
+        <form method="POST" style="display:flex;flex-direction:column;gap:12px;">
+          {% csrf_token %}
+          <div>
+            <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Día</label>
+            <select name="dia" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+              {% for cod, lbl in dias %}<option value="{{ cod }}">{{ lbl }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Bloque</label>
+            <select name="bloque" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+              {% for b in bloques %}<option value="{{ b.numero }}">B{{ b.numero }} · {{ b.hora_inicio|time:"H:i" }}–{{ b.hora_fin|time:"H:i" }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Motivo (opcional)</label>
+            <input type="text" name="motivo" maxlength="200" placeholder="ej: clase en otra institución" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+          </div>
+          <button type="submit" class="btn btn-primary">💾 Guardar restricción</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📋 Mis restricciones actuales</span><span class="tb-badge">{{ restricciones|length }}</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Bloque</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Motivo</th>
+            <th style="padding:10px;"></th>
+          </tr></thead>
+          <tbody>
+            {% for r in restricciones %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:10px;color:var(--blue-lt);">{{ r.get_dia_display }}</td>
+              <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">B{{ r.bloque }}</td>
+              <td style="padding:10px;color:var(--white);">{{ r.motivo|default:"—" }}</td>
+              <td style="padding:10px;text-align:right;">
+                <a href="?eliminar={{ r.id_disponibilidad }}" onclick="return confirm('¿Eliminar esta restricción?')" style="color:var(--red-lt);font-size:12px;text-decoration:none;">🗑 Quitar</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">Aún no has declarado restricciones. El Motor IA podrá asignarte cualquier bloque.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

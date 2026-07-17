@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>Recuperar Contraseña · SISCA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sisca.css') }}">
+</head>
+<body>
+<div class="auth-wrap">
+
+  <header class="topbar">
+    <a href="{{ url_for('auth.landing') }}" class="tb-logo">
+      <img src="{{ url_for('static', filename='img/logo_politecnico.svg') }}" alt="Politécnico" height="36" onerror="this.style.display='none'">
+      <div class="tb-logo-text">
+        <span class="tb-logo-name">Politécnico Internacional</span>
+        <span class="tb-logo-sub">SISCA · Control de Asistencia</span>
+      </div>
+    </a>
+    <div class="tb-spacer"></div>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-ghost" style="font-size:12px;">← Volver al Login</a>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div style="position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;">
+    {% for cat, msg in messages %}
+    <div class="toast {{ 'success' if cat=='success' else 'error' if cat=='error' else 'info' }}">
+      <span class="toast-ico">{{ '✅' if cat=='success' else '❌' if cat=='error' else 'ℹ️' }}</span>
+      <div class="toast-txt">{{ msg }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="auth-body">
+    <div class="auth-card">
+
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:36px;margin-bottom:10px;">🛡️</div>
+        <div style="font-size:20px;font-weight:700;color:var(--white);margin-bottom:4px;">Recuperar Contraseña</div>
+        <div style="font-size:13px;color:var(--txt2);line-height:1.5;">Ingresa tu documento y correo institucional.<br>Te enviaremos un enlace seguro de recuperación.</div>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.recuperar') }}">
+        <div class="form-group">
+          <label for="documento">Documento de Identidad</label>
+          <input type="number" id="documento" name="documento" placeholder="Número de cédula" required>
+        </div>
+
+        <div class="form-group">
+          <label for="correo">Correo Institucional</label>
+          <input type="email" id="correo" name="correo" placeholder="@politecnico.edu.co" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-top:10px;">
+          ✉️ Enviar enlace de recuperación
+        </button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:20px;">
+        <p><a href="{{ url_for('auth.login') }}">Cancelar y volver al inicio de sesión</a></p>
+      </div>
+
+    </div>
+  </div>
+
+  <footer style="background:var(--surface);border-top:1px solid var(--border);padding:12px 24px;text-align:center;">
+    <div style="font-size:11px;color:var(--txt3);display:flex;justify-content:center;flex-wrap:wrap;gap:12px;">
+      <span>© 2026 Politécnico Internacional</span>
+      <a href="{{ url_for('auth.legal', tipo='habeas-data') }}" style="color:var(--txt3);">Habeas Data</a>
+      <a href="{{ url_for('auth.legal', tipo='tratamiento') }}" style="color:var(--txt3);">Tratamiento de Datos</a>
+      <a href="{{ url_for('auth.legal', tipo='transparencia') }}" style="color:var(--txt3);">Transparencia</a>
+      <a href="{{ url_for('auth.legal', tipo='acta') }}" style="color:var(--txt3);">Acta de Creación</a>
+    </div>
+  </footer>
+
+</div>
+<script>
+setTimeout(()=>document.querySelectorAll('.toast').forEach(t=>{
+  t.style.opacity='0';setTimeout(()=>t.remove(),300);
+}),5000);
+</script>
+<script src="{{ url_for('static', filename='js/sisca-bg3d.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/sisca-fx.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SISCA</string>
+    <string name="title_activity_main">SISCA</string>
+    <string name="package_name">co.edu.politecnico.sisca</string>
+    <string name="custom_url_scheme">co.edu.politecnico.sisca</string>
+</resources>

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Inicio{% endblock %}
+
+{% block body %}
+<main style="min-height:calc(100vh - 64px);display:flex;flex-direction:column;">
+<section class="land-hero">
+
+  <div class="land-logo-wrap">
+    <img src="{% static 'img/logo_politecnico.svg' %}" alt="Politécnico Internacional"
+         style="height:90px;width:auto;"
+         onerror="this.outerHTML='<div style=&quot;font-size:54px;&quot;>🏛️</div>'">
+  </div>
+
+  <div class="land-badge">🎓 Sistema Inteligente e Integrado de Horarios Académicos</div>
+
+  <h1>Asignación de horarios<br>con <span class="grad">Inteligencia Artificial</span></h1>
+
+  <p>SIIHAPI automatiza la asignación de horarios académicos del Politécnico Internacional usando un motor de IA con algoritmo CSP. Integrado con SISCA para control de asistencia.</p>
+
+  <div class="mission-card">
+    <div class="mission-label"><span>🎯</span> Misión Institucional</div>
+    <p>{{ mision|default:"Formar profesionales integrales, capaces de transformar la sociedad mediante la innovación, el liderazgo y la excelencia académica." }}</p>
+  </div>
+
+  <!-- Cards de Rol -->
+  <div class="roles-grid">
+
+    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ADMINISTRADOR'">
+      <div class="rc-icon">⚙️</div>
+      <div class="rc-title">Administrador</div>
+      <div class="rc-desc">Gestión total: sedes, salones, ejecutar motor IA, publicar a SISCA.</div>
+      <button class="rc-btn admin">Ingresar como Admin →</button>
+    </div>
+
+    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=COORDINADOR'">
+      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(6,182,212,0.28),rgba(99,102,241,0.10));border-color:rgba(34,211,238,0.40);">📚</div>
+      <div class="rc-title">Coordinador</div>
+      <div class="rc-desc">Administrar programas, materias, prerequisitos y matrículas.</div>
+      <button class="rc-btn coordinador">Ingresar como Coordinador →</button>
+    </div>
+
+    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=DOCENTE'">
+      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(167,139,250,0.10));border-color:rgba(129,140,248,0.40);">👨‍🏫</div>
+      <div class="rc-title">Docente</div>
+      <div class="rc-desc">Declarar disponibilidad, consultar horario, exportar a calendario.</div>
+      <button class="rc-btn docente">Ingresar como Docente →</button>
+    </div>
+
+    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ESTUDIANTE'">
+      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(34,211,238,0.28),rgba(103,232,249,0.10));border-color:rgba(34,211,238,0.45);">🎓</div>
+      <div class="rc-title">Estudiante</div>
+      <div class="rc-desc">Matricular materias, consultar horario, recibir notificaciones.</div>
+      <button class="rc-btn est">Ingresar como Estudiante →</button>
+    </div>
+
+  </div>
+
+</section>
+
+<!-- Stats reales -->
+<div class="land-stats">
+  <div class="stat-item">
+    <div class="stat-val violet">{{ stats.sedes|default:3 }}</div>
+    <div class="stat-lbl">Sedes Activas</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val">{{ stats.salones|default:135 }}</div>
+    <div class="stat-lbl">Salones</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val lime">{{ stats.programas|default:27 }}</div>
+    <div class="stat-lbl">Programas Académicos</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val violet">{{ stats.docentes|default:87 }}</div>
+    <div class="stat-lbl">Docentes Activos</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-val">{{ stats.estudiantes|default:"8.430" }}</div>
+    <div class="stat-lbl">Estudiantes</div>
+  </div>
+</div>
+
+<footer class="land-footer">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>📍 Nuestras Sedes</h4>
+      <p><strong style="color:var(--txt2);">Calle 73:</strong> Calle 73 #15-08</p>
+      <p><strong style="color:var(--txt2);">Norte:</strong> Carrera 7 #74-15</p>
+      <p><strong style="color:var(--txt2);">Sur:</strong> Avenida 1 de Mayo #45-22</p>
+    </div>
+    <div class="footer-col">
+      <h4>🏛️ Politécnico Internacional</h4>
+      <p>Institución de Educación Superior</p>
+      <p>Vigilado Mineducación</p>
+      <p>SNIES +4135</p>
+    </div>
+    <div class="footer-col">
+      <h4>🔗 Integración</h4>
+      <a href="/api/docs/">Documentación API</a>
+      <a href="#">Sistema SISCA (Asistencia)</a>
+      <a href="#">Manual de usuario</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Politécnico Internacional · SIIHAPI v1.0</span>
+    <span>Django 5 + Oracle XE 21c + IA</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span class="pulse"></span> Sistema Activo</span>
+  </div>
+</footer>
+</main>
+{% endblock %}

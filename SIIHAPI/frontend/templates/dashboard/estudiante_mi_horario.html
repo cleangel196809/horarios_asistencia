@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Mi Horario · Estudiante{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_estudiante.html' with active='mi_horario' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📅 Mi Horario Semanal</h1>
+      <p style="color:var(--txt2);margin-top:6px;"><strong style="color:var(--blue-lt);">{{ horarios.count }}</strong> clases programadas</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">📅 Lunes</div><div class="kpi-val">{{ grilla.LU|length }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">📅 Martes</div><div class="kpi-val">{{ grilla.MA|length }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">📅 Miércoles</div><div class="kpi-val">{{ grilla.MI|length }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">📅 Jueves</div><div class="kpi-val">{{ grilla.JU|length }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">📅 Viernes</div><div class="kpi-val">{{ grilla.VI|length }}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📋 Detalle</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Hora</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+        </tr></thead>
+        <tbody>
+          {% for h in horarios %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background=''" onclick="window.location='{% url 'horario_detalle' h.id_horario %}'">
+            <td style="padding:10px;color:var(--blue-lt);font-weight:600;">{{ h.get_dia_display }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }}</td>
+            <td style="padding:10px;color:var(--white);">{{ h.materia.codigo }} — {{ h.materia.nombre|truncatechars:30 }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--lime-lt);">{{ h.salon.codigo }} ({{ h.salon.sede.nombre }}) <span style="color:var(--txt3);float:right;">▸</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no tienes horarios. Aparecerán cuando el Coordinador publique el horario del periodo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

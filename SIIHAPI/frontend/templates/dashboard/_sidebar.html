@@ -1,0 +1,35 @@
+{# Sidebar reutilizable para ADMINISTRADOR y COORDINADOR #}
+{% with rol=request.user.rol %}
+<nav class="sidebar">
+  <div class="sb-lbl">Principal</div>
+  <a class="sb-item {% if active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><span class="ico">🏠</span> Dashboard</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Académico</div>
+  <a class="sb-item {% if active == 'sedes' %}active{% endif %}" href="{% url 'sedes' %}"><span class="ico">🏛️</span> Sedes y Salones</a>
+  <a class="sb-item {% if active == 'programas' %}active{% endif %}" href="{% url 'programas' %}"><span class="ico">📚</span> Programas y Materias</a>
+  <a class="sb-item {% if active == 'docentes' %}active{% endif %}" href="{% url 'docentes' %}"><span class="ico">👨‍🏫</span> Docentes</a>
+  <a class="sb-item {% if active == 'estudiantes' %}active{% endif %}" href="{% url 'estudiantes' %}"><span class="ico">🎓</span> Estudiantes</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Operación</div>
+  <a class="sb-item {% if active == 'motor_ia' %}active{% endif %}" href="{% url 'motor_ia' %}"><span class="ico">🤖</span> Motor IA</a>
+  <a class="sb-item {% if active == 'revision' %}active{% endif %}" href="{% url 'revision_propuesta' %}"><span class="ico">📋</span> Revisión de horarios</a>
+  <a class="sb-item {% if active == 'horarios' %}active{% endif %}" href="{% url 'horarios' %}"><span class="ico">📅</span> Horarios</a>
+  <a class="sb-item {% if active == 'horarios_gest' %}active{% endif %}" href="{% url 'horarios_gestionar' %}"><span class="ico">✏️</span> Editar horarios</a>
+  <a class="sb-item {% if active == 'publicacion' %}active{% endif %}" href="{% url 'centro_publicacion' %}"><span class="ico">🚀</span> Centro de publicación</a>
+  <a class="sb-item {% if active == 'carga' %}active{% endif %}" href="{% url 'carga_masiva' %}"><span class="ico">📤</span> Carga masiva</a>
+  <a class="sb-item {% if active == 'sisca' %}active{% endif %}" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
+
+  {% if rol == 'ADMINISTRADOR' %}
+  <div class="sb-lbl" style="margin-top:14px;">Reportes (Admin)</div>
+  <a class="sb-item {% if active == 'ejecutivo' %}active{% endif %}" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
+  <a class="sb-item {% if active == 'reportes' %}active{% endif %}" href="{% url 'reportes_categoria' %}"><span class="ico">📊</span> Reportes</a>
+  <a class="sb-item {% if active == 'auditoria' %}active{% endif %}" href="{% url 'auditoria' %}"><span class="ico">📋</span> Auditoría</a>
+  {% endif %}
+
+  <div class="sb-spacer"></div>
+  <div class="sb-status">
+    <span class="pulse"></span>
+    <span style="font-size:11px;color:var(--txt2);">{{ rol|capfirst }} · Sistema Activo</span>
+  </div>
+</nav>
+{% endwith %}

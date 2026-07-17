@@ -1,0 +1,537 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SISCA API",
+    "version": "1.0.0",
+    "description": "API de integración entre SIIHAPI y SISCA (Sistema de Control de Asistencia) del Politécnico Internacional.\n\nPermite publicar horarios desde SIIHAPI, actualizar o cancelar horarios en Oracle, y consultar reportes de asistencia.\n\nTodos los endpoints requieren autenticación mediante **Bearer token** en el header `Authorization`."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api/v1",
+      "description": "SISCA — servidor de desarrollo"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Token",
+        "description": "Token de integración configurado en `SISCA_API_TOKEN`. Enviar como `Authorization: Bearer <token>`."
+      }
+    },
+    "schemas": {
+      "HorarioItem": {
+        "type": "object",
+        "required": ["codigo_materia"],
+        "properties": {
+          "codigo_materia": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "TDS-301",
+            "description": "Código único de la materia en SIIHAPI."
+          },
+          "nombre_materia": {
+            "type": "string",
+            "maxLength": 150,
+            "example": "Desarrollo de Aplicaciones Móviles",
+            "description": "Nombre completo de la materia (opcional, se usa codigo_materia si está vacío)."
+          },
+          "docente": {
+            "type": "string",
+            "example": "Carlos Pérez",
+            "description": "Nombre completo del docente."
+          },
+          "docente_email": {
+            "type": "string",
+            "format": "email",
+            "example": "c.perez@pi.edu.co",
+            "description": "Email institucional del docente. Se usa para buscar o crear el registro en SISCA."
+          },
+          "salon": {
+            "type": "string",
+            "maxLength": 30,
+            "example": "301-A",
+            "description": "Código del salón / aula."
+          },
+          "dia": {
+            "type": "string",
+            "enum": ["LU", "MA", "MI", "JU", "VI", "SA"],
+            "example": "LU",
+            "description": "Código del día de la semana (LU=Lunes, MA=Martes, MI=Miércoles, JU=Jueves, VI=Viernes, SA=Sábado)."
+          },
+          "bloque": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 14,
+            "example": 3,
+            "description": "Número de bloque horario (1-14). Se ignora si se envían hora_inicio y hora_fin."
+          },
+          "hora_inicio": {
+            "type": "string",
+            "pattern": "^\\d{2}:\\d{2}$",
+            "example": "08:40",
+            "description": "Hora de inicio en formato HH:MM. Tiene prioridad sobre el campo bloque."
+          },
+          "hora_fin": {
+            "type": "string",
+            "pattern": "^\\d{2}:\\d{2}$",
+            "example": "10:00",
+            "description": "Hora de fin en formato HH:MM. Tiene prioridad sobre el campo bloque."
+          }
+        }
+      },
+      "PublicarHorariosRequest": {
+        "type": "object",
+        "required": ["periodo", "horarios"],
+        "properties": {
+          "periodo": {
+            "type": "string",
+            "example": "2026-2T",
+            "description": "Código del periodo académico."
+          },
+          "horarios": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/HorarioItem"
+            },
+            "description": "Lista de horarios a publicar en SISCA."
+          }
+        }
+      },
+      "PublicarHorariosResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "periodo": { "type": "string", "example": "2026-2T" },
+          "total_recibido": { "type": "integer", "example": 5 },
+          "creados": { "type": "integer", "example": 3 },
+          "actualizados": { "type": "integer", "example": 2 },
+          "errores_total": { "type": "integer", "example": 0 },
+          "errores": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": []
+          },
+          "sesiones": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["SISCA-H101", "SISCA-H102"]
+          },
+          "mensaje": {
+            "type": "string",
+            "example": "3 horarios nuevos + 2 actualizados en SISCA Oracle"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-15T10:30:00Z"
+          }
+        }
+      },
+      "ActualizarHorarioRequest": {
+        "type": "object",
+        "properties": {
+          "aula": {
+            "type": "string",
+            "maxLength": 30,
+            "example": "302-B",
+            "description": "Nuevo código de aula."
+          },
+          "dia": {
+            "type": "string",
+            "enum": ["LU", "MA", "MI", "JU", "VI", "SA"],
+            "example": "MA",
+            "description": "Nuevo día (código de dos letras)."
+          }
+        }
+      },
+      "ActualizarHorarioResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "id_sisca": { "type": "string", "example": "SISCA-H101" }
+        }
+      },
+      "CancelarHorarioResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "id_sisca": { "type": "string", "example": "SISCA-H101" },
+          "estado": { "type": "string", "example": "CANCELADO" }
+        }
+      },
+      "AsistenciaSesionResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "id_sesion": { "type": "string", "example": "SISCA-H101" },
+          "fecha_consulta": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-15T10:30:00Z"
+          },
+          "total_estudiantes": { "type": "integer", "example": 30 },
+          "presentes": { "type": "integer", "example": 25 },
+          "ausentes": { "type": "integer", "example": 5 },
+          "porcentaje_asistencia": { "type": "number", "format": "float", "example": 83.3 }
+        }
+      },
+      "EstudianteEnRiesgo": {
+        "type": "object",
+        "properties": {
+          "id_estudiante": { "type": "integer", "example": 42 },
+          "nombre": { "type": "string", "example": "Ana María Gómez" },
+          "email": { "type": "string", "format": "email", "example": "a.gomez@pi.edu.co" },
+          "porcentaje_asistencia": { "type": "number", "format": "float", "example": 62.5 }
+        }
+      },
+      "AsistenciaMateriaResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "codigo_materia": { "type": "string", "example": "TDS-301" },
+          "periodo": { "type": "string", "example": "2026-2T" },
+          "total_inscritos": { "type": "integer", "example": 30 },
+          "sesiones_realizadas": { "type": "integer", "example": 8 },
+          "porcentaje_promedio": { "type": "number", "format": "float", "example": 78.5 },
+          "estudiantes_en_riesgo": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EstudianteEnRiesgo" }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-15T10:30:00Z"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "No autorizado" },
+          "code": { "type": "integer", "example": 401 }
+        }
+      },
+      "ErrorBadRequest": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string", "example": "Lista de horarios vacia" },
+          "periodo": { "type": "string", "example": "2026-2T" }
+        }
+      },
+      "ErrorNotFound": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string", "example": "Horario no existe en SISCA" }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Token ausente o inválido.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "error": "No autorizado", "code": 401 }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    { "BearerAuth": [] }
+  ],
+  "tags": [
+    {
+      "name": "Horarios",
+      "description": "Publicación, actualización y cancelación de horarios desde SIIHAPI."
+    },
+    {
+      "name": "Asistencia",
+      "description": "Consulta de reportes de asistencia almacenados en SISCA."
+    }
+  ],
+  "paths": {
+    "/horarios/publicar": {
+      "post": {
+        "tags": ["Horarios"],
+        "summary": "Publicar lote de horarios",
+        "operationId": "publicarHorarios",
+        "description": "Recibe un lote de horarios desde SIIHAPI y los inserta (o actualiza si ya existen) en las tablas Oracle de SISCA: `MATERIA`, `HORARIO` y `SESION_CLASE`.\n\nSi el docente no existe en SISCA, se crea automáticamente a partir del email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PublicarHorariosRequest" },
+              "example": {
+                "periodo": "2026-2T",
+                "horarios": [
+                  {
+                    "codigo_materia": "TDS-301",
+                    "nombre_materia": "Desarrollo de Aplicaciones Móviles",
+                    "docente": "Carlos Pérez",
+                    "docente_email": "c.perez@pi.edu.co",
+                    "salon": "301-A",
+                    "dia": "LU",
+                    "hora_inicio": "08:40",
+                    "hora_fin": "10:00"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Horarios procesados exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicarHorariosResponse" },
+                "example": {
+                  "success": true,
+                  "periodo": "2026-2T",
+                  "total_recibido": 1,
+                  "creados": 1,
+                  "actualizados": 0,
+                  "errores_total": 0,
+                  "errores": [],
+                  "sesiones": ["SISCA-H101"],
+                  "mensaje": "1 horarios nuevos + 0 actualizados en SISCA Oracle",
+                  "timestamp": "2026-06-15T10:30:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lista de horarios vacía o request inválido.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBadRequest" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/horarios/{id_sisca}": {
+      "put": {
+        "tags": ["Horarios"],
+        "summary": "Actualizar un horario",
+        "operationId": "actualizarHorario",
+        "description": "Actualiza los campos `aula` y/o `dia` de un horario existente en SISCA. El `id_sisca` puede ser un número entero o la cadena con prefijo `SISCA-H` (ej. `SISCA-H101`).",
+        "parameters": [
+          {
+            "name": "id_sisca",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del horario en SISCA. Puede ser un entero (`101`) o una cadena con prefijo (`SISCA-H101`).",
+            "example": "SISCA-H101"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ActualizarHorarioRequest" },
+              "example": {
+                "aula": "302-B",
+                "dia": "MA"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Horario actualizado correctamente.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ActualizarHorarioResponse" },
+                "example": { "success": true, "id_sisca": "SISCA-H101" }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorNotFound" },
+                "example": { "success": false, "error": "ID invalido" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "El horario no existe en SISCA.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorNotFound" },
+                "example": { "success": false, "error": "Horario no existe en SISCA" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Horarios"],
+        "summary": "Cancelar un horario",
+        "operationId": "cancelarHorario",
+        "description": "Marca el horario como inactivo (`ESTADO='I'`) y cancela todas las sesiones de clase asociadas (`ESTADO_SESION='CANCELADA'`).",
+        "parameters": [
+          {
+            "name": "id_sisca",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del horario en SISCA. Puede ser un entero (`101`) o una cadena con prefijo (`SISCA-H101`).",
+            "example": "SISCA-H101"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Horario cancelado correctamente.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CancelarHorarioResponse" },
+                "example": { "success": true, "id_sisca": "SISCA-H101", "estado": "CANCELADO" }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorNotFound" },
+                "example": { "success": false, "error": "ID invalido" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/asistencia/sesion/{id_sesion}": {
+      "get": {
+        "tags": ["Asistencia"],
+        "summary": "Consultar asistencia de una sesión",
+        "operationId": "consultarAsistenciaSesion",
+        "description": "Devuelve el resumen de asistencia (presentes, ausentes, porcentaje) para un horario específico consultando las tablas `ASISTENCIA` y `SESION_CLASE` de SISCA.",
+        "parameters": [
+          {
+            "name": "id_sesion",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del horario/sesión en SISCA. Puede ser un entero o una cadena con prefijo `SISCA-H`.",
+            "example": "SISCA-H101"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen de asistencia de la sesión.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AsistenciaSesionResponse" },
+                "example": {
+                  "success": true,
+                  "id_sesion": "SISCA-H101",
+                  "fecha_consulta": "2026-06-15T10:30:00Z",
+                  "total_estudiantes": 30,
+                  "presentes": 25,
+                  "ausentes": 5,
+                  "porcentaje_asistencia": 83.3
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": "ID invalido" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/asistencia/materia/{id_materia}/periodo/{periodo}": {
+      "get": {
+        "tags": ["Asistencia"],
+        "summary": "Consultar asistencia de una materia por periodo",
+        "operationId": "consultarAsistenciaMateria",
+        "description": "Devuelve estadísticas de asistencia de todos los estudiantes inscritos en una materia durante el periodo indicado, incluyendo la lista de estudiantes en riesgo (asistencia menor al 75%).",
+        "parameters": [
+          {
+            "name": "id_materia",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Código de la materia (campo `CODIGO` en la tabla `MATERIA` de SISCA).",
+            "example": "TDS-301"
+          },
+          {
+            "name": "periodo",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Código del periodo académico.",
+            "example": "2026-2T"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estadísticas de asistencia de la materia en el periodo.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AsistenciaMateriaResponse" },
+                "examples": {
+                  "con_datos": {
+                    "summary": "Materia con sesiones registradas",
+                    "value": {
+                      "success": true,
+                      "codigo_materia": "TDS-301",
+                      "periodo": "2026-2T",
+                      "total_inscritos": 30,
+                      "sesiones_realizadas": 8,
+                      "porcentaje_promedio": 78.5,
+                      "estudiantes_en_riesgo": [
+                        {
+                          "id_estudiante": 42,
+                          "nombre": "Ana María Gómez",
+                          "email": "a.gomez@pi.edu.co",
+                          "porcentaje_asistencia": 62.5
+                        }
+                      ],
+                      "timestamp": "2026-06-15T10:30:00Z"
+                    }
+                  },
+                  "sin_sesiones": {
+                    "summary": "Materia sin sesiones cerradas en el periodo",
+                    "value": {
+                      "success": true,
+                      "codigo_materia": "TDS-301",
+                      "periodo": "2026-2T",
+                      "total_inscritos": 0,
+                      "sesiones_realizadas": 0,
+                      "porcentaje_promedio": 0.0,
+                      "estudiantes_en_riesgo": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  }
+}

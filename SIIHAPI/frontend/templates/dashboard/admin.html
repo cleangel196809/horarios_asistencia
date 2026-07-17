@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Administrador{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  <nav class="sidebar">
+    <div class="sb-lbl">Principal</div>
+    <a class="sb-item active" href="{% url 'dashboard' %}"><span class="ico">🏠</span> Dashboard</a>
+
+    <div class="sb-lbl" style="margin-top:14px;">Académico</div>
+    <a class="sb-item" href="{% url 'sedes' %}"><span class="ico">🏛️</span> Sedes y Salones</a>
+    <a class="sb-item" href="{% url 'programas' %}"><span class="ico">📚</span> Programas y Materias</a>
+    <a class="sb-item" href="{% url 'docentes' %}"><span class="ico">👨‍🏫</span> Docentes</a>
+    <a class="sb-item" href="{% url 'estudiantes' %}"><span class="ico">🎓</span> Estudiantes</a>
+
+    <div class="sb-lbl" style="margin-top:14px;">Operación</div>
+    <a class="sb-item" href="{% url 'motor_ia' %}"><span class="ico">🤖</span> Motor IA</a>
+    <a class="sb-item" href="{% url 'horarios' %}"><span class="ico">📅</span> Horarios</a>
+    <a class="sb-item" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
+
+    <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
+    <a class="sb-item" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
+    <a class="sb-item" href="{% url 'auditoria' %}"><span class="ico">📋</span> Auditoría</a>
+
+    <div class="sb-spacer"></div>
+    <div class="sb-status">
+      <span class="pulse"></span>
+      <span style="font-size:11px;color:var(--txt2);">Sistema Activo</span>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div style="margin-bottom:28px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Bienvenido</p>
+      <h1 style="font-size:32px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">
+        {{ request.user.nombre }} {{ request.user.apellido }}
+      </h1>
+      <p style="color:var(--txt2);margin-top:6px;">Periodo activo: <strong style="color:var(--blue-lt);">{{ kpis.periodo }}</strong></p>
+    </div>
+
+    <div class="kpi-grid">
+      <a href="{% url 'sedes' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">🏛️ Sedes</div><div class="kpi-val">{{ kpis.sedes }}</div></a>
+      <a href="{% url 'sedes' %}" class="kpi" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">🚪 Salones</div><div class="kpi-val">{{ kpis.salones }}</div></a>
+      <a href="{% url 'programas' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">📚 Programas</div><div class="kpi-val">{{ kpis.programas }}</div></a>
+      <div class="kpi"><div class="kpi-lbl">📅 Periodo</div><div class="kpi-val" style="font-size:24px;">{{ kpis.periodo }}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">Motor IA — Estado actual</span>
+          <span class="tb-badge" style="background:linear-gradient(135deg,rgba(34,211,238,0.22),rgba(34,211,238,0.10));color:var(--lime-lt);border-color:rgba(34,211,238,0.40);">Disponible</span>
+        </div>
+        <p style="color:var(--txt2);margin-bottom:18px;">El motor de asignación automática está listo para procesar el periodo {{ kpis.periodo }}. Soporta hasta 8.000 matrículas en menos de 60 segundos.</p>
+
+        {% if ultima_ia %}
+        <div style="background:var(--surface-glass);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+          <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:4px;">Última ejecución</p>
+          <p style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--blue-lt);">{{ ultima_ia.job_id }} · {{ ultima_ia.estado }} · {{ ultima_ia.asignaciones_exitosas }} asignadas / {{ ultima_ia.conflictos_residuales }} conflictos</p>
+        </div>
+        {% endif %}
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-ejecutar-ia">🤖 Ejecutar asignación IA</button>
+          <button class="btn btn-cyan" id="btn-simular-ia">🧪 Simulación</button>
+          <a class="btn btn-ghost" href="{% url 'motor_ia_metricas' %}">📊 Ver métricas</a>
+        </div>
+
+        <div id="ia-resultado" style="display:none;margin-top:14px;padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;"></div>
+      </div>
+
+      <a href="{% url 'integracion_sisca' %}" class="card" style="text-decoration:none;display:block;cursor:pointer;">
+        <div class="card-hdr">
+          <span class="card-title">🔗 Integración SISCA</span>
+          <span class="tb-badge" style="font-size:10px;">RF-42</span>
+        </div>
+        <p style="color:var(--txt2);margin-bottom:14px;font-size:13px;">Publica horarios al sistema de asistencia y consulta KPIs de asistencia en tiempo real.</p>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan-lt);margin-bottom:18px;">→ Ver panel de integración</p>
+        <button class="btn btn-lime btn-full">📤 Abrir panel SISCA</button>
+      </a>
+    </div>
+  </main>
+</div>
+
+<script>
+(function() {
+  const $res = document.getElementById('ia-resultado');
+  const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
+
+  async function ejecutar(modo) {
+    $res.style.display = 'block';
+    $res.style.color = 'var(--blue-lt)';
+    $res.innerHTML = '⏳ Ejecutando solver CSP... (puede tardar varios segundos)';
+    try {
+      const fd = new FormData();
+      fd.append('periodo', '{{ kpis.periodo }}');
+      fd.append('modo', modo);
+      const r = await fetch('{% url "motor_ia_ejecutar" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken },
+        body: fd,
+      });
+      const data = await r.json();
+      if (data.success) {
+        $res.style.color = 'var(--lime-lt)';
+        let html = `✅ <strong>${data.mensaje}</strong><br><br>`;
+        html += `<strong style="color:var(--blue-lt);">📊 ${data.algoritmo}</strong><br>`;
+        html += `Asignadas: ${data.asignadas}/${data.matriculas} (${data.tasa_exito}%) · Duración: ${data.duracion_ms} ms<br>`;
+        if (data.llm) {
+          html += `<br><strong style="color:var(--cyan-lt);">🧠 ${data.llm.proveedor} · ${data.llm.modelo}</strong><br>`;
+          html += `<span style="color:var(--white);">${data.llm.resumen}</span><br>`;
+          html += `<span style="color:var(--lime-lt);">Score: ${data.llm.score}/100</span>`;
+        }
+        $res.innerHTML = html;
+      } else {
+        $res.style.color = 'var(--red-lt)';
+        $res.innerHTML = '❌ ' + (data.error || 'Error desconocido');
+      }
+    } catch (e) {
+      $res.style.color = 'var(--red-lt)';
+      $res.innerHTML = '❌ Error de red: ' + e.message;
+    }
+  }
+
+  document.getElementById('btn-ejecutar-ia')?.addEventListener('click', () => ejecutar('COMPLETA'));
+  document.getElementById('btn-simular-ia')?.addEventListener('click', () => ejecutar('SIMULACION'));
+})();
+</script>
+{% endblock %}

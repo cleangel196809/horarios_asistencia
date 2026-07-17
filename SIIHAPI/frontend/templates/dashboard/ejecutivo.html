@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Ejecutivo · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='ejecutivo' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Reportes</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📊 Dashboard Ejecutivo</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Vista institucional consolidada</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">Sedes</div><div class="kpi-val">{{ totales.sedes }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Salones</div><div class="kpi-val">{{ totales.salones }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">Programas</div><div class="kpi-val">{{ totales.programas }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Usuarios</div><div class="kpi-val">{{ totales.usuarios }}</div></div>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">Docentes</div><div class="kpi-val">{{ totales.docentes }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Estudiantes</div><div class="kpi-val">{{ totales.estudiantes }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">Matrículas activas</div><div class="kpi-val">{{ totales.matriculas }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Horarios</div><div class="kpi-val">{{ totales.horarios }}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Distribución por Sede</span></div>
+        {% for s in por_sede %}
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <span style="color:var(--white);">🏛️ {{ s.nombre }}</span>
+          <span style="color:var(--blue-lt);font-weight:700;">{{ s.num_salones }} salones</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Programas por Tipo</span></div>
+        {% for t, info in por_tipo_prog.items %}
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <span style="color:var(--white);">📚 {{ info.label }}</span>
+          <span style="color:var(--lime-lt);font-weight:700;">{{ info.programas }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Últimas ejecuciones IA</span></div>
+        {% for a in ultimas_ia %}
+        <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <p style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--blue-lt);">{{ a.job_id }} <span style="color:var(--cyan);">[{{ a.estado }}]</span></p>
+          <p style="font-size:11px;color:var(--txt3);">{{ a.fecha_inicio|date:"d/m H:i" }} · {{ a.asignaciones_exitosas }} asignadas / {{ a.conflictos_residuales }} conflictos</p>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);padding:10px 0;">Sin ejecuciones.</p>
+        {% endfor %}
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Últimos eventos SISCA</span></div>
+        {% for l in ultimos_logs %}
+        <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <p style="font-size:12px;color:{% if l.estado == 'EXITO' %}var(--lime-lt){% else %}var(--orange){% endif %};">{{ l.operacion }} · {{ l.estado }}</p>
+          <p style="font-size:11px;color:var(--txt3);">{{ l.fecha|date:"d/m H:i:s" }}</p>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);padding:10px 0;">Sin eventos de integración.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.4" r="0.8">
+      <stop offset="0" stop-color="#0F1626"/>
+      <stop offset="0.5" stop-color="#0A0F18"/>
+      <stop offset="1" stop-color="#05080D"/>
+    </radialGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4D9BFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.5">
+      <stop offset="0" stop-color="#4D9BFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#4D9BFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="2732" height="2732" fill="url(#bg)"/>
+  <rect width="2732" height="2732" fill="url(#glow)"/>
+  <!-- Logo blanco circular -->
+  <circle cx="1366" cy="1200" r="280" fill="#FFFFFF"/>
+  <!-- Texto SISCA -->
+  <text x="1366" y="1620" text-anchor="middle" font-family="-apple-system, Plus Jakarta Sans, sans-serif"
+        font-size="180" font-weight="800" fill="white" letter-spacing="6">SISCA</text>
+  <text x="1366" y="1710" text-anchor="middle" font-family="-apple-system, Plus Jakarta Sans, sans-serif"
+        font-size="44" font-weight="700" fill="#9CA8BB" letter-spacing="14">POLITÉCNICO INTERNACIONAL</text>
+</svg>

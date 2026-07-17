@@ -1,0 +1,447 @@
+{% extends 'base.html' %}
+{% block title %}Carga Masiva CSV{% endblock %}
+
+{% block sidebar %}
+<span class="sb-lbl">Administración</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('admin.usuarios') }}"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item active"><span class="ico">📥</span> Carga Masiva CSV</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+<span class="sb-lbl" style="margin-top:12px;">Reportes</span>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Asistencia</a>
+<a class="sb-item" href="{{ url_for('reportes.auditoria') }}"><span class="ico">🔍</span> Auditoría</a>
+{% endblock %}
+
+{% block head %}
+<style>
+/* ─── Carga Masiva ─────────────────────────────────────────────────── */
+.cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+@media(max-width:860px){.cm-grid{grid-template-columns:1fr;}}
+
+/* Selector de tipo */
+.tipo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:6px;}
+.tipo-card{
+  border:2px solid var(--border);border-radius:12px;padding:16px 12px;
+  text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);
+  position:relative;user-select:none;
+}
+.tipo-card:hover{border-color:var(--blue-lt);background:rgba(31,111,235,.08);}
+.tipo-card.selected{border-color:var(--blue-lt);background:rgba(31,111,235,.15);box-shadow:0 0 0 3px rgba(31,111,235,.2);}
+.tipo-card input[type=radio]{position:absolute;opacity:0;width:0;height:0;}
+.tipo-card .tc-ico{font-size:28px;display:block;margin-bottom:6px;}
+.tipo-card .tc-lbl{font-size:12px;font-weight:600;color:var(--txt);}
+.tipo-card .tc-desc{font-size:10px;color:var(--txt3);margin-top:3px;}
+.tipo-card.selected .tc-lbl{color:var(--blue-lt);}
+
+/* Drop zone */
+.drop-zone{
+  border:2px dashed var(--border);border-radius:14px;
+  padding:36px 20px;text-align:center;cursor:pointer;
+  background:var(--surface2);transition:all .25s;position:relative;
+}
+.drop-zone.drag-over{border-color:var(--blue-lt);background:rgba(31,111,235,.08);}
+.drop-zone .dz-ico{font-size:40px;margin-bottom:8px;}
+.drop-zone .dz-txt{font-size:14px;color:var(--txt2);}
+.drop-zone .dz-hint{font-size:11px;color:var(--txt3);margin-top:4px;}
+.drop-zone input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+}
+.dz-filename{
+  margin-top:10px;font-size:12px;font-weight:600;color:var(--blue-lt);
+  display:none;gap:6px;align-items:center;justify-content:center;
+}
+
+/* Plantillas */
+.plantillas-wrap{display:flex;flex-direction:column;gap:8px;}
+.plantilla-item{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--surface3);border:1px solid var(--border);
+  border-radius:9px;transition:background .15s;
+}
+.plantilla-item:hover{background:var(--surface2);}
+.plantilla-item .pi-ico{font-size:18px;}
+.plantilla-item .pi-info{flex:1;}
+.plantilla-item .pi-name{font-size:12px;font-weight:600;color:var(--txt);}
+.plantilla-item .pi-cols{font-size:10px;color:var(--txt3);}
+.plantilla-item .pi-btn{
+  font-size:11px;padding:4px 12px;border-radius:6px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--blue-lt);cursor:pointer;text-decoration:none;
+  transition:background .15s;white-space:nowrap;
+}
+.plantilla-item .pi-btn:hover{background:rgba(31,111,235,.15);}
+
+/* Resultado */
+.resultado-wrap{margin-top:18px;}
+.res-bar{
+  display:flex;gap:12px;flex-wrap:wrap;align-items:center;
+  padding:14px 18px;border-radius:10px;
+  background:var(--surface2);border:1px solid var(--border);margin-bottom:14px;
+}
+.res-stat{text-align:center;}
+.res-stat .rs-val{font-size:28px;font-weight:800;}
+.res-stat .rs-lbl{font-size:10px;color:var(--txt3);font-weight:600;text-transform:uppercase;}
+.res-stat.ok .rs-val{color:var(--green-lt);}
+.res-stat.err .rs-val{color:#f85149;}
+.res-stat.tot .rs-val{color:var(--blue-lt);}
+.res-divider{width:1px;height:40px;background:var(--border);}
+
+.err-list{
+  background:rgba(248,81,73,.06);border:1px solid rgba(248,81,73,.3);
+  border-radius:10px;padding:14px;max-height:280px;overflow-y:auto;
+}
+.err-list li{
+  font-size:11px;color:#f85149;padding:5px 0;
+  border-bottom:1px solid rgba(248,81,73,.1);list-style:none;
+}
+.err-list li:last-child{border-bottom:none;}
+.err-list li::before{content:"⚠ ";font-size:12px;}
+
+.success-banner{
+  display:flex;align-items:center;gap:12px;padding:14px 18px;
+  background:rgba(46,160,67,.1);border:1px solid rgba(46,160,67,.3);
+  border-radius:10px;font-size:13px;font-weight:600;color:var(--green-lt);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>📥 Carga Masiva por CSV</h2>
+    <p>Importa estudiantes, docentes, horarios, materias y personal administrativo desde archivos CSV</p>
+  </div>
+  <div class="pg-actions">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+{# ── Resultado de la importación ──────────────────────────────────────────── #}
+{% if resultado %}
+<div class="resultado-wrap">
+
+  {# Banner general #}
+  <div class="res-bar">
+    <div class="res-stat tot">
+      <div class="rs-val">{{ resultado.total }}</div>
+      <div class="rs-lbl">Filas leídas</div>
+    </div>
+    <div class="res-divider"></div>
+    <div class="res-stat ok">
+      <div class="rs-val">{{ resultado.ok }}</div>
+      <div class="rs-lbl">Importados</div>
+    </div>
+    <div class="res-divider"></div>
+    <div class="res-stat err">
+      <div class="rs-val">{{ resultado.errores|length }}</div>
+      <div class="rs-lbl">Con errores</div>
+    </div>
+    <div style="flex:1"></div>
+    <span class="badge {% if resultado.errores|length == 0 %}b-green{% else %}b-orange{% endif %}" style="font-size:12px;padding:6px 14px;">
+      {{ resultado.tipo|upper|replace('_',' ') }}
+    </span>
+  </div>
+
+  {% if resultado.ok > 0 %}
+  <div class="success-banner">
+    <span style="font-size:22px;">✅</span>
+    {{ resultado.ok }} registro(s) importados correctamente a la base de datos.
+  </div>
+  {% endif %}
+
+  {% if resultado.errores %}
+  <div style="margin-top:12px;">
+    <div style="font-size:12px;font-weight:700;color:#f85149;margin-bottom:6px;">
+      ⚠ Filas con problemas ({{ resultado.errores|length }}):
+    </div>
+    <ul class="err-list">
+      {% for err in resultado.errores %}
+      <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:14px;">
+    <a href="{{ url_for('admin.carga_masiva') }}" class="btn btn-primary">📥 Nueva Importación</a>
+    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-ghost" style="margin-left:8px;">👥 Ver Usuarios</a>
+  </div>
+</div>
+
+{% else %}
+{# ── Formulario de carga ──────────────────────────────────────────────────── #}
+<form id="frmCarga" method="POST" action="{{ url_for('admin.procesar_csv') }}"
+      enctype="multipart/form-data">
+
+  <div class="cm-grid">
+    <!-- Izquierda: selector + drop zone -->
+    <div>
+      <!-- 1. Seleccionar tipo -->
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-hdr"><span class="card-title">① Tipo de datos a importar</span></div>
+        <div class="tipo-grid" id="tipoGrid">
+          <label class="tipo-card" id="tc-estudiantes">
+            <input type="radio" name="tipo" value="estudiantes" required>
+            <span class="tc-ico">🎓</span>
+            <div class="tc-lbl">Estudiantes</div>
+            <div class="tc-desc">Datos de matrícula</div>
+          </label>
+          <label class="tipo-card" id="tc-docentes">
+            <input type="radio" name="tipo" value="docentes">
+            <span class="tc-ico">👨‍🏫</span>
+            <div class="tc-lbl">Docentes</div>
+            <div class="tc-desc">Planta de profesores</div>
+          </label>
+          <label class="tipo-card" id="tc-personal_administrativo">
+            <input type="radio" name="tipo" value="personal_administrativo">
+            <span class="tc-ico">🏛️</span>
+            <div class="tc-lbl">Personal Admin</div>
+            <div class="tc-desc">Administradores</div>
+          </label>
+          <label class="tipo-card" id="tc-materias">
+            <input type="radio" name="tipo" value="materias">
+            <span class="tc-ico">📚</span>
+            <div class="tc-lbl">Materias</div>
+            <div class="tc-desc">Oferta académica</div>
+          </label>
+          <label class="tipo-card" id="tc-horarios">
+            <input type="radio" name="tipo" value="horarios">
+            <span class="tc-ico">🕐</span>
+            <div class="tc-lbl">Horarios</div>
+            <div class="tc-desc">Sesiones de clase</div>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. Subir archivo -->
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">② Seleccionar archivo CSV</span></div>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" name="archivo" id="csvFile" accept=".csv,text/csv" required>
+          <div class="dz-ico">📂</div>
+          <div class="dz-txt">Arrastra tu archivo aquí o haz clic para seleccionar</div>
+          <div class="dz-hint">Solo archivos .csv · Codificación UTF-8 recomendada</div>
+        </div>
+        <div class="dz-filename" id="dzFilename">
+          <span>📄</span><span id="dzFilenameTxt"></span>
+        </div>
+        <div style="margin-top:14px;text-align:right;">
+          <button type="submit" class="btn btn-primary" id="btnImportar" disabled>
+            🚀 Importar datos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derecha: plantillas de descarga -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📋 Plantillas de ejemplo</span></div>
+      <p style="font-size:12px;color:var(--txt3);margin-bottom:12px;">
+        Descarga la plantilla CSV correspondiente para ver el formato correcto de cada columna.
+        Los campos <strong style="color:var(--txt)">marcados</strong> son obligatorios.
+      </p>
+      <div class="plantillas-wrap">
+
+        <div class="plantilla-item">
+          <span class="pi-ico">🎓</span>
+          <div class="pi-info">
+            <div class="pi-name">Estudiantes</div>
+            <div class="pi-cols">nombre · apellido · documento · correo · contrasena · semestre · codigo_estudiante</div>
+          </div>
+          <a class="pi-btn" id="dl-estudiantes" href="#"
+             onclick="descargarPlantilla('estudiantes');return false;">⬇ Plantilla</a>
+        </div>
+
+        <div class="plantilla-item">
+          <span class="pi-ico">👨‍🏫</span>
+          <div class="pi-info">
+            <div class="pi-name">Docentes</div>
+            <div class="pi-cols">nombre · apellido · documento · correo · contrasena · especialidad · telefono</div>
+          </div>
+          <a class="pi-btn" href="#"
+             onclick="descargarPlantilla('docentes');return false;">⬇ Plantilla</a>
+        </div>
+
+        <div class="plantilla-item">
+          <span class="pi-ico">🏛️</span>
+          <div class="pi-info">
+            <div class="pi-name">Personal Administrativo</div>
+            <div class="pi-cols">nombre · apellido · documento · correo · contrasena</div>
+          </div>
+          <a class="pi-btn" href="#"
+             onclick="descargarPlantilla('personal_administrativo');return false;">⬇ Plantilla</a>
+        </div>
+
+        <div class="plantilla-item">
+          <span class="pi-ico">📚</span>
+          <div class="pi-info">
+            <div class="pi-name">Materias</div>
+            <div class="pi-cols">nombre_materia · codigo · creditos · semestre · porcentaje_min · nombre_carrera · documento_docente</div>
+          </div>
+          <a class="pi-btn" href="#"
+             onclick="descargarPlantilla('materias');return false;">⬇ Plantilla</a>
+        </div>
+
+        <div class="plantilla-item">
+          <span class="pi-ico">🕐</span>
+          <div class="pi-info">
+            <div class="pi-name">Horarios</div>
+            <div class="pi-cols">codigo_materia · dia · hora_inicio · hora_fin · aula</div>
+          </div>
+          <a class="pi-btn" href="#"
+             onclick="descargarPlantilla('horarios');return false;">⬇ Plantilla</a>
+        </div>
+
+      </div>
+
+      <!-- Notas -->
+      <div style="margin-top:16px;padding:12px 14px;background:var(--surface3);
+                  border-radius:9px;border:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--gold-lt);margin-bottom:6px;">
+          📌 Consideraciones importantes
+        </div>
+        <ul style="font-size:11px;color:var(--txt2);padding-left:16px;line-height:1.8;">
+          <li>La primera fila del CSV debe ser el <strong>encabezado</strong> con los nombres de columna.</li>
+          <li>Los correos deben tener el dominio <code style="color:var(--blue-lt)">@politecnico.edu.co</code>.</li>
+          <li>Los documentos y correos duplicados se <strong>omiten</strong> sin detener la importación.</li>
+          <li>Para <strong>Horarios</strong>, el código de la materia debe existir previamente.</li>
+          <li>Para <strong>Materias</strong>, el nombre de la carrera y el documento del docente son opcionales.</li>
+          <li>El campo <code>dia</code> en horarios acepta: LUNES, MARTES, MIERCOLES, JUEVES, VIERNES, SABADO.</li>
+          <li>Las horas deben ir en formato <code>HH:MM</code>, ej. <code>08:00</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ─── Selección de tipo con tarjetas ─────────────────────────────────────────
+document.querySelectorAll('.tipo-card input[type=radio]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.tipo-card').forEach(c => c.classList.remove('selected'));
+    radio.closest('.tipo-card').classList.add('selected');
+    checkReady();
+  });
+});
+
+// ─── Drop zone ──────────────────────────────────────────────────────────────
+const dz      = document.getElementById('dropZone');
+const fileInp = document.getElementById('csvFile');
+const dzFN    = document.getElementById('dzFilename');
+const dzFNTxt = document.getElementById('dzFilenameTxt');
+
+if(dz){
+  dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e=>{
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    if(e.dataTransfer.files.length){
+      fileInp.files = e.dataTransfer.files;
+      showFilename(e.dataTransfer.files[0].name);
+    }
+  });
+  fileInp.addEventListener('change',()=>{
+    if(fileInp.files.length) showFilename(fileInp.files[0].name);
+    checkReady();
+  });
+}
+
+function showFilename(name){
+  if(!dzFN) return;
+  dzFNTxt.textContent = name;
+  dzFN.style.display  = 'flex';
+  checkReady();
+}
+
+function checkReady(){
+  const btn   = document.getElementById('btnImportar');
+  if(!btn) return;
+  const tipoOk = !!document.querySelector('.tipo-card.selected');
+  const fileOk = fileInp && fileInp.files && fileInp.files.length > 0;
+  btn.disabled = !(tipoOk && fileOk);
+}
+
+// ─── Descarga de plantillas inline ──────────────────────────────────────────
+const PLANTILLAS = {
+  estudiantes: {
+    header: 'nombre,apellido,documento,correo,contrasena,semestre,codigo_estudiante',
+    rows: [
+      'Ana,García,1001234567,ana.garcia@politecnico.edu.co,Abc12345,1,EST-001',
+      'Luis,Martínez,1009876543,luis.martinez@politecnico.edu.co,Abc12345,2,EST-002',
+      'María,López,1002345678,maria.lopez@politecnico.edu.co,Abc12345,3,EST-003',
+    ]
+  },
+  docentes: {
+    header: 'nombre,apellido,documento,correo,contrasena,especialidad,telefono',
+    rows: [
+      'Carlos,Rodríguez,5001234567,carlos.rodriguez@politecnico.edu.co,Abc12345,Ingeniería de Software,3001234567',
+      'Sandra,Pérez,5009876543,sandra.perez@politecnico.edu.co,Abc12345,Matemáticas,3109876543',
+    ]
+  },
+  personal_administrativo: {
+    header: 'nombre,apellido,documento,correo,contrasena',
+    rows: [
+      'Pedro,Gómez,8001234567,pedro.gomez@politecnico.edu.co,Abc12345',
+      'Laura,Torres,8009876543,laura.torres@politecnico.edu.co,Abc12345',
+    ]
+  },
+  materias: {
+    header: 'nombre_materia,codigo,creditos,semestre,porcentaje_min,nombre_carrera,documento_docente',
+    rows: [
+      'Cálculo Diferencial,CALC-101,4,1,75,Ingeniería de Sistemas,5001234567',
+      'Programación I,PROG-101,3,1,75,Ingeniería de Sistemas,5001234567',
+      'Álgebra Lineal,ALG-201,3,2,75,,',
+    ]
+  },
+  horarios: {
+    header: 'codigo_materia,dia,hora_inicio,hora_fin,aula',
+    rows: [
+      'CALC-101,LUNES,07:00,09:00,Aula 101',
+      'CALC-101,MIERCOLES,07:00,09:00,Aula 101',
+      'PROG-101,MARTES,09:00,11:00,Lab Sistemas',
+      'ALG-201,JUEVES,14:00,16:00,Aula 202',
+    ]
+  }
+};
+
+function descargarPlantilla(tipo){
+  const p = PLANTILLAS[tipo];
+  if(!p) return;
+  const csv  = [p.header, ...p.rows].join('\n');
+  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `plantilla_${tipo}_SISCA.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  // Seleccionar la tarjeta correspondiente automáticamente
+  const radio = document.querySelector(`.tipo-card input[value="${tipo}"]`);
+  if(radio){
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change'));
+  }
+}
+
+// ─── Loading state al enviar ─────────────────────────────────────────────────
+const form = document.getElementById('frmCarga');
+if(form){
+  form.addEventListener('submit', ()=>{
+    const btn = document.getElementById('btnImportar');
+    if(btn){
+      btn.disabled   = true;
+      btn.textContent = '⏳ Procesando...';
+    }
+  });
+}
+</script>
+{% endblock %}

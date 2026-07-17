@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1626"/>
+      <stop offset="0.5" stop-color="#0A0F18"/>
+      <stop offset="1" stop-color="#05080D"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4D9BFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#4D9BFF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#4D9BFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="220" fill="url(#glow)"/>
+  <!-- Aro exterior -->
+  <circle cx="512" cy="512" r="320" fill="none" stroke="url(#blue)" stroke-width="14" opacity="0.55"/>
+  <circle cx="512" cy="512" r="270" fill="none" stroke="#22D3EE" stroke-width="6" opacity="0.35"/>
+  <!-- Letras S I S C A -->
+  <text x="512" y="540" text-anchor="middle" font-family="-apple-system, Plus Jakarta Sans, Helvetica, Arial, sans-serif"
+        font-size="220" font-weight="800" fill="white" letter-spacing="2">SISCA</text>
+  <!-- Subtítulo -->
+  <text x="512" y="640" text-anchor="middle" font-family="-apple-system, Plus Jakarta Sans, sans-serif"
+        font-size="50" font-weight="700" fill="#4D9BFF" letter-spacing="10">POLITÉCNICO</text>
+  <!-- Acento de check -->
+  <path d="M 380 760 L 470 850 L 644 676" stroke="#4ADE80" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.85"/>
+</svg>

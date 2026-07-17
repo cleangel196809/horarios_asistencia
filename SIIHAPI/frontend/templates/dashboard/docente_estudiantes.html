@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Mis Estudiantes · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='estudiantes' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">👥 Mis Estudiantes</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Estudiantes matriculados en tus materias · Total: <strong style="color:var(--blue-lt);">{{ estudiantes|length }}</strong></p>
+    </div>
+
+    <div class="card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Programa</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Semestre</th>
+        </tr></thead>
+        <tbody>
+          {% for e in estudiantes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ e.codigo }}</td>
+            <td style="padding:10px;color:var(--white);">{{ e.usuario.nombre }} {{ e.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--txt2);font-size:12px;">{{ e.usuario.correo }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ e.programa.nombre|truncatechars:35 }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ e.semestre_actual }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no tienes estudiantes matriculados en tus materias.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}

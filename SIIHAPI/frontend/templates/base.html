@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0A0814">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>{% block title %}SIIHAPI{% endblock %} · Politécnico Internacional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/siihapi.css' %}?v={% now 'U' %}">
+<style>
+  /* SIN animaciones de entrada en el dashboard: todo aparece al instante. */
+  .main-content, .main-content .card, .main-content .kpi { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .fx-reveal { opacity: 1 !important; transform: none !important; }
+  .page { display: block !important; animation: none !important; }
+</style>
+{% block head %}{% endblock %}
+</head>
+<body data-rol="{{ request.user.rol|default:'' }}">
+
+<canvas id="bg3d" aria-hidden="true"></canvas>
+
+{% block topbar %}
+<header class="topbar">
+  <a href="{% url 'landing' %}" class="tb-logo" style="text-decoration:none;">
+    <img src="{% static 'img/logo_politecnico.svg' %}" alt="Politécnico" height="34" onerror="this.style.display='none'">
+    <div class="tb-logo-text">
+      <span class="tb-logo-name">SIIHAPI</span>
+      <span class="tb-logo-sub">Politécnico Internacional</span>
+    </div>
+  </a>
+  <div class="tb-spacer"></div>
+  {% if request.user.is_authenticated %}
+    <span class="tb-badge {{ request.user.rol|lower }}">{{ request.user.get_rol_display }}</span>
+    <a href="{% url 'logout' %}" class="tb-user" style="text-decoration:none;">
+      <div class="tb-avatar">{{ request.user.avatar_initials }}</div>
+      <span class="tb-uname">{{ request.user.nombre_completo|truncatechars:20 }}</span>
+      <span class="tb-logout" title="Cerrar sesión">⏻</span>
+    </a>
+  {% endif %}
+</header>
+{% endblock %}
+
+{% if messages %}
+<div class="toast-wrap" id="toastWrap">
+  {% for m in messages %}
+    <div class="toast {{ m.tags }}">
+      <span class="toast-ico">{% if m.tags == 'success' %}✅{% elif m.tags == 'error' %}❌{% else %}ℹ️{% endif %}</span>
+      <div class="toast-txt">{{ m }}</div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% block body %}{% endblock %}
+
+<script src="{% static 'js/siihapi.js' %}?v={% now 'U' %}"></script>
+<script src="{% static 'js/siihapi-bg3d.js' %}?v={% now 'U' %}" defer></script>
+<!-- siihapi-fx.js DESACTIVADO: sin animaciones de fade/tilt/contador -->
+{% block scripts %}{% endblock %}
+</body>
+</html>

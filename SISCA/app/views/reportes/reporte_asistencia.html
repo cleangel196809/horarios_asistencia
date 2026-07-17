@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Reportes de Asistencia{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Reportes</span>
+<a class="sb-item active"><span class="ico">📋</span> Asistencia</a>
+{% if session.rol == 'ADMINISTRADOR' %}
+<a class="sb-item" href="{{ url_for('reportes.auditoria') }}"><span class="ico">🔍</span> Auditoría</a>
+{% endif %}
+{% if session.rol in ['ADMINISTRADOR', 'DOCENTE'] %}
+<a class="sb-item" href="{{ url_for('reportes.exportar_pdf') }}"><span class="ico">📄</span> Exportar PDF</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_excel') }}"><span class="ico">📊</span> Exportar Excel</a>
+{% endif %}
+{% if session.rol == 'ADMINISTRADOR' %}
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">🏠</span> Dashboard</a>
+{% elif session.rol == 'DOCENTE' %}
+<a class="sb-item" href="{{ url_for('docente.dashboard') }}"><span class="ico">🏠</span> Dashboard</a>
+{% elif session.rol == 'ESTUDIANTE' %}
+<a class="sb-item" href="{{ url_for('estudiante.dashboard') }}"><span class="ico">🏠</span> Dashboard</a>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title"><h2>📋 Reporte de Asistencia</h2><p>Consulta y exporta registros de asistencia</p></div>
+  <div class="pg-actions">
+    <a href="{{ url_for('reportes.exportar_pdf', id_materia=filtros.id_materia, fecha=filtros.fecha) }}" class="btn btn-red">📄 PDF</a>
+    <a href="{{ url_for('reportes.exportar_excel') }}" class="btn btn-green">📊 Excel</a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card" style="margin-bottom:16px;">
+  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:200px;">
+      <label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:4px;">Materia</label>
+      <select class="filter-select" name="id_materia" style="width:100%;">
+        <option value="">Todas las materias</option>
+        {% for m in materias %}<option value="{{ m.id_materia }}" {% if filtros.id_materia==m.id_materia|string %}selected{% endif %}>{{ m.nombre_materia }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:4px;">Fecha</label>
+      <input type="date" class="search-input" name="fecha" value="{{ filtros.fecha }}" style="padding:8px 12px;">
+    </div>
+    <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+    <a href="{{ url_for('reportes.reporte_asistencia') }}" class="btn btn-ghost">✕ Limpiar</a>
+  </form>
+</div>
+
+<!-- Resumen -->
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+  <div class="kpi"><div class="kpi-lbl">Total Registros</div><div class="kpi-val" style="color:var(--blue-lt);">{{ datos|length }}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Presentes</div><div class="kpi-val" style="color:var(--green-lt);">{{ datos|selectattr('estado','eq','PRESENTE')|list|length }}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Ausentes / Justif.</div><div class="kpi-val" style="color:var(--red-lt);">{{ datos|selectattr('estado','ne','PRESENTE')|list|length }}</div></div>
+</div>
+
+<!-- Tabla -->
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Estudiante</th><th>Materia</th><th>Fecha</th><th>Estado</th><th>Tipo</th><th>Hora Registro</th></tr></thead>
+      <tbody>
+      {% for d in datos %}
+      <tr>
+        <td style="font-weight:600;">{{ d.estudiante }}</td>
+        <td>{{ d.nombre_materia }}</td>
+        <td>{{ d.fecha_sesion|string|truncate(10,True,'') }}</td>
+        <td><span class="badge {% if d.estado=='PRESENTE' %}b-green{% elif d.estado=='JUSTIFICADO' %}b-orange{% else %}b-red{% endif %}">{{ d.estado }}</span></td>
+        <td><span class="badge b-gray" style="font-size:10px;">{{ d.tipo_registro }}</span></td>
+        <td style="font-size:11px;color:var(--txt3);">{{ d.hora_registro|string|truncate(19,True,'') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--txt3);">Sin registros para los filtros seleccionados</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

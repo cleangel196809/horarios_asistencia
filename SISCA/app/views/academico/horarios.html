@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Horarios{% endblock %}
+{% block sidebar %}
+<span class="sb-lbl">Académico</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item active"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🏫</span> Carreras</a>
+{% endblock %}
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title"><h2>🕐 Gestión de Horarios</h2><p>Configura días, horas de inicio/fin y aulas por materia</p></div>
+  <div class="pg-actions">
+    <a class="btn btn-primary" href="{{ url_for('ui_siihapi.exportar_horarios_pdf_completo') }}" style="background:linear-gradient(135deg,#06B6D4,#1F6FEB);text-decoration:none;margin-right:8px;">📄 Descargar Horario PDF</a>
+    <button class="btn btn-primary" onclick="document.getElementById('modalBg').classList.add('open')">+ Nuevo Horario</button>
+  </div>
+</div>
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Materia</th><th>Día</th><th>Hora Inicio</th><th>Hora Fin</th><th>Aula</th><th style="text-align:center;">Acciones</th></tr></thead>
+      <tbody>
+      {% for h in horarios %}
+      <tr style="cursor:pointer;transition:background 0.2s;"
+          onmouseover="this.style.background='rgba(31,111,235,0.06)'"
+          onmouseout="this.style.background=''"
+          onclick="if(!event.target.closest('.no-row-click')) window.location='{{ url_for('ui_siihapi.detalle_horario', id_horario=h.id_horario) }}'">
+        <td style="font-weight:600;color:#1F6FEB;">{{ h.nombre_materia }}</td>
+        <td>
+          <span class="badge b-blue" style="
+            {% if h.dia == 'LUNES' %}background:rgba(31,111,235,0.15);color:#1F6FEB;
+            {% elif h.dia == 'MARTES' %}background:rgba(6,182,212,0.15);color:#06B6D4;
+            {% elif h.dia == 'MIERCOLES' %}background:rgba(99,102,241,0.15);color:#6366F1;
+            {% elif h.dia == 'JUEVES' %}background:rgba(34,211,238,0.15);color:#22D3EE;
+            {% elif h.dia == 'VIERNES' %}background:rgba(125,211,252,0.15);color:#0EA5E9;
+            {% endif %}">{{ h.dia }}</span>
+        </td>
+        <td style="font-family:'JetBrains Mono',mono;font-size:12px;">{{ h.hora_inicio|string|truncate(19,True,'')|replace('T',' ')|truncate(16,True,'') }}</td>
+        <td style="font-family:'JetBrains Mono',mono;font-size:12px;">{{ h.hora_fin|string|truncate(19,True,'')|replace('T',' ')|truncate(16,True,'') }}</td>
+        <td><span class="badge" style="background:#E0EBFF;color:#1F6FEB;font-weight:700;">{{ h.aula or '—' }}</span></td>
+        <td style="white-space:nowrap;">
+          <a href="{{ url_for('ui_siihapi.detalle_horario', id_horario=h.id_horario) }}"
+             class="no-row-click"
+             style="background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;padding:5px 11px;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none;">
+            📋 Ver
+          </a>
+          <a href="{{ url_for('ui_siihapi.exportar_horario_pdf', id_horario=h.id_horario) }}"
+             class="no-row-click"
+             style="background:rgba(31,111,235,0.10);color:#1F6FEB;padding:5px 11px;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none;margin-left:4px;border:1px solid rgba(31,111,235,0.30);">
+            📄 PDF
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--txt3);">No hay horarios configurados. Crea el primero.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="modalBg" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">🕐 Nuevo Horario</span>
+      <button type="button" class="modal-close" onclick="document.getElementById('modalBg').classList.remove('open')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('academico.guardar_horario') }}" id="formHorario">
+      <div class="form-group">
+        <label>Materia *</label>
+        <select name="id_materia" required class="filter-select" style="width:100%;">
+          <option value="">-- Seleccionar materia --</option>
+          {% for m in materias %}<option value="{{ m.id_materia }}">{{ m.nombre_materia }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Día *</label>
+        <select name="dia" required class="filter-select" style="width:100%;">
+          {% for d in ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'] %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>Hora Inicio *</label>
+          <input type="time" name="hora_inicio" required>
+        </div>
+        <div class="form-group">
+          <label>Hora Fin *</label>
+          <input type="time" name="hora_fin" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Aula</label>
+        <input type="text" name="aula" placeholder="Ej: Sala 201">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalBg').classList.remove('open')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btnGuardar">💾 Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function() {
+    var form = document.getElementById('formHorario');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+      var btn = document.getElementById('btnGuardar');
+      var inicio = form.querySelector('[name=hora_inicio]').value;
+      var fin    = form.querySelector('[name=hora_fin]').value;
+      if (inicio && fin && inicio >= fin) {
+        e.preventDefault();
+        alert('La hora de inicio debe ser anterior a la hora de fin.');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = 'Guardando...';
+      btn.style.opacity = '0.7';
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Mis Notas · Estudiante{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_estudiante.html' with active='notas' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Seguimiento</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📈 Mis Notas</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Notas finales por materia y periodo</p>
+    </div>
+
+    <div class="card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Periodo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Créditos</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nota Final</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Resultado</th>
+        </tr></thead>
+        <tbody>
+          {% for m in matriculas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ m.periodo.codigo }}</td>
+            <td style="padding:10px;color:var(--white);">{{ m.materia.codigo }} — {{ m.materia.nombre|truncatechars:35 }}</td>
+            <td style="padding:10px;text-align:right;color:var(--txt2);">{{ m.materia.creditos }}</td>
+            <td style="padding:10px;text-align:right;color:{% if m.nota_final and m.nota_final >= 3.0 %}var(--lime-lt){% elif m.nota_final %}var(--red-lt){% else %}var(--txt3){% endif %};font-family:'JetBrains Mono',monospace;font-weight:700;">{% if m.nota_final %}{{ m.nota_final }}{% else %}—{% endif %}</td>
+            <td style="padding:10px;color:{% if m.nota_final and m.nota_final >= 3.0 %}var(--lime-lt){% elif m.nota_final %}var(--red-lt){% else %}var(--txt2){% endif %};">{% if m.nota_final and m.nota_final >= 3.0 %}✅ Aprobada{% elif m.nota_final %}❌ Reprobada{% else %}En curso{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Sin notas registradas todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}

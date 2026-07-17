@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Mis Materias · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='mis_materias' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📚 Mis Materias</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Materias que enseñas este periodo · Total: <strong style="color:var(--blue-lt);">{{ materias|length }}</strong></p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      {% for m in materias %}
+      <div class="kpi {% cycle 'accent' '' %}">
+        <div class="kpi-lbl">📖 {{ m.codigo }}</div>
+        <div class="kpi-val" style="font-size:18px;">{{ m.nombre|truncatechars:30 }}</div>
+        <p style="font-size:11px;color:var(--txt3);margin-top:4px;">{{ m.programa.codigo }} · Ciclo {{ m.ciclo }} · {{ m.horas_semanales }}h/sem</p>
+      </div>
+      {% empty %}
+      <p style="color:var(--txt3);grid-column:span 4;padding:30px;text-align:center;">No tienes materias asignadas.</p>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Detalle</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Programa</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Créditos</th>
+          <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Horas/sem</th>
+        </tr></thead>
+        <tbody>
+          {% for m in materias %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ m.codigo }}</td>
+            <td style="padding:10px;color:var(--white);">{{ m.nombre }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ m.programa.codigo }} — {{ m.programa.nombre|truncatechars:30 }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ m.creditos }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ m.horas_semanales }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Auditoría{% endblock %}
+
+{% block sidebar %}
+<span class="sb-lbl">ADMINISTRACIÓN</span>
+<a class="sb-item" href="{{ url_for('admin.dashboard') }}"><span class="ico">🏠</span> Dashboard</a>
+<a class="sb-item" href="{{ url_for('admin.usuarios') }}"><span class="ico">👥</span> Usuarios</a>
+<a class="sb-item" href="{{ url_for('academico.materias') }}"><span class="ico">📚</span> Materias</a>
+<a class="sb-item" href="{{ url_for('academico.horarios') }}"><span class="ico">🕐</span> Horarios</a>
+<a class="sb-item" href="{{ url_for('academico.carreras') }}"><span class="ico">🎓</span> Carreras</a>
+<span class="sb-lbl">REPORTES</span>
+<a class="sb-item" href="{{ url_for('reportes.reporte_asistencia') }}"><span class="ico">📋</span> Asistencia</a>
+<a class="sb-item active"><span class="ico">🔍</span> Auditoría</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_pdf') }}"><span class="ico">📄</span> Exportar PDF</a>
+<a class="sb-item" href="{{ url_for('reportes.exportar_excel') }}"><span class="ico">📊</span> Exportar Excel</a>
+{% endblock %}
+
+{% block content %}
+<div class="pg-header">
+  <div class="pg-title">
+    <h2>🔍 Log de Auditoría</h2>
+    <p>Registro completo de todas las acciones del sistema (RF-19)</p>
+  </div>
+  <div class="pg-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <span class="badge b-blue">{{ logs|length }} registros</span>
+    <a href="{{ url_for('reportes.auditoria_pdf') }}"
+       class="btn btn-sm"
+       style="background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#f87171;font-size:12px;">
+      📄 Exportar PDF
+    </a>
+    <a href="{{ url_for('reportes.auditoria_excel') }}"
+       class="btn btn-sm"
+       style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);color:#4ade80;font-size:12px;">
+      📊 Exportar Excel
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:160px;">Fecha / Hora</th>
+          <th>Usuario</th>
+          <th>Acción</th>
+          <th style="width:120px;">Tabla</th>
+          <th style="width:120px;">IP</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for log in logs %}
+      <tr>
+        <td style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--txt3);">
+          {{ log.fecha|string|truncate(19,True,'') }}
+        </td>
+        <td style="font-size:12px;font-weight:500;">
+          {{ log.usuario_nombre or 'Sistema' }}
+        </td>
+        <td>
+          <span class="badge
+            {% if 'LOGIN_EXITOSO' in log.accion %}b-green
+            {% elif 'LOGIN_FALLIDO' in log.accion or 'ERROR' in log.accion %}b-red
+            {% elif 'REGISTRO' in log.accion %}b-blue
+            {% elif 'LOGOUT' in log.accion %}b-gray
+            {% elif 'QR' in log.accion %}b-yellow
+            {% else %}b-gray{% endif %}"
+            style="font-size:10px;letter-spacing:.3px;">
+            {{ log.accion }}
+          </span>
+        </td>
+        <td style="font-size:11px;color:var(--txt3);">{{ log.tabla_afectada or '—' }}</td>
+        <td style="font-size:11px;color:var(--txt3);font-family:'JetBrains Mono',monospace;">
+          {{ log.ip or '—' }}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center;padding:48px;color:var(--txt3);">
+          Sin registros de auditoría aún.
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

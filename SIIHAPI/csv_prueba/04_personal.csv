@@ -1,0 +1,9 @@
+cedula,correo,nombre,apellido,rol
+1018500100,jefe.coordinacion@pi.edu.co,Patricia,Restrepo,COORDINADOR
+1018500101,coord.salud@pi.edu.co,Roberto,Mendoza,COORDINADOR
+1018500102,coord.hospitalidad@pi.edu.co,Carmen,Velasquez,COORDINADOR
+1018500103,coord.empresarial@pi.edu.co,Hector,Bustamante,COORDINADOR
+1018500104,coord.tecnologia@pi.edu.co,Lucia,Pardo,COORDINADOR
+1018500200,rector@pi.edu.co,Mauricio,Olarte,ADMINISTRADOR
+1018500201,vicerrector@pi.edu.co,Gloria,Bedoya,ADMINISTRADOR
+1018500202,admin.sistemas@pi.edu.co,Felipe,Quintero,ADMINISTRADOR

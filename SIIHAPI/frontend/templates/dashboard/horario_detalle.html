@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% block title %}Detalle Horario · {{ horario.materia.codigo }}{% endblock %}
+
+{% block body %}
+{% with rol=request.user.rol %}
+<div class="app-shell">
+  {% if rol == 'ADMINISTRADOR' or rol == 'COORDINADOR' %}
+    {% include 'dashboard/_sidebar.html' with active='horarios' %}
+  {% elif rol == 'DOCENTE' %}
+    {% include 'dashboard/_sidebar_docente.html' with active='mi_horario' %}
+  {% else %}
+    {% include 'dashboard/_sidebar_estudiante.html' with active='mi_horario' %}
+  {% endif %}
+
+  <main class="main-content">
+
+    {# Header con título y acciones #}
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Detalle de Horario</p>
+        <h1 style="font-size:32px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📋 {{ horario.materia.codigo }}</h1>
+        <p style="color:var(--txt2);margin-top:6px;font-size:14px;">{{ horario.materia.nombre }}</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn btn-primary" href="{% url 'horario_exportar_pdf' horario.id_horario %}" style="background:linear-gradient(135deg,var(--cyan),var(--blue-lt));border:0;font-weight:700;">
+          📄 Descargar PDF
+        </a>
+        <button class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn btn-ghost" href="javascript:history.back()">← Volver</a>
+      </div>
+    </div>
+
+    {# Badge de estado #}
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap;">
+      <span class="tb-badge" style="font-size:13px;padding:8px 16px;background:{% if horario.estado == 'PUBLICADO' %}rgba(34,211,238,0.20);color:var(--cyan-lt){% elif horario.estado == 'APROBADO' %}rgba(77,155,255,0.20);color:var(--blue-lt){% elif horario.estado == 'CANCELADO' %}rgba(239,68,68,0.20);color:var(--red-lt){% else %}rgba(99,102,241,0.20);color:var(--indigo-lt){% endif %};">
+        {% if horario.estado == 'PUBLICADO' %}🟢 PUBLICADO EN SISCA
+        {% elif horario.estado == 'APROBADO' %}🔵 APROBADO
+        {% elif horario.estado == 'CANCELADO' %}🔴 CANCELADO
+        {% else %}🟣 PROPUESTO{% endif %}
+      </span>
+      {% if horario.id_sisca %}
+      <span class="tb-badge" style="font-size:11px;padding:6px 12px;font-family:'JetBrains Mono',monospace;">ID SISCA: {{ horario.id_sisca }}</span>
+      {% endif %}
+      <span class="tb-badge" style="font-size:11px;padding:6px 12px;">Periodo: {{ horario.matricula.periodo.codigo }}</span>
+    </div>
+
+    {# Grid principal con info #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:22px;">
+
+      {# ── Materia ── #}
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📚 Materia</span></div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13px;">
+          <span style="color:var(--txt3);font-weight:600;">Código:</span>
+          <span style="color:var(--white);font-family:'JetBrains Mono',monospace;">{{ horario.materia.codigo }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Nombre:</span>
+          <span style="color:var(--white);">{{ horario.materia.nombre }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Programa:</span>
+          <span style="color:var(--cyan-lt);">{{ horario.materia.programa.codigo }} — {{ horario.materia.programa.nombre|truncatechars:40 }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Facultad:</span>
+          <span style="color:var(--blue-lt);">{{ horario.materia.programa.facultad.nombre }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Ciclo:</span>
+          <span style="color:var(--white);">{{ horario.materia.ciclo }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Créditos:</span>
+          <span style="color:var(--cyan-lt);font-weight:700;">{{ horario.materia.creditos }}</span>
+          <span style="color:var(--txt3);font-weight:600;">Horas semana:</span>
+          <span style="color:var(--cyan-lt);font-weight:700;">{{ horario.materia.horas_semanales }}</span>
+        </div>
+      </div>
+
+      {# ── Día y Hora ── #}
+      <div class="card" style="background:linear-gradient(135deg,rgba(31,111,235,0.06),rgba(34,211,238,0.04));">
+        <div class="card-hdr"><span class="card-title">📅 Día y Hora</span></div>
+        <div style="text-align:center;padding:18px;">
+          <p style="font-size:48px;font-weight:800;color:var(--cyan-lt);margin-bottom:6px;">{{ horario.get_dia_display }}</p>
+          <p style="font-size:24px;font-weight:700;color:var(--white);font-family:'JetBrains Mono',monospace;">
+            {{ horario.bloque.hora_inicio|time:"H:i" }} — {{ horario.bloque.hora_fin|time:"H:i" }}
+          </p>
+          <p style="font-size:12px;color:var(--txt3);margin-top:8px;">Bloque {{ horario.bloque.numero }} de 14</p>
+        </div>
+      </div>
+
+      {# ── Docente ── #}
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">👨‍🏫 Docente</span></div>
+        <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;">
+          <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--blue-lt),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:700;">
+            {{ horario.docente.usuario.nombre|slice:":1" }}{{ horario.docente.usuario.apellido|slice:":1" }}
+          </div>
+          <div>
+            <p style="color:var(--white);font-weight:700;font-size:16px;">{{ horario.docente.usuario.nombre }} {{ horario.docente.usuario.apellido }}</p>
+            <p style="color:var(--txt2);font-size:12px;">{{ horario.docente.usuario.correo }}</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;padding-top:10px;border-top:1px solid var(--border);">
+          <span style="color:var(--txt3);">Tipo contrato:</span>
+          <span style="color:var(--cyan-lt);">{{ horario.docente.get_tipo_contrato_display }}</span>
+          <span style="color:var(--txt3);">Carga máxima:</span>
+          <span style="color:var(--white);">{{ horario.docente.carga_horaria_max }} horas/semana</span>
+        </div>
+      </div>
+
+      {# ── Salón ── #}
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">🏛️ Salón</span></div>
+        <p style="font-size:32px;font-weight:800;color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;text-align:center;margin-bottom:6px;">{{ horario.salon.codigo }}</p>
+        <p style="text-align:center;color:var(--white);margin-bottom:14px;">{{ horario.salon.nombre }}</p>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;padding-top:10px;border-top:1px solid var(--border);">
+          <span style="color:var(--txt3);">Sede:</span>
+          <span style="color:var(--blue-lt);">🏛️ {{ horario.salon.sede.nombre }}</span>
+          <span style="color:var(--txt3);">Dirección:</span>
+          <span style="color:var(--txt2);">{{ horario.salon.sede.direccion }}</span>
+          <span style="color:var(--txt3);">Planta:</span>
+          <span style="color:var(--white);">{{ horario.salon.planta }}</span>
+          <span style="color:var(--txt3);">Capacidad:</span>
+          <span style="color:var(--cyan-lt);font-weight:700;">{{ horario.salon.capacidad }} estudiantes</span>
+          <span style="color:var(--txt3);">Tipo:</span>
+          <span style="color:var(--indigo-lt);">{{ horario.salon.get_tipo_display }}</span>
+        </div>
+      </div>
+
+    </div>
+
+    {# Estudiante (solo si admin/coord/estudiante) #}
+    {% if rol == 'ADMINISTRADOR' or rol == 'COORDINADOR' or rol == 'ESTUDIANTE' %}
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">🎓 Estudiante</span></div>
+      <div style="display:flex;gap:14px;align-items:center;">
+        <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--cyan-lt));display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:700;">
+          {{ horario.matricula.estudiante.usuario.nombre|slice:":1" }}{{ horario.matricula.estudiante.usuario.apellido|slice:":1" }}
+        </div>
+        <div style="flex:1;">
+          <p style="color:var(--white);font-weight:700;font-size:16px;">{{ horario.matricula.estudiante.usuario.nombre }} {{ horario.matricula.estudiante.usuario.apellido }}</p>
+          <p style="color:var(--txt2);font-size:12px;">{{ horario.matricula.estudiante.usuario.correo }}</p>
+        </div>
+        <div style="text-align:right;font-size:13px;">
+          <p style="color:var(--txt3);">Código: <strong style="color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;">{{ horario.matricula.estudiante.codigo }}</strong></p>
+          <p style="color:var(--txt3);">Semestre: <strong style="color:var(--cyan-lt);">{{ horario.matricula.estudiante.semestre_actual }}</strong></p>
+          <p style="color:var(--txt3);">Programa: <strong style="color:var(--blue-lt);">{{ horario.matricula.estudiante.programa.codigo }}</strong></p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Equipamiento del salón #}
+    {% if equipamiento %}
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr"><span class="card-title">🔧 Equipamiento del Salón</span><span class="tb-badge">{{ equipamiento|length }}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+        {% for e in equipamiento %}
+        <div style="padding:12px;background:var(--surface-glass);border-radius:8px;border:1px solid var(--border);">
+          <p style="color:var(--white);font-size:13px;font-weight:600;">{{ e.get_tipo_display }}</p>
+          <p style="color:var(--cyan-lt);font-size:18px;font-weight:700;">x{{ e.cantidad }}</p>
+          {% if e.descripcion %}<p style="color:var(--txt3);font-size:11px;margin-top:4px;">{{ e.descripcion }}</p>{% endif %}
+          <p style="font-size:10px;color:{% if e.operativo %}var(--cyan-lt){% else %}var(--red-lt){% endif %};margin-top:4px;">{% if e.operativo %}✅ Operativo{% else %}⚠ No operativo{% endif %}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Otras clases del docente y del salón #}
+    {% if rol == 'ADMINISTRADOR' or rol == 'COORDINADOR' %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">🗓 Otras clases del docente</span></div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Día</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Hora</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Materia</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Salón</th>
+          </tr></thead>
+          <tbody>
+            {% for o in otros_docente %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:6px;color:var(--blue-lt);">{{ o.get_dia_display }}</td>
+              <td style="padding:6px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ o.bloque.hora_inicio|time:"H:i" }}</td>
+              <td style="padding:6px;color:var(--white);">{{ o.materia.codigo }}</td>
+              <td style="padding:6px;color:var(--cyan);">{{ o.salon.codigo }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--txt3);">No tiene otras clases.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">🏛 Otras clases en este salón</span></div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Día</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Hora</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Materia</th>
+            <th style="text-align:left;padding:6px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Docente</th>
+          </tr></thead>
+          <tbody>
+            {% for o in otros_salon %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:6px;color:var(--blue-lt);">{{ o.get_dia_display }}</td>
+              <td style="padding:6px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ o.bloque.hora_inicio|time:"H:i" }}</td>
+              <td style="padding:6px;color:var(--white);">{{ o.materia.codigo }}</td>
+              <td style="padding:6px;color:var(--cyan);">{{ o.docente.usuario.nombre|truncatechars:18 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--txt3);">No hay otras clases.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+  </main>
+</div>
+{% endwith %}
+{% endblock %}

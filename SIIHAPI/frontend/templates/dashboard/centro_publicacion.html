@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block title %}Centro de Publicación · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='publicacion' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Centro de Operación</p>
+        <h1 style="font-size:32px;font-weight:800;color:var(--white);">🚀 Centro de Publicación</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Flujo completo: cargar/generar → revisar → aprobar → publicar a SISCA</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="tb-badge" style="font-size:12px;padding:8px 14px;background:{% if sisca_conectado %}rgba(34,211,238,0.20){% else %}rgba(239,68,68,0.20){% endif %};color:{% if sisca_conectado %}var(--cyan-lt){% else %}var(--red-lt){% endif %};border-color:{% if sisca_conectado %}rgba(34,211,238,0.40){% else %}rgba(239,68,68,0.40){% endif %};">
+          {% if sisca_conectado %}🟢 SISCA Conectado{% else %}🔴 SISCA Offline{% endif %}
+        </span>
+      </div>
+    </div>
+
+    {# Notificación de feedback #}
+    <div id="notif" style="display:none;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:14px;"></div>
+
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {# FLUJO VISUAL DE 4 PASOS                                          #}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    <div class="card" style="margin-bottom:22px;background:linear-gradient(135deg,rgba(31,111,235,0.06),rgba(99,102,241,0.04));border-color:rgba(77,155,255,0.20);">
+      <div class="card-hdr">
+        <span class="card-title">📋 Flujo de Publicación</span>
+        <span class="tb-badge" style="font-size:11px;">Periodo: 2026-2</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;">
+
+        {# PASO 1 — Cargar/Generar #}
+        <a href="{% url 'carga_masiva' %}" style="text-decoration:none;color:inherit;display:block;">
+          <div style="padding:18px;background:var(--surface-glass);border-radius:12px;border:2px solid {% if kpis.total > 0 %}rgba(34,211,238,0.50){% else %}var(--border){% endif %};text-align:center;cursor:pointer;transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+            <div style="font-size:32px;margin-bottom:8px;">{% if kpis.total > 0 %}✅{% else %}1️⃣{% endif %}</div>
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Paso 1</p>
+            <p style="color:var(--white);font-weight:700;margin-top:4px;font-size:15px;">Cargar / Generar</p>
+            <p style="color:var(--txt2);font-size:12px;margin-top:6px;">CSV/Excel o Motor IA</p>
+            <p style="font-size:20px;font-weight:800;color:var(--cyan-lt);margin-top:8px;">{{ kpis.total }}</p>
+          </div>
+        </a>
+
+        {# PASO 2 — Revisar #}
+        <a href="{% url 'horarios_gestionar' %}?estado=PROPUESTO" style="text-decoration:none;color:inherit;display:block;">
+          <div style="padding:18px;background:var(--surface-glass);border-radius:12px;border:2px solid {% if kpis.propuestos > 0 %}rgba(77,155,255,0.50){% else %}var(--border){% endif %};text-align:center;cursor:pointer;transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+            <div style="font-size:32px;margin-bottom:8px;">{% if kpis.propuestos > 0 %}🔍{% elif kpis.aprobados > 0 or kpis.publicados > 0 %}✅{% else %}2️⃣{% endif %}</div>
+            <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Paso 2</p>
+            <p style="color:var(--white);font-weight:700;margin-top:4px;font-size:15px;">Revisar</p>
+            <p style="color:var(--txt2);font-size:12px;margin-top:6px;">Editar propuestos</p>
+            <p style="font-size:20px;font-weight:800;color:var(--blue-lt);margin-top:8px;">{{ kpis.propuestos }}</p>
+          </div>
+        </a>
+
+        {# PASO 3 — Aprobar #}
+        <div style="padding:18px;background:var(--surface-glass);border-radius:12px;border:2px solid {% if kpis.aprobados > 0 %}rgba(124,185,255,0.50){% else %}var(--border){% endif %};text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">{% if kpis.aprobados > 0 %}👍{% elif kpis.publicados > 0 %}✅{% else %}3️⃣{% endif %}</div>
+          <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Paso 3</p>
+          <p style="color:var(--white);font-weight:700;margin-top:4px;font-size:15px;">Aprobar</p>
+          <p style="color:var(--txt2);font-size:12px;margin-top:6px;">Aprobados pendientes</p>
+          <p style="font-size:20px;font-weight:800;color:var(--blue-sky);margin-top:8px;">{{ kpis.aprobados }}</p>
+        </div>
+
+        {# PASO 4 — Publicar a SISCA #}
+        <div style="padding:18px;background:{% if kpis.publicados > 0 %}rgba(34,211,238,0.10){% else %}var(--surface-glass){% endif %};border-radius:12px;border:2px solid {% if kpis.publicados > 0 %}rgba(34,211,238,0.60){% else %}var(--border){% endif %};text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">{% if kpis.publicados > 0 %}🚀{% else %}4️⃣{% endif %}</div>
+          <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Paso 4</p>
+          <p style="color:var(--white);font-weight:700;margin-top:4px;font-size:15px;">Publicar a SISCA</p>
+          <p style="color:var(--txt2);font-size:12px;margin-top:6px;">Ya en SISCA</p>
+          <p style="font-size:20px;font-weight:800;color:var(--cyan-lt);margin-top:8px;">{{ kpis.publicados }}</p>
+        </div>
+      </div>
+
+      {# Botones de acción del flujo #}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;justify-content:center;">
+        <a class="btn btn-ghost" href="{% url 'carga_masiva' %}">📤 Subir archivo CSV/Excel</a>
+        <a class="btn btn-ghost" href="{% url 'motor_ia' %}">🤖 Ejecutar Motor IA</a>
+        {% if puede_aprobar %}
+        <button class="btn btn-primary" id="btn-aprobar">👍 Aprobar {{ kpis.propuestos }} propuesto{{ kpis.propuestos|pluralize }}</button>
+        {% endif %}
+        {% if puede_publicar %}
+        <button class="btn btn-cyan" id="btn-publicar" style="background:linear-gradient(135deg,var(--cyan),var(--blue-lt));border:0;color:#fff;font-weight:700;">🚀 Publicar {{ kpis.aprobados }} a SISCA</button>
+        {% elif kpis.aprobados > 0 and not sisca_conectado %}
+        <button class="btn btn-ghost" disabled style="opacity:0.5;cursor:not-allowed;">🚀 Publicar (SISCA offline)</button>
+        {% elif kpis.publicados > 0 and sisca_conectado %}
+        <button class="btn btn-cyan" id="btn-republicar" style="background:linear-gradient(135deg,var(--blue-deep),var(--cyan));border:0;color:#fff;font-weight:700;" title="Reenviar a SISCA los {{ kpis.publicados }} ya publicados">🔄 Re-publicar {{ kpis.publicados }} a SISCA</button>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {# 2 PANELES PARALELOS: PREVIEW HORARIOS APROBADOS + EVENTOS SISCA #}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;">
+
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📋 Horarios listos para publicar</span>
+          <span class="tb-badge">{{ kpis.aprobados }} aprobados</span>
+        </div>
+        {% if horarios_aprobados %}
+        <div style="overflow-x:auto;max-height:450px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead style="position:sticky;top:0;background:var(--bg);">
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Día</th>
+              <th style="text-align:left;padding:8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Hora</th>
+              <th style="text-align:left;padding:8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Materia</th>
+              <th style="text-align:left;padding:8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Docente</th>
+              <th style="text-align:left;padding:8px;color:var(--txt3);font-size:10px;text-transform:uppercase;">Salón</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in horarios_aprobados %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px;color:var(--blue-lt);">{{ h.get_dia_display }}</td>
+              <td style="padding:8px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ h.bloque.hora_inicio|time:"H:i" }}</td>
+              <td style="padding:8px;color:var(--white);">{{ h.materia.codigo }}</td>
+              <td style="padding:8px;color:var(--cyan);">{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}</td>
+              <td style="padding:8px;color:var(--cyan-lt);">{{ h.salon.codigo }} ({{ h.salon.sede.nombre }})</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% if kpis.aprobados > 30 %}
+        <p style="text-align:center;color:var(--txt3);margin-top:10px;font-size:11px;">
+          Mostrando 30 de {{ kpis.aprobados }} · <a href="{% url 'horarios_gestionar' %}?estado=APROBADO" style="color:var(--blue-lt);">Ver todos</a>
+        </p>
+        {% endif %}
+        {% else %}
+        <div style="padding:50px 20px;text-align:center;color:var(--txt3);">
+          <p style="font-size:48px;margin-bottom:14px;">📭</p>
+          <p style="font-size:14px;color:var(--white);font-weight:700;">Aún no hay horarios aprobados</p>
+          <p style="font-size:12px;margin-top:8px;">
+            {% if kpis.propuestos > 0 %}
+            Hay {{ kpis.propuestos }} propuestos esperando tu aprobación.
+            {% elif kpis.total == 0 %}
+            Comienza cargando un CSV o ejecutando el Motor IA.
+            {% endif %}
+          </p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">🔗 Integración SISCA</span>
+        </div>
+
+        <div style="background:rgba(8,12,20,0.45);padding:12px;border-radius:8px;border:1px solid var(--border);margin-bottom:14px;">
+          <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Servidor SISCA</p>
+          <p style="font-family:'JetBrains Mono',monospace;color:var(--cyan-lt);font-size:12px;margin-top:4px;">{{ sisca_url }}</p>
+          <p style="font-size:12px;color:{% if sisca_conectado %}var(--cyan-lt){% else %}var(--red-lt){% endif %};margin-top:8px;font-weight:700;">
+            {% if sisca_conectado %}🟢 Conectado y listo{% else %}🔴 No responde{% endif %}
+          </p>
+        </div>
+
+        {% if ultima_publicacion %}
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:4px;">Última publicación exitosa</p>
+        <p style="color:var(--cyan-lt);font-size:13px;font-weight:700;">{{ ultima_publicacion.fecha|date:"d/m/Y H:i:s" }}</p>
+        <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+        {% endif %}
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">Últimas operaciones</p>
+        {% for l in ultimos_logs %}
+        <div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">
+          <p style="color:{% if l.estado == 'EXITO' %}var(--cyan-lt){% else %}var(--red-lt){% endif %};">
+            {% if l.estado == 'EXITO' %}✅{% else %}❌{% endif %}
+            {{ l.get_operacion_display|truncatechars:30 }}
+          </p>
+          <p style="color:var(--txt3);">{{ l.fecha|date:"d/m H:i:s" }} · HTTP {{ l.codigo_http|default:"—" }} · {{ l.duracion_ms|default:0 }}ms</p>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);font-size:12px;padding:10px 0;">Sin operaciones todavía.</p>
+        {% endfor %}
+
+        <a href="{% url 'integracion_sisca' %}" style="display:block;margin-top:14px;text-align:center;color:var(--blue-lt);font-size:12px;text-decoration:none;">→ Ver panel completo de SISCA</a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+const $notif = document.getElementById('notif');
+
+function notif(tipo, mensaje) {
+  const colores = {
+    ok:    ['rgba(34,211,238,0.10)','rgba(34,211,238,0.30)','var(--cyan-lt)'],
+    error: ['rgba(239,68,68,0.10)','rgba(239,68,68,0.30)','var(--red-lt)'],
+    info:  ['var(--surface-glass)','var(--border)','var(--blue-lt)'],
+  };
+  const [bg, border, color] = colores[tipo] || colores.info;
+  $notif.style.cssText = `display:block;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:14px;background:${bg};border:1px solid ${border};color:${color};`;
+  $notif.innerHTML = mensaje;
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function aprobar() {
+  notif('info', '⏳ Aprobando horarios propuestos...');
+  try {
+    const fd = new FormData();
+    fd.append('periodo', '2026-2');
+    const r = await fetch('{% url "aprobar_horarios" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd});
+    const d = await r.json();
+    if (d.success) {
+      notif('ok', `✅ ${d.mensaje}`);
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      notif('error', `❌ ${d.error}`);
+    }
+  } catch(e) { notif('error', '❌ ' + e.message); }
+}
+
+async function publicar(republicar = false) {
+  const msg = republicar
+    ? '¿Reenviar a SISCA los horarios YA publicados? Esto los actualizará en la BD de SISCA.'
+    : '¿Publicar {{ kpis.aprobados }} horarios aprobados a SISCA?';
+  if (!confirm(msg)) return;
+  notif('info', '⏳ ' + (republicar ? 'Re-enviando' : 'Publicando') + ' horarios a SISCA... (puede tardar varios segundos)');
+  try {
+    const fd = new FormData();
+    fd.append('periodo', '2026-2');
+    if (republicar) fd.append('republicar', 'true');
+    const r = await fetch('{% url "sisca_publicar" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd});
+    const d = await r.json();
+    if (d.success) {
+      notif('ok', `🚀 <strong>${d.mensaje}</strong><br>Total enviados: ${d.total_publicados} · SISCA respondió: ${d.sisca_respuesta?.mensaje || 'OK'}`);
+      setTimeout(() => location.reload(), 2500);
+    } else {
+      let html = `❌ ${d.error}<br>${d.sugerencia || ''}`;
+      if (d.puede_republicar) {
+        html += `<br><br><button onclick="publicar(true)" style="background:var(--cyan);color:#fff;border:0;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;">🔄 Reenviar a SISCA de todos modos</button>`;
+      }
+      notif('error', html);
+    }
+  } catch(e) { notif('error', '❌ ' + e.message); }
+}
+
+document.getElementById('btn-aprobar')?.addEventListener('click', aprobar);
+document.getElementById('btn-publicar')?.addEventListener('click', () => publicar(false));
+document.getElementById('btn-republicar')?.addEventListener('click', () => publicar(true));
+</script>
+{% endblock %}

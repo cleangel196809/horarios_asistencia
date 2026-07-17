@@ -1,0 +1,93 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sisca-tests:
+    name: SISCA (Flask) — 82 tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SISCA
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: SISCA/requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest-flask
+
+      # Los tests de SISCA mockean Oracle por completo (ver tests/conftest.py),
+      # así que no hace falta ninguna base de datos real para este job.
+      - name: Ejecutar tests
+        run: pytest tests/ -v
+
+  siihapi-tests:
+    name: SIIHAPI (Django) — 72 tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SIIHAPI/backend
+
+    services:
+      oracle:
+        image: gvenzl/oracle-xe:21-slim
+        ports:
+          - 1521:1521
+        env:
+          ORACLE_PASSWORD: ${{ secrets.CI_ORACLE_SYSTEM_PASSWORD }}
+        options: >-
+          --health-cmd healthcheck.sh
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 60s
+
+    env:
+      ORACLE_HOST: localhost
+      ORACLE_PORT: 1521
+      ORACLE_SYSTEM_PASSWORD: ${{ secrets.CI_ORACLE_SYSTEM_PASSWORD }}
+      SIIHAPI_DB_PASSWORD: ${{ secrets.CI_SIIHAPI_DB_PASSWORD }}
+      ORACLE_SERVICE: XEPDB1
+      ORACLE_USER: SIIHAPI
+      ORACLE_PASSWORD: ${{ secrets.CI_SIIHAPI_DB_PASSWORD }}
+      DJANGO_SECRET_KEY: ci-django-secret-key-not-for-prod
+      JWT_SECRET_KEY: ci-jwt-secret-key-not-for-production-use-only
+      SISCA_API_URL: http://localhost:8080
+      SISCA_API_TOKEN: ci-shared-token-not-for-prod
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      USE_REDIS: "False"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: SIIHAPI/backend/requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest-django
+
+      - name: Crear esquema SIIHAPI en Oracle (+ rol DBA para test-db de Django)
+        run: python ../scripts/ci_setup_test_db.py
+
+      # Las migraciones están en .gitignore (**/migrations/0*.py) por diseño
+      # de este repo, así que hay que generarlas antes de correr los tests.
+      - name: Generar migraciones
+        run: python manage.py makemigrations
+
+      - name: Ejecutar tests
+        run: pytest tests/ -v

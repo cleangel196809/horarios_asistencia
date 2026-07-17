@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block title %}Editar Horarios · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='horarios_gest' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">✏️ Editar Horarios Asignados</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Modifica docente, salón, día, bloque o estado. Los cambios se validan contra choques.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn btn-cyan" href="{% url 'motor_ia' %}">🤖 Motor IA</a>
+        <a class="btn btn-ghost" href="{% url 'horarios' %}">📅 Vista solo lectura</a>
+      </div>
+    </div>
+
+    {# Notificacion #}
+    <div id="notif" style="display:none;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:13px;"></div>
+
+    {# Filtros #}
+    <div class="card" style="margin-bottom:18px;">
+      <form method="GET" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+        <div>
+          <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Estado</label>
+          <select name="estado" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+            <option value="">— Todos —</option>
+            {% for e, lbl in estados %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Día</label>
+          <select name="dia" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+            <option value="">— Todos —</option>
+            {% for d, lbl in dias %}<option value="{{ d }}" {% if dia_filtro == d %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Docente</label>
+          <select name="docente" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:240px;">
+            <option value="">— Todos —</option>
+            {% for d in docentes %}<option value="{{ d.id_docente }}" {% if docente_filtro == d.id_docente|stringformat:"s" %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+          </select>
+        </div>
+        <span style="color:var(--txt3);font-size:12px;margin-left:auto;align-self:center;">
+          Mostrando <strong style="color:var(--cyan-lt);">{{ horarios|length }}</strong> de <strong>{{ total }}</strong> totales
+        </span>
+      </form>
+    </div>
+
+    {# Tabla editable #}
+    <div class="card">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Día</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Bloque</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tabla">
+          {% for h in horarios %}
+          <tr id="row-{{ h.id_horario }}" data-id="{{ h.id_horario }}" style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">
+              <strong>{{ h.materia.codigo }}</strong>
+              <p style="font-size:11px;color:var(--txt3);margin-top:2px;">{{ h.materia.nombre|truncatechars:35 }}</p>
+            </td>
+            <td style="padding:6px;">
+              <select class="edit edit-dia" data-field="dia" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;">
+                {% for d, lbl in dias %}<option value="{{ d }}" {% if h.dia == d %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:6px;">
+              <select class="edit edit-bloque" data-field="bloque" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;">
+                {% for b in bloques %}<option value="{{ b.numero }}" {% if h.bloque.numero == b.numero %}selected{% endif %}>B{{ b.numero }} · {{ b.hora_inicio|time:"H:i" }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:6px;">
+              <select class="edit edit-docente" data-field="docente" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;min-width:200px;">
+                {% for d in docentes %}<option value="{{ d.id_docente }}" {% if h.docente.id_docente == d.id_docente %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:6px;">
+              <select class="edit edit-salon" data-field="salon" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;">
+                {% for s in salones %}<option value="{{ s.id_salon }}" {% if h.salon.id_salon == s.id_salon %}selected{% endif %}>{{ s.codigo }} ({{ s.sede.nombre }})</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:6px;">
+              <select class="edit edit-estado" data-field="estado" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;
+                color:{% if h.estado == 'PUBLICADO' %}var(--cyan-lt){% elif h.estado == 'APROBADO' %}var(--blue-lt){% elif h.estado == 'CANCELADO' %}var(--red-lt){% else %}var(--white){% endif %};">
+                {% for e, lbl in estados %}<option value="{{ e }}" {% if h.estado == e %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:6px;text-align:right;white-space:nowrap;">
+              <button onclick="guardar({{ h.id_horario }})" style="background:linear-gradient(135deg,var(--cyan),var(--blue-lt));color:#fff;border:0;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;font-weight:700;">💾 Guardar</button>
+              <button onclick="eliminar({{ h.id_horario }})" style="background:rgba(239,68,68,0.15);color:var(--red-lt);border:1px solid rgba(239,68,68,0.30);border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;margin-left:4px;">🗑</button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" style="padding:40px;text-align:center;color:var(--txt3);">No hay horarios. Ejecuta el Motor IA o sube un CSV de horarios.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {% if horarios|length == 300 and total > 300 %}
+    <p style="text-align:center;color:var(--txt3);margin-top:14px;font-size:12px;">
+      Solo se muestran los primeros 300. Usa los filtros para ver más.
+    </p>
+    {% endif %}
+  </main>
+</div>
+
+<script>
+const csrftoken = document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))?.split('=')[1];
+const $notif = document.getElementById('notif');
+
+function notif(tipo, mensaje) {
+  const colores = {
+    ok:    ['rgba(34,211,238,0.10)','rgba(34,211,238,0.30)','var(--cyan-lt)'],
+    error: ['rgba(239,68,68,0.10)','rgba(239,68,68,0.30)','var(--red-lt)'],
+    info:  ['var(--surface-glass)','var(--border)','var(--blue-lt)'],
+  };
+  const [bg, border, color] = colores[tipo] || colores.info;
+  $notif.style.cssText = `display:block;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:13px;background:${bg};border:1px solid ${border};color:${color};`;
+  $notif.innerHTML = mensaje;
+  setTimeout(() => { $notif.style.display = 'none'; }, 5000);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function guardar(id) {
+  const $row = document.getElementById('row-' + id);
+  const datos = {};
+  $row.querySelectorAll('.edit').forEach(el => { datos[el.dataset.field] = el.value; });
+
+  const fd = new FormData();
+  Object.entries(datos).forEach(([k, v]) => fd.append(k, v));
+
+  try {
+    const r = await fetch(`/dashboard/horarios/${id}/actualizar/`, {
+      method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd
+    });
+    const d = await r.json();
+    if (d.success) {
+      $row.style.background = 'rgba(34,211,238,0.08)';
+      setTimeout(() => { $row.style.background = ''; }, 1500);
+      notif('ok', `✅ ${d.mensaje}`);
+    } else {
+      notif('error', `❌ ${d.error}`);
+    }
+  } catch(e) {
+    notif('error', '❌ Error de red: ' + e.message);
+  }
+}
+
+async function eliminar(id) {
+  if (!confirm('¿Eliminar este horario? Esta acción no se puede deshacer.')) return;
+  try {
+    const r = await fetch(`/dashboard/horarios/${id}/eliminar/`, {
+      method:'POST', headers:{'X-CSRFToken':csrftoken}
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('row-' + id).remove();
+      notif('ok', `🗑 ${d.mensaje}`);
+    } else {
+      notif('error', `❌ ${d.error}`);
+    }
+  } catch(e) {
+    notif('error', '❌ Error: ' + e.message);
+  }
+}
+</script>
+{% endblock %}

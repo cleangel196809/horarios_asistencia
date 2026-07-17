@@ -1,0 +1,470 @@
+{% extends 'base.html' %}
+{% block title %}Revisión de Horarios · SIIHAPI{% endblock %}
+
+{% block body %}
+<style>
+  /* ═══════════════ Revisión Panel ═══════════════ */
+  .rev-hero{
+    background:linear-gradient(135deg,rgba(31,111,235,0.10),rgba(6,182,212,0.04));
+    border:1px solid rgba(31,111,235,0.30);border-radius:16px;
+    padding:22px 26px;margin-bottom:18px;position:relative;overflow:hidden;
+  }
+  .rev-hero::before{
+    content:'';position:absolute;top:-40%;right:-8%;width:280px;height:280px;
+    background:radial-gradient(circle,rgba(6,182,212,0.18) 0%,transparent 70%);pointer-events:none;
+  }
+  .rev-eyebrow{font-size:11px;color:var(--cyan-lt);text-transform:uppercase;
+    letter-spacing:.14em;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .rev-eyebrow::before{
+    content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan-lt);
+    box-shadow:0 0 12px rgba(34,211,238,0.8);animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+  .kpi-cell{
+    background:var(--surface-glass);border:1px solid var(--border);border-radius:12px;
+    padding:14px 16px;transition:all .25s;
+  }
+  .kpi-cell:hover{transform:translateY(-2px);border-color:rgba(34,211,238,0.4);}
+  .kpi-cell .v{font-size:24px;font-weight:800;color:var(--white);line-height:1;}
+  .kpi-cell .l{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:6px;display:flex;gap:6px;align-items:center;}
+  .kpi-cell.warn .v{color:var(--orange);}
+  .kpi-cell.ok .v{color:var(--lime-lt);}
+  .kpi-cell.info .v{color:var(--cyan-lt);}
+
+  /* Tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto;}
+  .tab{
+    padding:11px 18px;background:transparent;border:none;color:var(--txt3);
+    cursor:pointer;font-size:13px;font-weight:700;border-bottom:3px solid transparent;
+    transition:all .2s;display:flex;align-items:center;gap:8px;white-space:nowrap;
+  }
+  .tab:hover{color:var(--white);}
+  .tab.active{color:var(--cyan-lt);border-bottom-color:var(--cyan-lt);}
+  .tab .tab-badge{
+    background:rgba(34,211,238,0.15);color:var(--cyan-lt);padding:2px 8px;border-radius:99px;
+    font-size:11px;font-weight:800;
+  }
+  .tab.active .tab-badge{background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;}
+
+  .tab-pane{display:none;animation:fadeIn .25s;}
+  .tab-pane.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  /* Calendar matrix */
+  .cal-wrap{overflow-x:auto;background:var(--surface-glass);border:1px solid var(--border);border-radius:12px;padding:6px;}
+  .cal-table{width:100%;border-collapse:separate;border-spacing:4px;min-width:780px;}
+  .cal-table th{
+    background:linear-gradient(135deg,rgba(31,111,235,0.18),rgba(6,182,212,0.10));
+    color:var(--white);font-size:11px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.08em;padding:9px;border-radius:8px;text-align:center;
+  }
+  .cal-table td{
+    background:var(--surface3);border-radius:8px;padding:6px;vertical-align:top;
+    min-width:110px;height:70px;border:1px solid transparent;transition:all .2s;
+  }
+  .cal-table td:hover{border-color:rgba(34,211,238,0.4);}
+  .cal-bloque{
+    background:linear-gradient(180deg,rgba(31,111,235,0.10),rgba(6,182,212,0.04)) !important;
+    text-align:center;font-weight:800;color:var(--blue-lt);font-size:12px;
+    min-width:70px !important;
+  }
+  .cal-bloque .b-num{font-size:14px;color:var(--white);}
+  .cal-bloque .b-time{font-size:10px;color:var(--txt3);font-family:'JetBrains Mono',monospace;}
+  .cal-class{
+    background:linear-gradient(135deg,rgba(31,111,235,0.20),rgba(6,182,212,0.10));
+    border:1px solid rgba(31,111,235,0.35);border-radius:6px;padding:5px 7px;margin-bottom:3px;
+    font-size:11px;color:var(--white);
+  }
+  .cal-class .c-mat{font-weight:700;color:var(--cyan-lt);}
+  .cal-class .c-meta{color:var(--txt2);font-size:10px;margin-top:2px;}
+  .cal-empty{text-align:center;color:var(--txt3);font-size:11px;padding:8px;font-style:italic;}
+
+  /* Tabla genérica */
+  .data-table{
+    width:100%;border-collapse:collapse;font-size:13px;background:var(--surface-glass);
+    border-radius:12px;overflow:hidden;
+  }
+  .data-table th{
+    background:linear-gradient(135deg,rgba(31,111,235,0.14),rgba(6,182,212,0.06));
+    color:var(--white);font-size:11px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.08em;padding:11px 14px;text-align:left;border-bottom:1px solid var(--border);
+  }
+  .data-table td{padding:11px 14px;color:var(--txt2);border-bottom:1px solid rgba(255,255,255,0.04);}
+  .data-table tr:hover td{background:rgba(31,111,235,0.04);}
+  .data-table tr:last-child td{border-bottom:none;}
+
+  /* Progress bars en filas */
+  .bar-wrap{position:relative;background:var(--surface3);border-radius:99px;height:8px;overflow:hidden;width:120px;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,#06B6D4,#1F6FEB);border-radius:99px;transition:width .6s;}
+  .bar-fill.hot{background:linear-gradient(90deg,#FB923C,#EF4444);}
+  .bar-fill.ok{background:linear-gradient(90deg,#22D3EE,#84CC16);}
+
+  /* Status badges */
+  .st-prop{background:rgba(251,146,60,0.15);color:var(--orange);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;}
+  .st-apr{background:rgba(34,211,238,0.15);color:var(--cyan-lt);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;}
+  .st-pub{background:rgba(132,204,22,0.15);color:var(--lime-lt);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;}
+
+  /* Conflictos */
+  .conf-card{
+    background:linear-gradient(135deg,rgba(239,68,68,0.06),rgba(251,146,60,0.03));
+    border:1px solid rgba(239,68,68,0.30);border-radius:12px;padding:14px 18px;margin-bottom:10px;
+  }
+  .conf-card .conf-tipo{font-size:11px;color:var(--red-lt);text-transform:uppercase;letter-spacing:.08em;font-weight:800;}
+  .conf-card .conf-msg{color:var(--white);font-size:13px;margin-top:4px;font-weight:600;}
+  .conf-card .conf-detail{color:var(--txt2);font-size:12px;margin-top:6px;}
+
+  /* Action bar */
+  .action-bar{
+    position:sticky;bottom:18px;background:linear-gradient(135deg,rgba(13,17,23,0.95),rgba(22,28,42,0.90));
+    border:1px solid rgba(34,211,238,0.30);border-radius:14px;padding:14px 18px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    box-shadow:0 12px 36px rgba(0,0,0,0.45);backdrop-filter:blur(20px);
+    margin-top:22px;
+  }
+  .action-bar .ab-info{color:var(--txt2);font-size:13px;}
+  .action-bar .ab-info strong{color:var(--cyan-lt);}
+  .action-bar .ab-btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn-cta{background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;border:none;
+    padding:11px 22px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 14px rgba(31,111,235,0.35);text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+  .btn-cta:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(6,182,212,0.45);}
+  .btn-warn{background:rgba(239,68,68,0.12);color:var(--red-lt);border:1px solid rgba(239,68,68,0.35);
+    padding:11px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;}
+  .btn-warn:hover{background:rgba(239,68,68,0.20);}
+  .btn-soft{background:var(--surface-glass);color:var(--txt2);border:1px solid var(--border);
+    padding:11px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+  .btn-soft:hover{color:var(--white);border-color:var(--txt2);}
+
+  .notif{padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:13px;display:none;}
+  .notif.ok{background:rgba(132,204,22,0.10);border:1px solid rgba(132,204,22,0.30);color:var(--lime-lt);}
+  .notif.err{background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);color:var(--red-lt);}
+  .notif.info{background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.30);color:var(--cyan-lt);}
+
+  /* Distribución días bars */
+  .dist-bars{display:flex;flex-direction:column;gap:8px;}
+  .dist-row{display:grid;grid-template-columns:90px 1fr 50px;gap:12px;align-items:center;font-size:12px;}
+  .dist-row .dist-lbl{color:var(--txt2);font-weight:700;}
+  .dist-row .dist-track{background:var(--surface3);border-radius:99px;height:14px;overflow:hidden;}
+  .dist-row .dist-fill{height:100%;background:linear-gradient(90deg,#06B6D4,#1F6FEB);border-radius:99px;transition:width .8s;}
+  .dist-row .dist-num{color:var(--cyan-lt);font-weight:800;text-align:right;}
+</style>
+
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='revision' %}
+
+  <main class="main-content">
+
+    {# ════════════════ HERO ════════════════ #}
+    <div class="rev-hero">
+      <p class="rev-eyebrow">Revisión post-IA · Vista institucional</p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);margin:6px 0 4px;">📋 Panel de Revisión de Horarios</h1>
+      <p style="color:var(--txt2);font-size:13px;">
+        Aquí ves <strong style="color:var(--cyan-lt);">todo lo que generó el Motor IA</strong> antes de publicar a SISCA. Inspecciona el calendario semanal, la carga por docente, ocupación por aula y conflictos detectados.
+        {% if ultima_ia %}
+        <br>Última generación: <strong style="color:var(--blue-lt);">{{ ultima_ia.job_id }}</strong>
+        · {{ ultima_ia.asignaciones_exitosas }} asignaciones
+        · {{ ultima_ia.fecha_inicio|date:"d/m/Y H:i" }}
+        {% endif %}
+      </p>
+    </div>
+
+    <div id="notif" class="notif"></div>
+
+    {# ════════════════ KPIs ════════════════ #}
+    <div class="kpi-row">
+      <div class="kpi-cell info">
+        <div class="v">{{ kpis.total }}</div>
+        <div class="l">📊 Total horarios</div>
+      </div>
+      <div class="kpi-cell warn">
+        <div class="v">{{ kpis.propuestos }}</div>
+        <div class="l">⏳ Propuestos</div>
+      </div>
+      <div class="kpi-cell info">
+        <div class="v">{{ kpis.aprobados }}</div>
+        <div class="l">✓ Aprobados</div>
+      </div>
+      <div class="kpi-cell ok">
+        <div class="v">{{ kpis.publicados }}</div>
+        <div class="l">🚀 Publicados</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="v">{{ kpis.docentes }}</div>
+        <div class="l">👨‍🏫 Docentes</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="v">{{ kpis.salones }}</div>
+        <div class="l">🏛️ Aulas</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="v">{{ kpis.programas }}</div>
+        <div class="l">📚 Programas</div>
+      </div>
+      <div class="kpi-cell {% if kpis.conflictos > 0 %}warn{% else %}ok{% endif %}">
+        <div class="v">{{ kpis.conflictos }}</div>
+        <div class="l">⚠ Conflictos</div>
+      </div>
+    </div>
+
+    {# ════════════════ Filtro de estado ════════════════ #}
+    <form method="GET" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;">Mostrar:</label>
+      <select name="estado" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;">
+        {% for e, lbl in estados %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+      <span style="font-size:12px;color:var(--txt3);">Mostrando <strong style="color:var(--cyan-lt);">{{ kpis.total }}</strong> horarios</span>
+    </form>
+
+    {# ════════════════ TABS ════════════════ #}
+    <div class="tabs">
+      <button class="tab active" data-tab="cal">🗓 Calendario semanal</button>
+      <button class="tab" data-tab="doc">👨‍🏫 Por docente <span class="tab-badge">{{ docentes_data|length }}</span></button>
+      <button class="tab" data-tab="aula">🏛️ Por aula <span class="tab-badge">{{ aulas_data|length }}</span></button>
+      <button class="tab" data-tab="prog">📚 Por programa <span class="tab-badge">{{ programas_data|length }}</span></button>
+      <button class="tab" data-tab="dist">📊 Distribución</button>
+      <button class="tab" data-tab="conf">⚠ Conflictos <span class="tab-badge" {% if kpis.conflictos > 0 %}style="background:rgba(239,68,68,0.20);color:var(--red-lt);"{% endif %}>{{ kpis.conflictos }}</span></button>
+    </div>
+
+    {# ──────── TAB 1: CALENDARIO ──────── #}
+    <div class="tab-pane active" data-pane="cal">
+      <div class="cal-wrap">
+        <table class="cal-table">
+          <thead>
+            <tr>
+              <th style="min-width:70px;">Bloque</th>
+              {% for cod, lbl in dias %}<th>{{ lbl }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for fila in calendario %}
+            <tr>
+              <td class="cal-bloque">
+                <div class="b-num">B{{ fila.bloque.numero }}</div>
+                <div class="b-time">{{ fila.bloque.hora_inicio|time:"H:i" }}<br>{{ fila.bloque.hora_fin|time:"H:i" }}</div>
+              </td>
+              {% for celda in fila.celdas %}
+              <td>
+                {% for h in celda.horarios %}
+                <a href="{% url 'horario_detalle' id_horario=h.id_horario %}" style="text-decoration:none;">
+                  <div class="cal-class">
+                    <div class="c-mat">{{ h.materia.codigo }}</div>
+                    <div class="c-meta">🏛 {{ h.salon.codigo }} · 👤 {{ h.docente.usuario.nombre|truncatechars:14 }}</div>
+                  </div>
+                </a>
+                {% empty %}
+                <div class="cal-empty">—</div>
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ──────── TAB 2: DOCENTES ──────── #}
+    <div class="tab-pane" data-pane="doc">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Docente</th>
+            <th>Horas asignadas</th>
+            <th>Carga visual</th>
+            <th>Materias</th>
+            <th>Días</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in docentes_data %}
+          <tr>
+            <td style="color:var(--white);font-weight:700;">👤 {{ d.nombre }}</td>
+            <td><strong style="color:var(--cyan-lt);">{{ d.horas }}</strong> horas</td>
+            <td>
+              <div class="bar-wrap">
+                <div class="bar-fill {% if d.horas > 20 %}hot{% else %}ok{% endif %}" style="width:{{ d.horas|add:0|stringformat:'d' }}%;"></div>
+              </div>
+            </td>
+            <td>{{ d.materias }}</td>
+            <td>{{ d.dias }} / 6</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin horarios asignados</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ──────── TAB 3: AULAS ──────── #}
+    <div class="tab-pane" data-pane="aula">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Aula</th>
+            <th>Sede</th>
+            <th>Horas ocupada</th>
+            <th>Ocupación</th>
+            <th>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in aulas_data %}
+          <tr>
+            <td style="color:var(--white);font-weight:700;">🏛 {{ a.codigo }} <span style="color:var(--txt3);font-weight:400;">· {{ a.nombre|truncatechars:24 }}</span></td>
+            <td>{{ a.sede }}</td>
+            <td><strong style="color:var(--cyan-lt);">{{ a.horas }}</strong></td>
+            <td>
+              <div class="bar-wrap">
+                <div class="bar-fill {% if a.ocupacion_pct > 80 %}hot{% else %}ok{% endif %}" style="width:{{ a.ocupacion_pct }}%;"></div>
+              </div>
+            </td>
+            <td><strong>{{ a.ocupacion_pct }}%</strong></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin aulas asignadas</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ──────── TAB 4: PROGRAMAS ──────── #}
+    <div class="tab-pane" data-pane="prog">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Programa</th>
+            <th>Horarios</th>
+            <th>Materias únicas</th>
+            <th>Docentes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in programas_data %}
+          <tr>
+            <td style="color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;font-weight:700;">{{ p.codigo }}</td>
+            <td style="color:var(--white);">📚 {{ p.nombre|truncatechars:60 }}</td>
+            <td><strong style="color:var(--blue-lt);">{{ p.horas }}</strong></td>
+            <td>{{ p.materias }}</td>
+            <td>{{ p.docentes }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin programas con horarios</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ──────── TAB 5: DISTRIBUCIÓN ──────── #}
+    <div class="tab-pane" data-pane="dist">
+      <div class="card" style="padding:24px;">
+        <h3 style="color:var(--white);margin:0 0 16px;font-size:16px;font-weight:800;">📊 Horarios por día de la semana</h3>
+        <div class="dist-bars">
+          {% for d in dist_dias %}
+          <div class="dist-row">
+            <div class="dist-lbl">{{ d.dia }}</div>
+            <div class="dist-track"><div class="dist-fill" style="width:{{ d.pct }}%;"></div></div>
+            <div class="dist-num">{{ d.total }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# ──────── TAB 6: CONFLICTOS ──────── #}
+    <div class="tab-pane" data-pane="conf">
+      {% if conflictos %}
+      {% for c in conflictos %}
+      <div class="conf-card">
+        <div class="conf-tipo">⚠ Conflicto · {{ c.tipo }}</div>
+        <div class="conf-msg">{{ c.mensaje }}</div>
+        <div class="conf-detail">
+          Horarios afectados:
+          {% for h in c.horarios %}
+          <a href="{% url 'horario_detalle' id_horario=h.id_horario %}" style="color:var(--cyan-lt);">#{{ h.id_horario }} {{ h.materia.codigo }}</a>{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="padding:48px;text-align:center;background:linear-gradient(135deg,rgba(132,204,22,0.06),transparent);border:1px solid rgba(132,204,22,0.30);border-radius:14px;">
+        <p style="font-size:48px;margin-bottom:12px;">✅</p>
+        <h3 style="color:var(--lime-lt);font-size:18px;font-weight:800;margin:0 0 6px;">¡Sin conflictos detectados!</h3>
+        <p style="color:var(--txt2);font-size:13px;">El motor IA generó una asignación consistente — no hay choques de docentes ni de aulas.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    {# ════════════════ ACTION BAR ════════════════ #}
+    <div class="action-bar">
+      <div class="ab-info">
+        <strong>{{ kpis.propuestos }}</strong> propuestos ·
+        <strong>{{ kpis.aprobados }}</strong> aprobados ·
+        <strong>{{ kpis.publicados }}</strong> publicados
+      </div>
+      <div class="ab-btns">
+        <a href="{% url 'horarios_gestionar' %}" class="btn-soft">✏️ Editar individual</a>
+        <button onclick="eliminarPropuestas()" class="btn-warn">🗑 Eliminar propuestos</button>
+        <button onclick="aprobarTodos()" class="btn-cta">✅ Aprobar todos</button>
+        <a href="{% url 'centro_publicacion' %}" class="btn-cta">🚀 Publicar a SISCA →</a>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  // Tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector('.tab-pane[data-pane="' + t.dataset.tab + '"]').classList.add('active');
+    };
+  });
+
+  const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
+  const $notif = document.getElementById('notif');
+
+  function notif(tipo, msg) {
+    $notif.className = 'notif ' + tipo;
+    $notif.style.display = 'block';
+    $notif.innerHTML = msg;
+    setTimeout(() => { $notif.style.display = 'none'; }, 4000);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  window.aprobarTodos = async function() {
+    if (!confirm('¿Aprobar TODOS los horarios propuestos? Esto los hará elegibles para publicar a SISCA.')) return;
+    try {
+      const r = await fetch('{% url "revision_aprobar_todos" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}});
+      const d = await r.json();
+      if (d.success) {
+        notif('ok', '✅ ' + d.mensaje + ' — recargando…');
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        notif('err', '❌ ' + (d.error || 'Error'));
+      }
+    } catch(e) { notif('err', '❌ ' + e.message); }
+  };
+
+  window.eliminarPropuestas = async function() {
+    if (!confirm('¿Eliminar TODOS los horarios PROPUESTOS sin publicar? Útil para re-ejecutar el Motor IA desde cero.')) return;
+    try {
+      const r = await fetch('{% url "revision_eliminar_propuesta" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}});
+      const d = await r.json();
+      if (d.success) {
+        notif('info', '🗑 ' + d.mensaje + ' — recargando…');
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        notif('err', '❌ ' + (d.error || 'Error'));
+      }
+    } catch(e) { notif('err', '❌ ' + e.message); }
+  };
+})();
+</script>
+{% endblock %}
