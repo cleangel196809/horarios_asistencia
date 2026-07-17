@@ -1,0 +1,56 @@
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: sisca-oracle-xe
+    restart: unless-stopped
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD:?falta ORACLE_SYSTEM_PASSWORD en .env}
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+
+  sisca:
+    build: ./SISCA
+    container_name: sisca-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./SISCA/.env
+    environment:
+      # Dentro de la red de Docker, "localhost" apuntaría al propio
+      # contenedor sisca, no al de Oracle — hay que usar el nombre del
+      # servicio. El resto de valores (passwords, tokens) vienen del .env.
+      ORACLE_HOST: oracle
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+  siihapi:
+    build:
+      context: ./SIIHAPI
+      dockerfile: backend/Dockerfile
+    container_name: siihapi-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./SIIHAPI/backend/.env
+    environment:
+      ORACLE_HOST: oracle
+      # Idem: para llamar a SISCA desde dentro del contenedor siihapi hay
+      # que usar el nombre del servicio, no localhost.
+      SISCA_API_URL: http://sisca:8080
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+volumes:
+  oracle_data:

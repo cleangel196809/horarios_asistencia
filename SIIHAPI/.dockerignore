@@ -1,0 +1,15 @@
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/.pytest_cache/
+backend/.coverage
+backend/tests/
+backend/.env
+backend/staticfiles/
+.git/
+
+# Igual que .gitignore: siempre generar migraciones frescas en build time,
+# nunca arrastrar las que puedan haber quedado generadas localmente.
+backend/apps/*/migrations/0*.py
