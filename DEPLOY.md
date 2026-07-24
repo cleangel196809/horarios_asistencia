@@ -5,6 +5,16 @@ Cloud, usando `docker-compose.yml` (validado localmente de punta a punta:
 build de las 2 imágenes, arranque de los 3 contenedores, migraciones,
 resolución DNS entre contenedores y respuesta HTTP real de ambas apps).
 
+> **¿Por qué Oracle Cloud y no Render / Railway / Fly.io?** Ninguno de esos
+> ofrece Oracle Database en su capa gratuita. Migrar a PostgreSQL implicaría
+> reescribir el SQL crudo de SISCA (`oracledb`) y los `db_table` de los
+> modelos Django de SIIHAPI. Oracle Cloud "Always Free" da una VM gratuita
+> permanente (no un trial de 30 días) donde este `docker-compose.yml` corre
+> sin cambiar una línea de código.
+>
+> Para la instalación y ejecución en Windows, ver
+> [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
+
 ## 1) Crear la VM (consola de Oracle Cloud)
 
 1. Entrá a [cloud.oracle.com](https://cloud.oracle.com) y creá una cuenta
@@ -57,8 +67,8 @@ newgrp docker   # o cerrá y volvé a abrir la sesión SSH
 ## 4) Clonar el repo y configurar los `.env`
 
 ```bash
-git clone https://github.com/cleangel196809/horarios_asistencia.git
-cd horarios_asistencia
+git clone https://github.com/INGFRANCISCOVICENT/SIIHAPI-SISCA.PROYECTOINVESTIGATIVO.git
+cd SIIHAPI-SISCA.PROYECTOINVESTIGATIVO
 
 cp .env.example .env
 cp SISCA/.env.example SISCA/.env

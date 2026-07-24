@@ -2,6 +2,10 @@
 
 > Stack unificado: SISCA (control de asistencia) + SIIHAPI (gestión inteligente de horarios)
 
+📖 **[GUIA_EJECUCION.md](GUIA_EJECUCION.md)** — instalación paso a paso en
+Windows, verificación sin Oracle y publicación en host gratuito.
+🚀 **[DEPLOY.md](DEPLOY.md)** — despliegue con Docker en Oracle Cloud "Always Free".
+
 ---
 
 ## 📦 ¿Qué hay en esta carpeta?
