@@ -45,4 +45,11 @@ EXPOSE 8000
 # de channels (apps/horarios/routing.py) sigan funcionando en producción.
 # migrate corre en cada arranque (necesita la Oracle real, no disponible
 # en build time).
-CMD ["sh", "-c", "python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 siihapi.asgi:application"]
+#
+# Creacion opcional de un usuario admin de prueba: si en Render se
+# configuran las variables DJANGO_SUPERUSER_CORREO, DJANGO_SUPERUSER_PASSWORD,
+# DJANGO_SUPERUSER_NOMBRE y DJANGO_SUPERUSER_APELLIDO, createsuperuser lo crea
+# una sola vez en el primer arranque. Si esas variables no estan configuradas,
+# este paso simplemente se salta (no rompe nada). Si el usuario ya existe en
+# un arranque posterior, el "|| true" evita que el error tumbe el servicio.
+CMD ["sh", "-c", "python manage.py migrate --noinput && (test -z \"$DJANGO_SUPERUSER_CORREO\" || python manage.py createsuperuser --noinput || true) && daphne -b 0.0.0.0 -p 8000 siihapi.asgi:application"]
