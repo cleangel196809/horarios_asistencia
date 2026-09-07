@@ -25,8 +25,19 @@ WORKDIR /app/backend
 # settings.py durante el build; en runtime docker-compose lo sobreescribe
 # con el valor real.
 ENV DJANGO_DEBUG=True
-RUN python manage.py makemigrations \
-    && python manage.py collectstatic --noinput
+RUN python manage.py makemigrations
+
+# collectstatic debe correr con DEBUG=False: asi usa el mismo backend de
+# almacenamiento (whitenoise ManifestStaticFilesStorage) que usara en
+# runtime real. Si corre con DEBUG=True (backend simple, sin manifest),
+# el manifiesto generado en build no coincide con el que Django busca en
+# produccion y falla con "Missing staticfiles manifest entry for ...".
+# El JWT_SECRET_KEY de abajo es solo para pasar el guard de seguridad de
+# settings.py durante este paso puntual de build (collectstatic no firma
+# tokens) -- nunca se usa en produccion, donde manda la variable de
+# entorno real configurada en Render.
+RUN DJANGO_DEBUG=False JWT_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))") \
+    python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
