@@ -2208,7 +2208,6 @@ def _titular_desde_request_siihapi(request, horario_ref=None):
     centro = 'SEDE CALLE 73'
     try:
         if u.rol_efectivo == 'ESTUDIANTE':
-            from .models import Estudiante
             est = Estudiante.objects.select_related('programa').filter(usuario=u).first()
             if est:
                 doc_id = str(est.codigo)
@@ -2273,7 +2272,6 @@ def horario_exportar_pdf(request, id_horario):
 def horarios_exportar_pdf_completo(request):
     """Exporta TODOS los horarios (con filtros opcionales) en formato Politécnico."""
     from django.http import HttpResponse
-    from .models import Facultad, Programa
 
     qs = Horario.objects.select_related(
         'matricula__estudiante__usuario', 'matricula__periodo',
@@ -2329,12 +2327,10 @@ def horarios_exportar_pdf_completo(request):
     # Si es estudiante, filtrar solo sus matrículas
     try:
         if request.user.rol_efectivo == 'ESTUDIANTE':
-            from .models import Estudiante
             est = Estudiante.objects.filter(usuario=request.user).first()
             if est:
                 qs = qs.filter(matricula__estudiante=est)
         elif request.user.rol_efectivo == 'DOCENTE':
-            from .models import Docente
             doc = Docente.objects.filter(usuario=request.user).first()
             if doc:
                 qs = qs.filter(docente=doc)
