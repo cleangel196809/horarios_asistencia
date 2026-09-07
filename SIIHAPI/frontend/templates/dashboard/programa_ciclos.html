@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{{ programa.nombre }} · Ciclos · SIIHAPI{% endblock %}
+
+{% block body %}
+<style>.fila-ciclo:hover{background:rgba(77,155,255,0.06);}</style>
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='programas' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+        <a href="{% url 'programas' %}" style="color:var(--txt3);text-decoration:none;">Programas y Materias</a> / Ciclos de formación
+      </p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">{{ programa.nombre }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">{{ programa.codigo }} · {{ programa.get_tipo_display }} · {{ programa.facultad.nombre }}</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📅 Ciclos de formación con actividad en este programa</span>
+        <span class="tb-badge">{{ periodos|length }} ciclo{{ periodos|length|pluralize }}</span>
+      </div>
+      <p style="color:var(--txt2);margin-bottom:16px;font-size:13px;">Selecciona un ciclo para ver las materias que se dictaron y sus horarios.</p>
+
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Ciclo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fechas</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materias</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiantes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in periodos %}
+          <tr class="fila-ciclo" style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;" onclick="window.location='{% url 'programa_ciclo_materias' id_programa=programa.id_programa id_periodo=p.id_periodo %}'">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);font-weight:700;">
+              {{ p.codigo }}
+              {% if p.activo %}<span class="tb-badge" style="margin-left:8px;font-size:10px;">Actual</span>{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">{{ p.fecha_inicio|date:"d/m/Y" }} — {{ p.fecha_fin|date:"d/m/Y" }}</td>
+            <td style="padding:10px;text-align:right;color:var(--cyan-lt);">{{ p.n_materias }}</td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ p.n_estudiantes }}</td>
+            <td style="padding:10px;text-align:right;"><a href="{% url 'programa_ciclo_materias' id_programa=programa.id_programa id_periodo=p.id_periodo %}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();">Ver materias →</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Este programa todavía no tiene matrículas registradas en ningún ciclo de formación.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

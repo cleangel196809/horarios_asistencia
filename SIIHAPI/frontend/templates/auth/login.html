@@ -10,7 +10,7 @@
     <a href="{% url 'landing' %}" class="tb-logo" style="text-decoration:none;">
       <img src="{% static 'img/logo_politecnico.svg' %}" alt="Politécnico" height="34" onerror="this.style.display='none'">
       <div class="tb-logo-text">
-        <span class="tb-logo-name">SIIHAPI</span>
+        <span class="tb-logo-name">INTEGRA-PI</span>
         <span class="tb-logo-sub">Politécnico Internacional</span>
       </div>
     </a>
@@ -29,32 +29,6 @@
 
       <form method="post" action="{% url 'login' %}" id="loginForm">
         {% csrf_token %}
-
-        <div class="form-group">
-          <label>Rol institucional</label>
-          <div class="role-selector" id="rolSelector">
-            <label class="role-opt" data-rol="ADMINISTRADOR">
-              <input type="radio" name="rol" value="ADMINISTRADOR" {% if rol_pref == 'ADMINISTRADOR' %}checked{% endif %}>
-              <span class="role-opt-ico">⚙️</span>
-              <span class="role-opt-lbl">Admin</span>
-            </label>
-            <label class="role-opt" data-rol="COORDINADOR">
-              <input type="radio" name="rol" value="COORDINADOR" {% if rol_pref == 'COORDINADOR' %}checked{% endif %}>
-              <span class="role-opt-ico">📚</span>
-              <span class="role-opt-lbl">Coordinador</span>
-            </label>
-            <label class="role-opt" data-rol="DOCENTE">
-              <input type="radio" name="rol" value="DOCENTE" {% if rol_pref == 'DOCENTE' %}checked{% endif %}>
-              <span class="role-opt-ico">👨‍🏫</span>
-              <span class="role-opt-lbl">Docente</span>
-            </label>
-            <label class="role-opt" data-rol="ESTUDIANTE">
-              <input type="radio" name="rol" value="ESTUDIANTE" {% if rol_pref == 'ESTUDIANTE' %}checked{% endif %}>
-              <span class="role-opt-ico">🎓</span>
-              <span class="role-opt-lbl">Estudiante</span>
-            </label>
-          </div>
-        </div>
 
         <div class="form-group">
           <label>Correo institucional</label>
@@ -80,15 +54,9 @@
 </div>
 
 <script>
-// Marcar rol seleccionado automáticamente
-document.querySelectorAll('.role-opt input').forEach(r=>{
-  r.addEventListener('change',()=>{
-    document.querySelectorAll('.role-opt').forEach(o=>o.classList.remove('selected'));
-    r.closest('.role-opt').classList.add('selected');
-  });
-  if(r.checked) r.closest('.role-opt').classList.add('selected');
-});
-
+// Fase 3 (2026-09-04): el login ya no pide elegir un rol -- el correo y la
+// contrasena bastan; el sistema redirige automaticamente al panel que
+// corresponda segun el rol guardado para ese usuario.
 document.getElementById('recuperar').addEventListener('click', async (e)=>{
   e.preventDefault();
   const correo = prompt('Ingresa tu correo institucional para recibir el enlace de recuperación:');

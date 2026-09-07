@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}{{ materia.nombre }} · {{ periodo.codigo }} · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='programas' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+        <a href="{% url 'programas' %}" style="color:var(--txt3);text-decoration:none;">Programas y Materias</a> /
+        <a href="{% url 'programa_ciclos' id_programa=programa.id_programa %}" style="color:var(--txt3);text-decoration:none;">{{ programa.nombre }}</a> /
+        <a href="{% url 'programa_ciclo_materias' id_programa=programa.id_programa id_periodo=periodo.id_periodo %}" style="color:var(--txt3);text-decoration:none;">{{ periodo.codigo }}</a> /
+        {{ materia.codigo }}
+      </p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">{{ materia.nombre }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">{{ materia.codigo }} · {{ programa.nombre }} · Ciclo {{ periodo.codigo }} · {{ materia.creditos }} créditos</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">🎓 Estudiantes matriculados</span>
+        <span class="tb-badge">{{ total_estudiantes }} estudiante{{ total_estudiantes|pluralize }}</span>
+      </div>
+
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nota</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Horario</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in matriculas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);vertical-align:top;">{{ m.estudiante.codigo }}</td>
+            <td style="padding:10px;color:var(--white);vertical-align:top;">{{ m.estudiante.usuario.nombre }} {{ m.estudiante.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--txt2);vertical-align:top;">{{ m.estudiante.usuario.correo }}</td>
+            <td style="padding:10px;vertical-align:top;">
+              {% if m.estado == 'ACTIVA' %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(132,204,22,0.16);color:var(--lime-lt);border:1px solid rgba(132,204,22,0.35);">Activa</span>
+              {% elif m.estado == 'INSCRITA' %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(240,192,48,0.16);color:#facc15;border:1px solid rgba(240,192,48,0.35);">Inscrita</span>
+              {% elif m.estado == 'CANCELADA' %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(239,68,68,0.14);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);">Cancelada</span>
+              {% else %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(99,102,241,0.16);color:var(--indigo-lt);border:1px solid rgba(99,102,241,0.35);">Finalizada</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px;text-align:right;color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;vertical-align:top;">{{ m.nota_final|default:"—" }}</td>
+            <td style="padding:10px;color:var(--txt2);font-size:12px;vertical-align:top;">
+              {% with horarios=m.horarios.all %}
+                {% if horarios %}
+                  {% for h in horarios %}
+                  <div style="margin-bottom:4px;white-space:nowrap;">
+                    <span style="color:var(--cyan-lt);font-weight:700;">{{ h.get_dia_display }}</span>
+                    B{{ h.bloque.numero }} ({{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }})
+                    · {{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}
+                    · Salón {{ h.salon.codigo }}
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <span style="color:var(--txt3);">Sin horario asignado</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No hay estudiantes matriculados en esta materia para este ciclo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

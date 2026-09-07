@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Justificaciones · Gestión{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='justificaciones' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📝 Justificaciones</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Revisión de soportes de inasistencia (estudiantes) y clases no dictadas (docentes).</p>
+    </div>
+
+    <div style="margin-bottom:16px;display:flex;gap:8px;">
+      {% for cod, lbl in estados %}
+      <a href="?estado={{ cod }}" class="btn {% if estado_filtro == cod %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">{{ lbl }}</a>
+      {% endfor %}
+      <a href="?estado=" class="btn {% if not estado_filtro %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Todas</a>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Justificaciones</span>
+        <span class="tb-badge">{{ justificaciones|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Persona</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Clase</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Motivo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Soporte</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for j in justificaciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--txt2);">{% if j.asistencia_docente %}Docente{% else %}Estudiante{% endif %}</td>
+            <td style="padding:10px;color:var(--white);">
+              {% if j.asistencia_docente %}{{ j.asistencia_docente.docente.usuario.nombre_completo }}
+              {% elif j.asistencia_estudiante %}{{ j.asistencia_estudiante.matricula.estudiante.usuario.nombre_completo }}
+              {% else %}{{ j.creado_por.nombre_completo }}{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">
+              {% if j.asistencia_docente %}{{ j.asistencia_docente.horario.materia.codigo }}
+              {% elif j.asistencia_estudiante %}{{ j.asistencia_estudiante.horario.materia.codigo }}
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">
+              {% if j.asistencia_docente %}{{ j.asistencia_docente.fecha|date:"d/m/Y" }}
+              {% elif j.asistencia_estudiante %}{{ j.asistencia_estudiante.fecha|date:"d/m/Y" }}
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">{{ j.motivo|truncatechars:50 }}</td>
+            <td style="padding:10px;">{% if j.soporte_archivo %}<a href="{{ j.soporte_archivo.url }}" target="_blank" style="color:var(--cyan);">Ver</a>{% else %}<span style="color:var(--txt3);">—</span>{% endif %}</td>
+            <td style="padding:10px;color:{% if j.estado == 'APROBADA' %}var(--lime-lt){% elif j.estado == 'RECHAZADA' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ j.get_estado_display }}</td>
+            <td style="padding:10px;">
+              {% if j.estado == 'PENDIENTE' %}
+              <form method="post" action="{% url 'justificacion_resolver' j.id_justificacion %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="aprobar">
+                <button type="submit" class="btn btn-primary" style="font-size:11px;padding:4px 10px;">Aprobar</button>
+              </form>
+              <form method="post" action="{% url 'justificacion_resolver' j.id_justificacion %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="rechazar">
+                <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Rechazar</button>
+              </form>
+              {% else %}
+              <span style="color:var(--txt3);font-size:11px;">{{ j.revisado_por.nombre_completo|default:"—" }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" style="padding:30px;text-align:center;color:var(--txt3);">No hay justificaciones {% if estado_filtro %}en estado {{ estado_filtro }}{% endif %}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

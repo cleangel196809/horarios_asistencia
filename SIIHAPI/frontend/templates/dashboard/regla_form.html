@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{% if regla %}Editar Regla{% else %}Nueva Regla{% endif %}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Motor de Reglas</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">{% if regla %}✏️ Editar Regla{% else %}➕ Nueva Regla de Intervención{% endif %}</h1>
+    </div>
+    <div class="card">
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Nombre</label>
+          <input type="text" name="nombre" required value="{{ regla.nombre|default:'' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Descripción</label>
+          <textarea name="descripcion" rows="2" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">{{ regla.descripcion|default:'' }}</textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Métrica</label>
+          <select name="metrica" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            {% for cod, lbl in metricas %}<option value="{{ cod }}" {% if regla.metrica == cod %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Operador</label>
+            <select name="operador" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+              {% for cod, lbl in operadores %}<option value="{{ cod }}" {% if regla.operador == cod %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Umbral</label>
+            <input type="number" step="0.01" name="umbral" required value="{{ regla.umbral|default:'80' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Ventana (días)</label>
+          <input type="number" name="ventana_dias" value="{{ regla.ventana_dias|default:'7' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Cooldown (horas)</label>
+          <input type="number" name="cooldown_horas" value="{{ regla.cooldown_horas|default:'24' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Plantilla de correo</label>
+          <select name="plantilla" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            {% for p in plantillas %}<option value="{{ p.id_plantilla }}" {% if regla.plantilla_id == p.id_plantilla %}selected{% endif %}>{{ p.codigo }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Prioridad</label>
+          <input type="number" name="prioridad" value="{{ regla.prioridad|default:'5' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:6px;">Destinatarios (rol crudo o rol_efectivo)</label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            {% for rol in roles_destino %}
+            <label style="color:var(--txt2);font-size:12px;"><input type="checkbox" name="destinatarios_roles" value="{{ rol }}" {% if rol in regla.destinatarios_roles %}checked{% endif %}> {{ rol }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <label style="color:var(--txt2);"><input type="checkbox" name="activa" {% if regla.activa|default:True %}checked{% endif %}> Regla activa</label>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

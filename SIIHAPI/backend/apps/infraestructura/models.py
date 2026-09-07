@@ -17,17 +17,23 @@ class Sede(models.Model):
         ('SUR',   'Sur'),
     )
 
-    id_sede = models.AutoField(primary_key=True)
+    id_sede = models.AutoField(primary_key=True, db_column='id')
     codigo = models.CharField(max_length=10, unique=True, choices=CODIGO_CHOICES)
     nombre = models.CharField(max_length=80)
     direccion = models.CharField(max_length=200)
     telefono = models.CharField(max_length=20, blank=True)
     capacidad_total = models.IntegerField(default=0)
+    # 'estado' (CHAR 'A'/'I') es una columna adicional agregada a la tabla
+    # unificada 'sedes' (Fase 2, 2026-09-03) para no tocar la lógica de
+    # SIIHAPI; la tabla ya tenía su propio 'activa' BOOLEAN, usado por
+    # planeación, que se deja intacto y sin mapear aquí.
     estado = models.CharField(max_length=1, choices=(('A', 'Activa'), ('I', 'Inactiva')), default='A')
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True, db_column='created_at')
 
     class Meta:
-        db_table = 'SIIHAPI_SEDE'
+        # Fase 2 (2026-09-03): compartida con planeación/SISCA.
+        managed = False
+        db_table = 'sedes'
         verbose_name = 'Sede'
         verbose_name_plural = 'Sedes'
         ordering = ['nombre']
@@ -70,7 +76,7 @@ class Salon(models.Model):
         ('CATA',         'Cata y Coctelería'),
     )
 
-    id_salon = models.AutoField(primary_key=True)
+    id_salon = models.AutoField(primary_key=True, db_column='id')
     sede = models.ForeignKey(Sede, on_delete=models.CASCADE, related_name='salones')
     codigo = models.CharField(max_length=40)
     nombre = models.CharField(max_length=120)
@@ -81,10 +87,13 @@ class Salon(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = 'SIIHAPI_SALON'
+        managed = False
+        db_table = 'salones'
         verbose_name = 'Salón'
         verbose_name_plural = 'Salones'
-        unique_together = [('sede', 'codigo')]
+        # La restricción real en la tabla unificada es (sede_id, nombre),
+        # no (sede, codigo) — alineado aquí en la Fase 2 (2026-09-03).
+        unique_together = [('sede', 'nombre')]
         ordering = ['sede__nombre', 'planta', 'codigo']
         indexes = [
             models.Index(fields=['sede', 'activo']),
@@ -113,7 +122,7 @@ class Equipamiento(models.Model):
         ('OTRO',        'Otro'),
     )
 
-    id_equipamiento = models.AutoField(primary_key=True)
+    id_equipamiento = models.AutoField(primary_key=True, db_column='id')
     salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='equipamiento')
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     cantidad = models.IntegerField(default=1)
@@ -121,7 +130,8 @@ class Equipamiento(models.Model):
     operativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = 'SIIHAPI_EQUIPAMIENTO'
+        managed = False
+        db_table = 'salones_equipamiento'
         verbose_name = 'Equipamiento'
         verbose_name_plural = 'Equipamientos'
 

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Reporte</p>
+        <h1 style="font-size:26px;font-weight:800;color:var(--white);">📊 {{ titulo }}</h1>
+        {% if subtitulo %}<p style="color:var(--txt2);margin-top:4px;">{{ subtitulo }}</p>{% endif %}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <a href="?export=pdf" class="btn btn-ghost">📄 PDF</a>
+        <a href="?export=excel" class="btn btn-ghost">📊 Excel</a>
+        <a href="{% url 'decano_panel' %}" class="btn btn-ghost">← Panel</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Resultados</span><span class="tb-badge">{{ filas|length }}</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          {% for c in columnas %}<th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;white-space:nowrap;">{{ c }}</th>{% endfor %}
+        </tr></thead>
+        <tbody>
+          {% for fila in filas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            {% for valor in fila %}<td style="padding:10px;color:var(--txt2);">{{ valor }}</td>{% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{{ columnas|length }}" style="padding:30px;text-align:center;color:var(--txt3);">Sin datos para los filtros seleccionados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

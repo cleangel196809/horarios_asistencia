@@ -8,6 +8,8 @@ from drf_spectacular.views import (
 )
 
 from . import frontend_views as fv
+from . import decano_views as dv
+from . import mentoria_views as mv
 
 
 urlpatterns = [
@@ -19,10 +21,18 @@ urlpatterns = [
     # ── Dashboard raiz ──
     path('dashboard/', fv.dashboard,   name='dashboard'),
 
+    # ── Ciclos de formacion (periodos) ──
+    path('periodos/crear/', fv.crear_periodo, name='crear_periodo'),
+    path('periodos/seleccionar/', fv.seleccionar_periodo, name='seleccionar_periodo'),
+
     # ── Modulos ADMIN/COORDINADOR ──
     path('dashboard/sedes/',        fv.sedes_view,        name='sedes'),
     path('dashboard/programas/',    fv.programas_view,    name='programas'),
+    path('dashboard/programas/<int:id_programa>/', fv.programa_ciclos_view, name='programa_ciclos'),
+    path('dashboard/programas/<int:id_programa>/ciclo/<int:id_periodo>/', fv.programa_ciclo_materias_view, name='programa_ciclo_materias'),
+    path('dashboard/programas/<int:id_programa>/ciclo/<int:id_periodo>/materia/<int:id_materia>/', fv.materia_periodo_estudiantes_view, name='materia_periodo_estudiantes'),
     path('dashboard/docentes/',     fv.docentes_view,     name='docentes'),
+    path('dashboard/docentes/buscar/', fv.docentes_autocomplete, name='docentes_autocomplete'),
     path('dashboard/estudiantes/',  fv.estudiantes_view,  name='estudiantes'),
     path('dashboard/horarios/',     fv.horarios_view,     name='horarios'),
     path('dashboard/horarios/aprobar/',           fv.aprobar_horarios,    name='aprobar_horarios'),
@@ -31,6 +41,24 @@ urlpatterns = [
     path('dashboard/horarios/pdf-completo/',              fv.horarios_exportar_pdf_completo, name='horarios_exportar_pdf_completo'),
     path('dashboard/horarios/excel-completo/',            fv.horarios_exportar_excel_completo, name='horarios_exportar_excel_completo'),
     path('dashboard/horarios/gestionar/',         fv.horarios_gestionar,  name='horarios_gestionar'),
+    path('dashboard/horarios/solicitudes-reprogramacion/', fv.solicitudes_reprogramacion_gestionar, name='solicitudes_reprogramacion_gestionar'),
+    path('dashboard/horarios/solicitudes-reprogramacion/<int:id_solicitud>/resolver/', fv.solicitud_reprogramacion_resolver, name='solicitud_reprogramacion_resolver'),
+    path('dashboard/asistencias/justificaciones/', fv.justificaciones_gestionar, name='justificaciones_gestionar'),
+    path('dashboard/asistencias/justificaciones/<int:id_justificacion>/resolver/', fv.justificacion_resolver, name='justificacion_resolver'),
+    path('dashboard/bienestar/', fv.bienestar_dashboard, name='bienestar_dashboard'),
+    path('dashboard/bienestar/alertas/<int:id_alerta>/estado/', fv.alerta_riesgo_actualizar_estado, name='alerta_riesgo_actualizar_estado'),
+    # ── Eventos (Sprint 3, 2026-09-06) ──
+    path('dashboard/eventos/',                          fv.calendario_eventos,       name='calendario_eventos'),
+    path('dashboard/eventos/proponer/',                 fv.docente_proponer_evento,  name='docente_proponer_evento'),
+    path('dashboard/eventos/gestionar/',                fv.eventos_gestionar,        name='eventos_gestionar'),
+    path('dashboard/eventos/<int:id_evento>/resolver/',       fv.evento_resolver,          name='evento_resolver'),
+    path('dashboard/eventos/<int:id_evento>/',                fv.evento_detalle,           name='evento_detalle'),
+    path('dashboard/eventos/<int:id_evento>/inscribirme/',    fv.evento_inscribirse,       name='evento_inscribirse'),
+    path('dashboard/eventos/<int:id_evento>/escanear/',       fv.evento_escanear_qr,       name='evento_escanear_qr'),
+    path('dashboard/eventos/<int:id_evento>/certificados/',   fv.evento_certificados,      name='evento_certificados'),
+    path('dashboard/mis-inscripciones-eventos/',              fv.mis_inscripciones_eventos, name='mis_inscripciones_eventos'),
+    path('dashboard/inscripciones/<int:id_inscripcion>/qr.png', fv.inscripcion_qr_imagen,  name='inscripcion_qr_imagen'),
+    path('dashboard/certificados/<int:id_certificado>/descargar/', fv.certificado_descargar, name='certificado_descargar'),
     path('dashboard/revision/',                   fv.revision_propuesta,  name='revision_propuesta'),
     path('dashboard/revision/aprobar-todos/',     fv.revision_aprobar_todos, name='revision_aprobar_todos'),
     path('dashboard/revision/eliminar-propuesta/', fv.revision_eliminar_propuesta, name='revision_eliminar_propuesta'),
@@ -62,6 +90,58 @@ urlpatterns = [
     path('dashboard/generar-horarios/', fv.generar_horarios_desde_matriculas, name='generar_horarios_desde_matriculas'),
     path('dashboard/carga-masiva/plantilla/<str:tipo>/', fv.descargar_plantilla, name='descargar_plantilla'),
 
+    # ── Base de datos (CRUD via Django Admin, backup/restore) y usuarios ──
+    # ── Modulo del Decano (Sprint 4, 2026-09-06) ──
+    path('dashboard/decano/',                              dv.decano_panel,                        name='decano_panel'),
+    path('dashboard/decano/jornadas/',                       dv.jornadas_lista,                      name='jornadas_lista'),
+    path('dashboard/decano/jornadas/<int:id_jornada>/toggle/', dv.jornada_toggle,                     name='jornada_toggle'),
+    path('dashboard/decano/jornadas/<int:id_jornada>/editar/', dv.jornada_editar,                     name='jornada_editar'),
+    path('dashboard/decano/matrices/',                      dv.matriz_planeacion_lista,             name='matriz_planeacion_lista'),
+    path('dashboard/decano/matrices/crear/',                dv.matriz_planeacion_crear,             name='matriz_planeacion_crear'),
+    path('dashboard/decano/matrices/<int:id_matriz>/',      dv.matriz_planeacion_detalle,           name='matriz_planeacion_detalle'),
+    path('dashboard/decano/matrices/<int:id_matriz>/vincular-ia/',      dv.matriz_planeacion_vincular_ia,      name='matriz_planeacion_vincular_ia'),
+    path('dashboard/decano/matrices/<int:id_matriz>/enviar-revision/',  dv.matriz_planeacion_enviar_revision,  name='matriz_planeacion_enviar_revision'),
+    path('dashboard/decano/matrices/<int:id_matriz>/aprobar/',          dv.matriz_planeacion_aprobar,          name='matriz_planeacion_aprobar'),
+    path('dashboard/decano/matrices/<int:id_matriz>/publicar/',         dv.matriz_planeacion_publicar,         name='matriz_planeacion_publicar'),
+
+    path('dashboard/decano/reglas/',                        dv.reglas_lista,                        name='reglas_lista'),
+    path('dashboard/decano/reglas/crear/',                  dv.regla_crear,                         name='regla_crear'),
+    path('dashboard/decano/reglas/<int:id_regla>/editar/',  dv.regla_editar,                        name='regla_editar'),
+    path('dashboard/decano/reglas/<int:id_regla>/toggle/',  dv.regla_activar_toggle,                name='regla_activar_toggle'),
+    path('dashboard/decano/reglas/<int:id_regla>/disparar/', dv.regla_disparar_ahora,               name='regla_disparar_ahora'),
+    path('dashboard/decano/plantillas/',                    dv.plantillas_lista,                    name='plantillas_lista'),
+    path('dashboard/decano/plantillas/crear/',              dv.plantilla_crear,                     name='plantilla_crear'),
+    path('dashboard/decano/plantillas/<int:id_plantilla>/editar/', dv.plantilla_editar,             name='plantilla_editar'),
+    path('dashboard/decano/logs/',                          dv.logs_intervencion,                   name='logs_intervencion'),
+    path('dashboard/decano/logs/<int:id_log>/reintentar/',  dv.log_intervencion_reintentar,         name='log_intervencion_reintentar'),
+
+    path('dashboard/decano/reportes/ocupacion-salones/',           dv.reporte_ocupacion_salones,           name='reporte_ocupacion_salones'),
+    path('dashboard/decano/reportes/heatmap-inasistencias/',       dv.reporte_heatmap_inasistencias,       name='reporte_heatmap_inasistencias'),
+    path('dashboard/decano/reportes/roi-eventos/',                 dv.reporte_roi_eventos,                 name='reporte_roi_eventos'),
+    path('dashboard/decano/reportes/riesgo-desercion/',             dv.reporte_riesgo_desercion,            name='reporte_riesgo_desercion'),
+    path('dashboard/decano/reportes/cumplimiento-docente/',         dv.reporte_cumplimiento_docente,        name='reporte_cumplimiento_docente'),
+    path('dashboard/decano/reportes/conflictos-horario/',           dv.reporte_conflictos_horario,          name='reporte_conflictos_horario'),
+    path('dashboard/decano/reportes/utilizacion-infraestructura/',  dv.reporte_utilizacion_infraestructura, name='reporte_utilizacion_infraestructura'),
+
+    # ── Mentoria (Sprint 4, 2026-09-06) ──
+    path('dashboard/mentoria/',                             mv.mentoria_dashboard,                  name='mentoria_dashboard'),
+    path('dashboard/mentoria/asignar/',                     mv.asignacion_mentoria_crear,           name='asignacion_mentoria_crear'),
+    path('dashboard/mentoria/<int:id_asignacion>/',         mv.asignacion_mentoria_detalle,         name='asignacion_mentoria_detalle'),
+    path('dashboard/mentoria/<int:id_asignacion>/sesiones/crear/', mv.sesion_mentoria_crear,        name='sesion_mentoria_crear'),
+    path('dashboard/mentoria/sesiones/<int:id_sesion>/estado/',    mv.sesion_mentoria_actualizar_estado, name='sesion_mentoria_actualizar_estado'),
+    path('dashboard/mentoria/sesiones/<int:id_sesion>/bitacora/',  mv.bitacora_mentoria_crear,      name='bitacora_mentoria_crear'),
+
+    path('dashboard/base-datos/',                          fv.base_datos_view,        name='base_datos'),
+    path('dashboard/base-datos/backup/',                   fv.bd_backup_ejecutar,     name='bd_backup_ejecutar'),
+    path('dashboard/base-datos/backups/<str:filename>/descargar/', fv.bd_backup_descargar, name='bd_backup_descargar'),
+    path('dashboard/base-datos/backups/<str:filename>/eliminar/',  fv.bd_backup_eliminar,  name='bd_backup_eliminar'),
+    path('dashboard/base-datos/restaurar/',                fv.bd_restore_view,        name='bd_restore'),
+    path('dashboard/usuarios/',                            fv.usuarios_admin_view,    name='usuarios_admin'),
+    path('dashboard/usuarios/crear/',                      fv.usuario_crear_view,     name='usuario_crear'),
+    path('dashboard/usuarios/<int:id_usuario>/editar/',    fv.usuario_editar_view,    name='usuario_editar'),
+    path('dashboard/usuarios/<int:id_usuario>/inactivar/', fv.usuario_inactivar_view, name='usuario_inactivar'),
+    path('dashboard/usuarios/<int:id_usuario>/reactivar/', fv.usuario_reactivar_view, name='usuario_reactivar'),
+
     # ── Reportes ADMIN ──
     path('dashboard/ejecutivo/',  fv.dashboard_ejecutivo, name='dashboard_ejecutivo'),
     path('dashboard/auditoria/',                 fv.auditoria_view,            name='auditoria'),
@@ -75,12 +155,17 @@ urlpatterns = [
     path('docente/disponibilidad/', fv.docente_disponibilidad,  name='docente_disponibilidad'),
     path('docente/estudiantes/',    fv.docente_mis_estudiantes, name='docente_mis_estudiantes'),
     path('docente/asistencia/',     fv.docente_asistencia,      name='docente_asistencia'),
+    path('docente/marcar-asistencia/', fv.docente_marcar_asistencia, name='docente_marcar_asistencia'),
+    path('docente/reportes/',       fv.docente_reportes,        name='docente_reportes'),
+    path('mis-justificaciones/',    fv.mis_justificaciones,     name='mis_justificaciones'),
+    path('docente/solicitudes-reprogramacion/', fv.docente_solicitudes_reprogramacion, name='docente_solicitudes_reprogramacion'),
 
     # ── Modulos ESTUDIANTE ──
     path('estudiante/mi-horario/',  fv.estudiante_mi_horario,  name='estudiante_mi_horario'),
     path('estudiante/mis-materias/',fv.estudiante_mis_materias,name='estudiante_mis_materias'),
     path('estudiante/asistencia/',  fv.estudiante_asistencia,  name='estudiante_asistencia'),
     path('estudiante/notas/',       fv.estudiante_notas,       name='estudiante_notas'),
+    path('estudiante/reportes/',    fv.estudiante_reportes,    name='estudiante_reportes'),
 
     # ── Django admin ──
     path('admin/', admin.site.urls),

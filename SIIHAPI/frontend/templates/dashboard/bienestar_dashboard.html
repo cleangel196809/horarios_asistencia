@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Bienestar y Mentoría{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='bienestar' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Bienestar / Mentoría</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">💙 Alertas y Casos</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Estudiantes con riesgo detectado por inasistencia recurrente y el seguimiento de sus casos de acompañamiento.</p>
+    </div>
+
+    <div style="margin-bottom:16px;display:flex;gap:8px;">
+      {% for cod, lbl in estados_alerta %}
+      <a href="?estado={{ cod }}" class="btn {% if estado_filtro == cod %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">{{ lbl }}</a>
+      {% endfor %}
+      <a href="?estado=" class="btn {% if not estado_filtro %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Todas</a>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-hdr">
+        <span class="card-title">⚠️ Alertas de riesgo</span>
+        <span class="tb-badge">{{ alertas|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materias afectadas</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">% Inasistencia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nivel</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Detectada</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asignada a</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for a in alertas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ a.estudiante.usuario.nombre_completo }} <span style="color:var(--txt3);">({{ a.estudiante.codigo }})</span></td>
+            <td style="padding:10px;color:var(--txt2);">{% for m in a.materias_afectadas.all %}{{ m.codigo }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ a.pct_inasistencia_calculado }}%</td>
+            <td style="padding:10px;color:{% if a.nivel == 'ALTO' %}#f87171{% elif a.nivel == 'MEDIO' %}var(--cyan-lt){% else %}var(--txt2){% endif %};font-weight:700;">{{ a.get_nivel_display }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ a.fecha_deteccion|date:"d/m/Y" }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ a.asignada_a.nombre_completo|default:"—" }}</td>
+            <td style="padding:10px;color:{% if a.estado == 'CERRADA' %}var(--lime-lt){% elif a.estado == 'EN_SEGUIMIENTO' %}var(--cyan-lt){% else %}#f87171{% endif %};">{{ a.get_estado_display }}</td>
+            <td style="padding:10px;">
+              {% if a.estado != 'CERRADA' %}
+              <form method="post" action="{% url 'alerta_riesgo_actualizar_estado' a.id_alerta %}" style="display:inline-flex;gap:4px;">
+                {% csrf_token %}
+                <select name="estado" style="padding:4px;border-radius:6px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);font-size:11px;">
+                  {% for cod, lbl in estados_alerta %}
+                  <option value="{{ cod }}" {% if cod == a.estado %}selected{% endif %}>{{ lbl }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary" style="font-size:11px;padding:4px 10px;">Actualizar</button>
+              </form>
+              {% else %}
+              <span style="color:var(--txt3);font-size:11px;">Cerrada</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" style="padding:30px;text-align:center;color:var(--txt3);">No hay alertas {% if estado_filtro %}en estado {{ estado_filtro }}{% endif %}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📁 Casos de bienestar</span>
+        <span class="tb-badge">{{ casos|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Origen</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asignado a</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Abierto</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for c in casos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ c.estudiante.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ c.get_origen_display }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ c.asignado_a.nombre_completo|default:"—" }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ c.created_at|date:"d/m/Y" }}</td>
+            <td style="padding:10px;color:{% if c.estado == 'CERRADO' %}var(--lime-lt){% elif c.estado == 'EN_ATENCION' or c.estado == 'DERIVADO' %}var(--cyan-lt){% else %}#f87171{% endif %};">{{ c.get_estado_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay casos de bienestar registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

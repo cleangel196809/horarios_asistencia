@@ -42,7 +42,7 @@
         </p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        {% if num_aprobados > 0 %}
+        {% if num_aprobados > 0 and not es_solo_consulta %}
         <form method="POST" action="{% url 'sisca_publicar_ui' %}" style="display:inline;" onsubmit="return confirm('¿Publicar {{ num_aprobados }} horario(s) APROBADO(s) en SISCA?');">
           {% csrf_token %}
           <button type="submit" style="background:linear-gradient(135deg,#22D3EE,#1F6FEB);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(34,211,238,0.30);">
@@ -79,6 +79,7 @@
         <span class="card-title">🤖 Pendientes por aprobar
           <span style="background:rgba(167,139,250,.18);color:#A78BFA;border:1px solid rgba(167,139,250,.35);padding:2px 10px;border-radius:20px;font-size:12px;margin-left:8px;">{{ num_pendientes }}</span>
         </span>
+        {% if not es_solo_consulta %}
         <form method="POST" action="{% url 'aprobar_horarios' %}" onsubmit="return confirm('¿Aprobar TODOS los horarios propuestos del periodo?');">
           {% csrf_token %}
           <input type="hidden" name="ui" value="1">
@@ -86,6 +87,7 @@
             ✅ Aprobar todos
           </button>
         </form>
+        {% endif %}
       </div>
       <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">
         La IA propuso estos horarios. Revísalos y apruébalos para poder publicarlos en SISCA.
@@ -214,14 +216,16 @@
               {% else %}<span style="color:#F87171;">🚫 {{ h.get_estado_display }}</span>{% endif %}
             </td>
             <td style="padding:10px;text-align:center;white-space:nowrap;">
+              {% if not es_solo_consulta %}
               <button type="button" onclick="abrirEdicion(this)"
                       data-id="{{ h.id_horario }}"
                       data-materia="{{ h.materia.codigo }} · {{ h.materia.nombre|escapejs }}"
                       data-dia="{{ h.dia }}" data-bloque="{{ h.bloque.numero }}"
-                      data-salon="{{ h.salon.id_salon }}" data-docente="{{ h.docente.id_docente }}" data-estado="{{ h.estado }}"
+                      data-salon="{{ h.salon.id_salon }}" data-docente="{{ h.docente.usuario_id }}" data-estado="{{ h.estado }}"
                       style="background:rgba(31,111,235,.15);color:var(--blue-lt);border:1px solid rgba(77,155,255,.3);border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">
                 ✏️ Editar
               </button>
+              {% endif %}
               <a href="{% url 'horario_detalle' h.id_horario %}" style="color:var(--txt3);font-size:12px;margin-left:6px;text-decoration:none;">Ver ▸</a>
             </td>
           </tr>
@@ -276,7 +280,7 @@
         <div style="grid-column:span 2;">
           <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:5px;font-weight:700;">Docente</label>
           <select id="edit-docente" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px;">
-            {% for d in cat_docentes %}<option value="{{ d.id_docente }}">{{ d.usuario.apellido }}, {{ d.usuario.nombre }}</option>{% endfor %}
+            {% for d in cat_docentes %}<option value="{{ d.usuario_id }}">{{ d.usuario.apellido }}, {{ d.usuario.nombre }}</option>{% endfor %}
           </select>
         </div>
         <div style="grid-column:span 2;">

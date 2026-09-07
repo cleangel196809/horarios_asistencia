@@ -16,7 +16,7 @@ def ping(request):
 def listar_docentes(request):
     qs = Docente.objects.filter(activo=True).select_related('usuario')[:200]
     return Response({'success': True, 'total': len(qs), 'data': [{
-        'id_docente': d.id_docente,
+        'id_docente': d.usuario_id,
         'nombre_completo': d.usuario.nombre_completo,
         'correo': d.usuario.correo,
         'tipo_contrato': d.tipo_contrato,

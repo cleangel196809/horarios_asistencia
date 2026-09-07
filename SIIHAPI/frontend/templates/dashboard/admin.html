@@ -19,8 +19,12 @@
     <a class="sb-item" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
 
     <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
+    <a class="sb-item" href="{% url 'reportes_categoria' %}"><span class="ico">📊</span> Reportes</a>
     <a class="sb-item" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
     <a class="sb-item" href="{% url 'auditoria' %}"><span class="ico">📋</span> Auditoría</a>
+
+    <div class="sb-lbl" style="margin-top:14px;">Sistema</div>
+    <a class="sb-item" href="{% url 'base_datos' %}"><span class="ico">🗄️</span> Base de Datos</a>
 
     <div class="sb-spacer"></div>
     <div class="sb-status">
@@ -45,6 +49,14 @@
       <div class="kpi"><div class="kpi-lbl">📅 Periodo</div><div class="kpi-val" style="font-size:24px;">{{ kpis.periodo }}</div></div>
     </div>
 
+    <a href="{% url 'base_datos' %}" class="card" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;gap:18px;cursor:pointer;margin-bottom:22px;background:linear-gradient(135deg,rgba(240,192,48,0.10),rgba(77,155,255,0.06));border-color:rgba(240,192,48,0.30);">
+      <div>
+        <span class="card-title" style="display:flex;align-items:center;gap:10px;">🗄️ Administración de Base de Datos</span>
+        <p style="color:var(--txt2);margin-top:8px;font-size:13px;">CRUD completo de todas las tablas, copias de seguridad y restauración, y gestión de usuarios (ver, crear, modificar, inactivar).</p>
+      </div>
+      <span class="btn btn-primary" style="white-space:nowrap;">Abrir panel →</span>
+    </a>
+
     <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;">
       <div class="card">
         <div class="card-hdr">
@@ -64,9 +76,11 @@
           <button class="btn btn-primary" id="btn-ejecutar-ia">🤖 Ejecutar asignación IA</button>
           <button class="btn btn-cyan" id="btn-simular-ia">🧪 Simulación</button>
           <a class="btn btn-ghost" href="{% url 'motor_ia_metricas' %}">📊 Ver métricas</a>
+          {% include 'dashboard/_periodo_btn.html' %}
         </div>
 
         <div id="ia-resultado" style="display:none;margin-top:14px;padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;"></div>
+        {% include 'dashboard/_periodo_panel.html' %}
       </div>
 
       <a href="{% url 'integracion_sisca' %}" class="card" style="text-decoration:none;display:block;cursor:pointer;">

@@ -1,5 +1,5 @@
 {# Sidebar reutilizable para ADMINISTRADOR y COORDINADOR #}
-{% with rol=request.user.rol %}
+{% with rol=request.user.rol rol_ef=request.user.rol_efectivo %}
 <nav class="sidebar">
   <div class="sb-lbl">Principal</div>
   <a class="sb-item {% if active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><span class="ico">🏠</span> Dashboard</a>
@@ -11,19 +11,57 @@
   <a class="sb-item {% if active == 'estudiantes' %}active{% endif %}" href="{% url 'estudiantes' %}"><span class="ico">🎓</span> Estudiantes</a>
 
   <div class="sb-lbl" style="margin-top:14px;">Operación</div>
+  {% if not es_solo_consulta %}
   <a class="sb-item {% if active == 'motor_ia' %}active{% endif %}" href="{% url 'motor_ia' %}"><span class="ico">🤖</span> Motor IA</a>
   <a class="sb-item {% if active == 'revision' %}active{% endif %}" href="{% url 'revision_propuesta' %}"><span class="ico">📋</span> Revisión de horarios</a>
+  {% endif %}
   <a class="sb-item {% if active == 'horarios' %}active{% endif %}" href="{% url 'horarios' %}"><span class="ico">📅</span> Horarios</a>
+  {% if not es_solo_consulta %}
   <a class="sb-item {% if active == 'horarios_gest' %}active{% endif %}" href="{% url 'horarios_gestionar' %}"><span class="ico">✏️</span> Editar horarios</a>
+  <a class="sb-item {% if active == 'solicitudes_reprog' %}active{% endif %}" href="{% url 'solicitudes_reprogramacion_gestionar' %}"><span class="ico">🔁</span> Solicitudes de reprogramación</a>
+  <a class="sb-item {% if active == 'justificaciones' %}active{% endif %}" href="{% url 'justificaciones_gestionar' %}"><span class="ico">📝</span> Justificaciones</a>
   <a class="sb-item {% if active == 'publicacion' %}active{% endif %}" href="{% url 'centro_publicacion' %}"><span class="ico">🚀</span> Centro de publicación</a>
   <a class="sb-item {% if active == 'carga' %}active{% endif %}" href="{% url 'carga_masiva' %}"><span class="ico">📤</span> Carga masiva</a>
   <a class="sb-item {% if active == 'sisca' %}active{% endif %}" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
+  {% endif %}
 
-  {% if rol == 'ADMINISTRADOR' %}
-  <div class="sb-lbl" style="margin-top:14px;">Reportes (Admin)</div>
-  <a class="sb-item {% if active == 'ejecutivo' %}active{% endif %}" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
+  <div class="sb-lbl" style="margin-top:14px;">Eventos</div>
+  <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'calendario_eventos' %}"><span class="ico">📅</span> Calendario de eventos</a>
+  {% if not es_solo_consulta %}
+  <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'eventos_gestionar' %}"><span class="ico">⚙️</span> Gestionar eventos</a>
+  {% endif %}
+
+  {% if rol == 'DECANO' or rol == 'ADMIN' or rol == 'ADMINISTRADOR' %}
+  <div class="sb-lbl" style="margin-top:14px;">Decano</div>
+  <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'decano_panel' %}"><span class="ico">🎓</span> Panel del Decano</a>
+  <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'jornadas_lista' %}"><span class="ico">🕒</span> Jornadas (Mañana/Tarde/Noche)</a>
+  <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'matriz_planeacion_lista' %}"><span class="ico">🗂️</span> Matrices de planeación</a>
+  <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'reglas_lista' %}"><span class="ico">⚙️</span> Reglas de intervención</a>
+  <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'logs_intervencion' %}"><span class="ico">📨</span> Bitácora de intervenciones</a>
+  {% endif %}
+
+  {% if rol == 'MENTORIAS' or rol == 'ADMIN' or rol == 'ADMINISTRADOR' %}
+  <div class="sb-lbl" style="margin-top:14px;">Mentoría</div>
+  <a class="sb-item {% if active == 'mentoria' %}active{% endif %}" href="{% url 'mentoria_dashboard' %}"><span class="ico">🎓</span> Mis mentorías</a>
+  {% endif %}
+
+  <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
   <a class="sb-item {% if active == 'reportes' %}active{% endif %}" href="{% url 'reportes_categoria' %}"><span class="ico">📊</span> Reportes</a>
+
+  {% if es_bienestar_o_mentoria %}
+  <div class="sb-lbl" style="margin-top:14px;">Bienestar / Mentoría</div>
+  <a class="sb-item {% if active == 'bienestar' %}active{% endif %}" href="{% url 'bienestar_dashboard' %}"><span class="ico">💙</span> Alertas y casos</a>
+  {% if rol == 'BIENESTAR_ACADEMICO' %}
+  <a class="sb-item {% if active == 'mentoria' %}active{% endif %}" href="{% url 'asignacion_mentoria_crear' %}"><span class="ico">🎓</span> Derivar a mentoría</a>
+  {% endif %}
+  {% endif %}
+
+  {% if rol_ef == 'ADMINISTRADOR' %}
+  <a class="sb-item {% if active == 'ejecutivo' %}active{% endif %}" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
   <a class="sb-item {% if active == 'auditoria' %}active{% endif %}" href="{% url 'auditoria' %}"><span class="ico">📋</span> Auditoría</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Sistema (Admin)</div>
+  <a class="sb-item {% if active == 'base_datos' %}active{% endif %}" href="{% url 'base_datos' %}"><span class="ico">🗄️</span> Base de Datos</a>
   {% endif %}
 
   <div class="sb-spacer"></div>

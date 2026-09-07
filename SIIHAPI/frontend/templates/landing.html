@@ -16,68 +16,106 @@
 
   <h1>Asignación de horarios<br>con <span class="grad">Inteligencia Artificial</span></h1>
 
-  <p>SIIHAPI automatiza la asignación de horarios académicos del Politécnico Internacional usando un motor de IA con algoritmo CSP. Integrado con SISCA para control de asistencia.</p>
+  <p>INTEGRA-PI unifica la planeación académica, la asignación de horarios (motor SIIHAPI con IA y algoritmo CSP) y el control de asistencia (SISCA) del Politécnico Internacional en una sola plataforma.</p>
 
   <div class="mission-card">
     <div class="mission-label"><span>🎯</span> Misión Institucional</div>
     <p>{{ mision|default:"Formar profesionales integrales, capaces de transformar la sociedad mediante la innovación, el liderazgo y la excelencia académica." }}</p>
   </div>
 
-  <!-- Cards de Rol -->
-  <div class="roles-grid">
+  <!-- Cards de Rol (Fase 2 - 2026-09-03: orden y roles alineados con /login/) -->
+  <div class="roles-grid" id="rolesGrid">
 
-    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ADMINISTRADOR'">
-      <div class="rc-icon">⚙️</div>
-      <div class="rc-title">Administrador</div>
-      <div class="rc-desc">Gestión total: sedes, salones, ejecutar motor IA, publicar a SISCA.</div>
-      <button class="rc-btn admin">Ingresar como Admin →</button>
+    <div class="roles-row roles-row-1">
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ADMINISTRADOR'">
+        <div class="rc-icon">⚙️</div>
+        <div class="rc-title">Administrador</div>
+        <div class="rc-desc">Gestión total: sedes, salones, ejecutar motor IA, publicar a SISCA.</div>
+        <button class="rc-btn admin">Ingresar como Admin →</button>
+      </div>
     </div>
 
-    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=COORDINADOR'">
-      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(6,182,212,0.28),rgba(99,102,241,0.10));border-color:rgba(34,211,238,0.40);">📚</div>
-      <div class="rc-title">Coordinador</div>
-      <div class="rc-desc">Administrar programas, materias, prerequisitos y matrículas.</div>
-      <button class="rc-btn coordinador">Ingresar como Coordinador →</button>
+    <div class="roles-row roles-row-3">
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=SECRETARIA_ACADEMICA'">
+        <div class="rc-icon" style="background:linear-gradient(135deg,rgba(236,72,153,0.28),rgba(236,72,153,0.10));border-color:rgba(244,114,182,0.40);">🗂️</div>
+        <div class="rc-title">Secretaría Académica</div>
+        <div class="rc-desc">Apoyo administrativo y académico: trámites, registros y soporte a coordinación.</div>
+        <button class="rc-btn secretaria">Ingresar como Secretaría Académica →</button>
+      </div>
+
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=DECANO'">
+        <div class="rc-icon" style="background:linear-gradient(135deg,rgba(212,160,23,0.28),rgba(240,192,48,0.10));border-color:rgba(240,192,48,0.40);">🏛️</div>
+        <div class="rc-title">Decano</div>
+        <div class="rc-desc">Supervisión académica de la facultad: programas, materias y horarios.</div>
+        <button class="rc-btn decano">Ingresar como Decano →</button>
+      </div>
+
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=COORDINADOR'">
+        <div class="rc-icon" style="background:linear-gradient(135deg,rgba(6,182,212,0.28),rgba(99,102,241,0.10));border-color:rgba(34,211,238,0.40);">📚</div>
+        <div class="rc-title">Coordinador</div>
+        <div class="rc-desc">Administrar programas, materias, prerequisitos y matrículas.</div>
+        <button class="rc-btn coordinador">Ingresar como Coordinador →</button>
+      </div>
     </div>
 
-    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=DOCENTE'">
-      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(167,139,250,0.10));border-color:rgba(129,140,248,0.40);">👨‍🏫</div>
-      <div class="rc-title">Docente</div>
-      <div class="rc-desc">Declarar disponibilidad, consultar horario, exportar a calendario.</div>
-      <button class="rc-btn docente">Ingresar como Docente →</button>
-    </div>
+    <div class="roles-row roles-row-2">
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=DOCENTE'">
+        <div class="rc-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(167,139,250,0.10));border-color:rgba(129,140,248,0.40);">👨‍🏫</div>
+        <div class="rc-title">Docente</div>
+        <div class="rc-desc">Declarar disponibilidad, consultar horario, exportar a calendario.</div>
+        <button class="rc-btn docente">Ingresar como Docente →</button>
+      </div>
 
-    <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ESTUDIANTE'">
-      <div class="rc-icon" style="background:linear-gradient(135deg,rgba(34,211,238,0.28),rgba(103,232,249,0.10));border-color:rgba(34,211,238,0.45);">🎓</div>
-      <div class="rc-title">Estudiante</div>
-      <div class="rc-desc">Matricular materias, consultar horario, recibir notificaciones.</div>
-      <button class="rc-btn est">Ingresar como Estudiante →</button>
+      <div class="role-card" onclick="location.href='{% url 'login' %}?rol=ESTUDIANTE'">
+        <div class="rc-icon" style="background:linear-gradient(135deg,rgba(34,211,238,0.28),rgba(103,232,249,0.10));border-color:rgba(34,211,238,0.45);">🎓</div>
+        <div class="rc-title">Estudiante</div>
+        <div class="rc-desc">Matricular materias, consultar horario, recibir notificaciones.</div>
+        <button class="rc-btn est">Ingresar como Estudiante →</button>
+      </div>
     </div>
 
   </div>
+  <style>
+    /* Layout propio de landing (Fase 2 - 2026-09-03): 1 rol arriba
+       (Administrador), 3 en la fila del medio (Secretaria Academica,
+       Decano, Coordinador), 2 abajo (Docente, Estudiante). Sobrescribe
+       el grid generico de .roles-grid solo para esta pagina. */
+    #rolesGrid{display:flex;flex-direction:column;gap:22px;}
+    #rolesGrid .roles-row{display:grid;gap:22px;}
+    #rolesGrid .roles-row-1{grid-template-columns:1fr;max-width:320px;margin:0 auto;width:100%;}
+    #rolesGrid .roles-row-3{grid-template-columns:repeat(3,1fr);}
+    #rolesGrid .roles-row-2{grid-template-columns:repeat(2,1fr);max-width:620px;margin:0 auto;width:100%;}
+    @media(max-width:920px){
+      #rolesGrid .roles-row-3{grid-template-columns:repeat(2,1fr);}
+      #rolesGrid .roles-row-1{max-width:100%;}
+    }
+    @media(max-width:540px){
+      #rolesGrid .roles-row-3,#rolesGrid .roles-row-2{grid-template-columns:1fr;max-width:100%;}
+    }
+  </style>
 
 </section>
 
 <!-- Stats reales -->
 <div class="land-stats">
   <div class="stat-item">
-    <div class="stat-val violet">{{ stats.sedes|default:3 }}</div>
+    <div class="stat-val violet">{{ stats.sedes|default:0 }}</div>
     <div class="stat-lbl">Sedes Activas</div>
   </div>
   <div class="stat-item">
-    <div class="stat-val">{{ stats.salones|default:135 }}</div>
+    <div class="stat-val">{{ stats.salones|default:0 }}</div>
     <div class="stat-lbl">Salones</div>
   </div>
   <div class="stat-item">
-    <div class="stat-val lime">{{ stats.programas|default:27 }}</div>
+    <div class="stat-val lime">{{ stats.programas|default:0 }}</div>
     <div class="stat-lbl">Programas Académicos</div>
   </div>
   <div class="stat-item">
-    <div class="stat-val violet">{{ stats.docentes|default:87 }}</div>
+    <div class="stat-val violet">{{ stats.docentes|default:0 }}</div>
     <div class="stat-lbl">Docentes Activos</div>
   </div>
   <div class="stat-item">
-    <div class="stat-val">{{ stats.estudiantes|default:"8.430" }}</div>
+    <div class="stat-val">{{ stats.estudiantes|default:0 }}</div>
     <div class="stat-lbl">Estudiantes</div>
   </div>
 </div>
@@ -86,26 +124,31 @@
   <div class="footer-grid">
     <div class="footer-col">
       <h4>📍 Nuestras Sedes</h4>
-      <p><strong style="color:var(--txt2);">Calle 73:</strong> Calle 73 #15-08</p>
-      <p><strong style="color:var(--txt2);">Norte:</strong> Carrera 7 #74-15</p>
-      <p><strong style="color:var(--txt2);">Sur:</strong> Avenida 1 de Mayo #45-22</p>
+      {% for sede in sedes %}
+      <p><strong style="color:var(--txt2);">{{ sede.nombre }}:</strong> {{ sede.direccion }}</p>
+      {% empty %}
+      <p>Sin sedes activas registradas.</p>
+      {% endfor %}
     </div>
     <div class="footer-col">
       <h4>🏛️ Politécnico Internacional</h4>
       <p>Institución de Educación Superior</p>
       <p>Vigilado Mineducación</p>
-      <p>SNIES +4135</p>
+      <p>SNIES 4727 · Resolución 4135 del 11 de nov. de 2004</p>
     </div>
     <div class="footer-col">
-      <h4>🔗 Integración</h4>
-      <a href="/api/docs/">Documentación API</a>
-      <a href="#">Sistema SISCA (Asistencia)</a>
-      <a href="#">Manual de usuario</a>
+      <h4>📞 Comunícate con Nosotros</h4>
+      <p><strong style="color:var(--txt2);">Admisiones:</strong> <a href="tel:+576019145494">601 914 5494</a></p>
+      <p><strong style="color:var(--txt2);">Atención al cliente:</strong> <a href="tel:+576019156595">601 915 6595</a></p>
+    </div>
+    <div class="footer-col">
+      <h4>📖 Manual de Usuario</h4>
+      <a href="{% static 'docs/Documento_Tecnico_SISCA_SIIHAPI.docx' %}" target="_blank" rel="noopener">Descargar manual (.docx)</a>
     </div>
   </div>
   <div class="footer-bottom">
-    <span>© 2026 Politécnico Internacional · SIIHAPI v1.0</span>
-    <span>Django 5 + Oracle XE 21c + IA</span>
+    <span>© 2026 Politécnico Internacional · INTEGRA-PI v1.0</span>
+    <span>Django 5 + PostgreSQL + IA</span>
     <span style="display:flex;align-items:center;gap:6px;"><span class="pulse"></span> Sistema Activo</span>
   </div>
 </footer>

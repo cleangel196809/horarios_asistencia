@@ -1,0 +1,40 @@
+{% if puede_crear_periodo %}
+<div id="panelNuevoPeriodo" class="card" style="display:none;margin-top:18px;">
+  <div class="card-hdr"><span class="card-title">🗓️ Nuevo ciclo de formación</span></div>
+  <p style="color:var(--txt2);margin-bottom:16px;">El código debe seguir el formato <strong>AÑO-CICLOT</strong>, por ejemplo <strong>2026-4T</strong>. Al crearlo queda marcado como el ciclo actual para todos los roles.</p>
+  <form method="post" action="{% url 'crear_periodo' %}" style="display:grid;gap:14px;max-width:520px;">
+    {% csrf_token %}
+    <div>
+      <label class="periodo-inline-lbl">Código (año-cicloT)</label>
+      <input type="text" name="codigo" placeholder="Ej: 2026-4T" pattern="^\d{4}-[1-4][Tt]$" title="Formato: AÑO-CICLOT, ej. 2026-4T" required class="periodo-inline-input">
+    </div>
+    <div>
+      <label class="periodo-inline-lbl">Nombre (opcional)</label>
+      <input type="text" name="nombre" placeholder="Ej: Cuarto Trimestre 2026" class="periodo-inline-input">
+    </div>
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;">
+        <label class="periodo-inline-lbl">Fecha inicio</label>
+        <input type="date" name="fecha_inicio" required class="periodo-inline-input">
+      </div>
+      <div style="flex:1;">
+        <label class="periodo-inline-lbl">Fecha fin</label>
+        <input type="date" name="fecha_fin" required class="periodo-inline-input">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn btn-primary">Crear ciclo</button>
+      <button type="button" class="btn btn-ghost" id="btnCancelarPeriodo">Cancelar</button>
+    </div>
+  </form>
+</div>
+<script>
+(function(){
+  var t = document.getElementById('btnTogglePeriodo');
+  var p = document.getElementById('panelNuevoPeriodo');
+  var c = document.getElementById('btnCancelarPeriodo');
+  if (t && p) { t.addEventListener('click', function(){ p.style.display = (p.style.display === 'none' ? 'block' : 'none'); }); }
+  if (c && p) { c.addEventListener('click', function(){ p.style.display = 'none'; }); }
+})();
+</script>
+{% endif %}

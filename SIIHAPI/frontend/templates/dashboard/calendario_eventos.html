@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Calendario de Eventos{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if request.user.rol_efectivo == 'DOCENTE' %}
+  {% include 'dashboard/_sidebar_docente.html' with active='eventos' %}
+  {% elif request.user.rol_efectivo == 'ESTUDIANTE' %}
+  {% include 'dashboard/_sidebar_estudiante.html' with active='eventos' %}
+  {% else %}
+  {% include 'dashboard/_sidebar.html' with active='eventos' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Eventos</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📅 Calendario de Eventos</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Actividades académicas, de bienestar e institucionales. Inscríbete para recibir tu código QR de asistencia.</p>
+    </div>
+
+    <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
+      {% for cod, lbl in tipos %}
+      <a href="?tipo={{ cod }}" class="btn {% if tipo_filtro == cod %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">{{ lbl }}</a>
+      {% endfor %}
+      <a href="?tipo=" class="btn {% if not tipo_filtro %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Todos</a>
+      {% if puede_gestionar %}
+      <a href="{% url 'eventos_gestionar' %}" class="btn btn-cyan" style="font-size:12px;margin-left:auto;">⚙️ Gestionar eventos</a>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">🗓️ Próximos y en curso</span>
+        <span class="tb-badge">{{ eventos|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Evento</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Modalidad</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>
+          {% for e in eventos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ e.nombre }}{% if e.materia %} <span style="color:var(--txt3);">({{ e.materia.codigo }})</span>{% endif %}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ e.get_tipo_display }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ e.get_modalidad_display }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ e.fecha_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:{% if e.estado == 'PUBLICADO' or e.estado == 'EN_CURSO' %}var(--lime-lt){% elif e.estado == 'CANCELADO' %}#f87171{% elif e.estado == 'BORRADOR' %}var(--cyan-lt){% else %}var(--txt2){% endif %};">{{ e.get_estado_display }}</td>
+            <td style="padding:10px;"><a href="{% url 'evento_detalle' e.id_evento %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No hay eventos {% if tipo_filtro %}de este tipo{% endif %} por ahora.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

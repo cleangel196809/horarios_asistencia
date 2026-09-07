@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Editar Jornada{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">✏️ Editar Jornada</h1>
+    </div>
+    <div class="card">
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Nombre</label>
+          <input type="text" name="nombre" required value="{{ jornada.nombre }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Hora inicio típica</label>
+          <input type="time" name="hora_inicio_tipica" value="{{ jornada.hora_inicio_tipica|time:'H:i' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Hora fin típica</label>
+          <input type="time" name="hora_fin_tipica" value="{{ jornada.hora_fin_tipica|time:'H:i' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Orden</label>
+          <input type="number" name="orden" value="{{ jornada.orden }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="color:var(--txt2);"><input type="checkbox" name="activa" {% if jornada.activa %}checked{% endif %}> Activa</label>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+          <a href="{% url 'jornadas_lista' %}" class="btn btn-ghost">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

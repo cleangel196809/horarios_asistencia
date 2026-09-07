@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Solicitudes de Reprogramación · Gestión{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='solicitudes_reprog' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🔁 Solicitudes de Reprogramación</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Aprobación de cambios puntuales (cambio de aula, sustitución de docente, cambio de horario para una fecha específica) solicitados por los docentes.</p>
+    </div>
+
+    <div style="margin-bottom:16px;display:flex;gap:8px;">
+      {% for cod, lbl in estados %}
+      <a href="?estado={{ cod }}" class="btn {% if estado_filtro == cod %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">{{ lbl }}</a>
+      {% endfor %}
+      <a href="?estado=" class="btn {% if not estado_filtro %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Todas</a>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Solicitudes</span>
+        <span class="tb-badge">{{ solicitudes|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Clase</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Propuesta</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Motivo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for s in solicitudes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ s.horario.docente.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.horario.materia.codigo }} · {{ s.horario.get_dia_display }} B{{ s.horario.bloque.numero }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.get_tipo_display }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ s.fecha_afectada|date:"d/m/Y" }}</td>
+            <td style="padding:10px;color:var(--cyan);">
+              {% if s.salon_propuesto %}Salón: {{ s.salon_propuesto.codigo }}{% endif %}
+              {% if s.docente_sustituto_propuesto %}Docente: {{ s.docente_sustituto_propuesto.usuario.nombre_completo }}{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.motivo|truncatechars:50 }}</td>
+            <td style="padding:10px;color:{% if s.estado == 'APROBADA' %}var(--lime-lt){% elif s.estado == 'RECHAZADA' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ s.get_estado_display }}</td>
+            <td style="padding:10px;">
+              {% if s.estado == 'PENDIENTE' %}
+              <form method="post" action="{% url 'solicitud_reprogramacion_resolver' s.id_solicitud %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="aprobar">
+                <button type="submit" class="btn btn-primary" style="font-size:11px;padding:4px 10px;">Aprobar</button>
+              </form>
+              <form method="post" action="{% url 'solicitud_reprogramacion_resolver' s.id_solicitud %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="rechazar">
+                <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Rechazar</button>
+              </form>
+              {% else %}
+              <span style="color:var(--txt3);font-size:11px;">{{ s.revisado_por.nombre_completo|default:"—" }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" style="padding:30px;text-align:center;color:var(--txt3);">No hay solicitudes {% if estado_filtro %}en estado {{ estado_filtro }}{% endif %}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

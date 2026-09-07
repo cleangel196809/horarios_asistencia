@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Panel del Decano{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎓 Panel del Decano</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Planeación académica, motor de reglas de intervención y reportes ejecutivos.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">Matrices en Borrador</div><div style="font-size:26px;font-weight:800;color:var(--white);">{{ kpis.matrices_borrador }}</div></div>
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">En revisión</div><div style="font-size:26px;font-weight:800;color:var(--cyan-lt);">{{ kpis.matrices_en_revision }}</div></div>
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">Aprobadas</div><div style="font-size:26px;font-weight:800;color:var(--white);">{{ kpis.matrices_aprobadas }}</div></div>
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">Publicadas</div><div style="font-size:26px;font-weight:800;color:var(--lime-lt);">{{ kpis.matrices_publicadas }}</div></div>
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">Reglas activas</div><div style="font-size:26px;font-weight:800;color:var(--white);">{{ kpis.reglas_activas }}</div></div>
+      <div class="card" style="padding:16px;"><div style="color:var(--txt3);font-size:12px;">Correos fallidos</div><div style="font-size:26px;font-weight:800;color:{% if kpis.logs_fallidos %}#f87171{% else %}var(--white){% endif %};">{{ kpis.logs_fallidos }}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:24px;">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">🗂️ Matrices de planeación recientes</span>
+          <a href="{% url 'matriz_planeacion_lista' %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver todas</a>
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Facultad</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Periodo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          </tr></thead>
+          <tbody>
+            {% for m in matrices_recientes %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:10px;"><a href="{% url 'matriz_planeacion_detalle' m.id_matriz %}" style="color:var(--white);text-decoration:none;">{{ m.nombre }}</a></td>
+              <td style="padding:10px;color:var(--txt2);">{{ m.facultad.codigo }}</td>
+              <td style="padding:10px;color:var(--txt2);">{{ m.periodo.codigo }}</td>
+              <td style="padding:10px;color:{% if m.estado == 'PUBLICADO' %}var(--lime-lt){% elif m.estado == 'APROBADO' %}var(--cyan-lt){% else %}var(--txt2){% endif %};">{{ m.get_estado_display }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--txt3);">Aún no hay matrices de planeación.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <div style="padding:12px;"><a href="{% url 'matriz_planeacion_crear' %}" class="btn btn-primary" style="font-size:12px;">+ Nueva matriz</a></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📨 Bitácora de intervenciones reciente</span>
+          <a href="{% url 'logs_intervencion' %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver todas</a>
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tbody>
+            {% for log in logs_recientes %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px;color:var(--white);">{{ log.regla.nombre }}</td>
+              <td style="padding:8px;color:{% if log.estado == 'ENVIADO' %}var(--lime-lt){% elif log.estado == 'FALLIDO' %}#f87171{% else %}var(--cyan-lt){% endif %};font-size:11px;">{{ log.get_estado_display }}</td>
+              <td style="padding:8px;color:var(--txt3);font-size:11px;">{{ log.fecha_disparo|date:"d/m H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td style="padding:24px;text-align:center;color:var(--txt3);">Sin disparos registrados todavía.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 Reportes ejecutivos del Decano</span></div>
+      <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+        <a class="btn btn-ghost" href="{% url 'reporte_ocupacion_salones' %}">1. Ocupación de salones</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_heatmap_inasistencias' %}">2. Heatmap de inasistencias</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_roi_eventos' %}">3. ROI académico de eventos</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_riesgo_desercion' %}">4. Riesgo de deserción</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_cumplimiento_docente' %}">5. Cumplimiento docente</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_conflictos_horario' %}">6. Conflictos de horario</a>
+        <a class="btn btn-ghost" href="{% url 'reporte_utilizacion_infraestructura' %}">7. Utilización de infraestructura</a>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:10px;">
+      <a href="{% url 'reglas_lista' %}" class="btn btn-ghost">⚙️ Reglas de intervención</a>
+      <a href="{% url 'plantillas_lista' %}" class="btn btn-ghost">✉️ Plantillas de correo</a>
+    </div>
+  </main>
+</div>
+{% endblock %}

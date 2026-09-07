@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class EventosConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.eventos'
+    verbose_name = 'Eventos y Certificados'

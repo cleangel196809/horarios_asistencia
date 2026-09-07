@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Matrices de Planeación{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">🗂️ Matrices de Planeación</h1>
+      </div>
+      <a href="{% url 'matriz_planeacion_crear' %}" class="btn btn-primary">+ Nueva matriz</a>
+    </div>
+
+    <div class="card">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Facultad</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Periodo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Sede</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Jornada</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for m in matrices %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;"><a href="{% url 'matriz_planeacion_detalle' m.id_matriz %}" style="color:var(--white);text-decoration:none;">{{ m.nombre }}</a></td>
+            <td style="padding:10px;color:var(--txt2);">{{ m.facultad.codigo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ m.periodo.codigo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ m.sede.nombre }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ m.jornada.nombre }}</td>
+            <td style="padding:10px;color:{% if m.estado == 'PUBLICADO' %}var(--lime-lt){% elif m.estado == 'APROBADO' %}var(--cyan-lt){% elif m.estado == 'EN_REVISION' %}#fbbf24{% else %}var(--txt2){% endif %};">{{ m.get_estado_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No hay matrices de planeación creadas todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

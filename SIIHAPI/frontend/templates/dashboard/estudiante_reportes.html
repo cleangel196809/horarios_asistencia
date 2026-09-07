@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Mis Reportes · Estudiante{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_estudiante.html' with active='reportes' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Reportes</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">📊 Mis Reportes</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Resumen de tu horario y materias{% if periodo_actual %} en el periodo <strong style="color:var(--blue-lt);">{{ periodo_actual.codigo }}</strong>{% endif %}. Descarga tu horario en PDF o Excel.</p>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi accent"><div class="kpi-lbl">📚 Materias matriculadas</div><div class="kpi-val">{{ total_materias }}</div></div>
+      <div class="kpi"><div class="kpi-lbl">🕐 Bloques semanales</div><div class="kpi-val">{{ total_horas }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">📋 Asistencia (SISCA)</div><div class="kpi-val" style="font-size:18px;">{% if sisca_conectado %}<span style="color:var(--lime-lt);">Conectado</span>{% else %}<span style="color:var(--txt3);">No disponible</span>{% endif %}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:22px;">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">📋 Resumen de asistencia por materia</span></div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+              <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asistencia</th>
+            </tr></thead>
+            <tbody>
+              {% for id_horario, data in resumen_asistencia.items %}
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 10px;color:var(--white);">Horario #{{ id_horario }}</td>
+                <td style="padding:8px 10px;text-align:right;color:var(--cyan-lt);">{{ data }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" style="padding:20px;text-align:center;color:var(--txt3);">
+                {% if sisca_conectado %}Sin datos de asistencia registrados todavía.{% else %}La integración con SISCA no está disponible en este momento.{% endif %}
+              </td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12px;color:var(--txt3);margin-top:12px;">Consulta el detalle completo en <a href="{% url 'estudiante_asistencia' %}" style="color:var(--blue-lt);">Mi asistencia</a> y tus calificaciones en <a href="{% url 'estudiante_notas' %}" style="color:var(--blue-lt);">Mis notas</a>.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">⬇️ Descargar mi horario</span></div>
+        <p style="color:var(--txt2);font-size:13px;margin-bottom:14px;">Los archivos incluyen únicamente tus materias matriculadas.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <a class="btn" target="_blank" rel="noopener" href="{% url 'horarios_exportar_pdf_completo' %}"
+             style="display:flex;gap:6px;align-items:center;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.35);color:var(--red-lt);">
+            📄 Descargar PDF
+          </a>
+          <a class="btn" href="{% url 'horarios_exportar_excel_completo' %}"
+             style="display:flex;gap:6px;align-items:center;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);color:var(--lime-lt);">
+            📊 Descargar Excel
+          </a>
+          <a class="btn btn-ghost" href="{% url 'estudiante_mi_horario' %}">📅 Ver mi horario en pantalla</a>
+          <a class="btn btn-ghost" href="{% url 'estudiante_mis_materias' %}">📚 Ver mis materias</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

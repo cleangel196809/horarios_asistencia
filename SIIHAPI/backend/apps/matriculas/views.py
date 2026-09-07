@@ -30,7 +30,7 @@ def listar_estudiantes(request):
     if programa: qs = qs.filter(programa__codigo=programa)
     qs = qs[:300]
     return Response({'success': True, 'total': len(qs), 'data': [{
-        'id_estudiante': e.id_estudiante, 'codigo': e.codigo,
+        'id_estudiante': e.usuario_id, 'codigo': e.codigo,
         'nombre_completo': e.usuario.nombre_completo,
         'correo': e.usuario.correo,
         'programa': e.programa.nombre, 'programa_codigo': e.programa.codigo,

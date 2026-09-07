@@ -6,10 +6,99 @@
   <main class="main-content">
     <div style="margin-bottom:24px;">
       <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
-      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📅 Mi Horario Semanal</h1>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📅 Mi Horario</h1>
       <p style="color:var(--txt2);margin-top:6px;"><strong style="color:var(--blue-lt);">{{ horarios.count }}</strong> clases programadas</p>
     </div>
 
+    {# RF 1.5 (Sprint 1, 2026-09-06): vistas semanal/diaria/mensual -- mismos datos, reagrupados #}
+    <div style="margin-bottom:20px;display:flex;gap:8px;">
+      <a href="?vista=semanal" class="btn {% if vista == 'semanal' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Semanal</a>
+      <a href="?vista=diaria" class="btn {% if vista == 'diaria' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Diaria</a>
+      <a href="?vista=mensual" class="btn {% if vista == 'mensual' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:12px;">Mensual</a>
+    </div>
+
+    {% if vista == 'diaria' %}
+    <form method="get" style="margin-bottom:16px;display:flex;gap:10px;align-items:end;">
+      <input type="hidden" name="vista" value="diaria">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fecha</label>
+        <input type="date" name="fecha" value="{{ fecha_diaria|date:'Y-m-d' }}" onchange="this.form.submit()" style="padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+      </div>
+    </form>
+    {% if reprogramaciones_del_dia %}
+    <div class="card" style="margin-bottom:16px;border-left:3px solid var(--cyan);">
+      <div style="padding:14px;">
+        <strong style="color:var(--cyan-lt);">🔁 Reprogramaciones aprobadas para este día:</strong>
+        <ul style="margin:8px 0 0 18px;color:var(--txt2);font-size:13px;">
+          {% for r in reprogramaciones_del_dia %}
+          <li>{{ r.horario.materia.codigo }} — {{ r.get_tipo_display }}{% if r.salon_propuesto %} → Salón {{ r.salon_propuesto.codigo }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Clases del {{ fecha_diaria|date:"d/m/Y" }}</span>
+        <span class="tb-badge">{{ horarios_del_dia|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Hora</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Salón</th>
+        </tr></thead>
+        <tbody>
+          {% for h in horarios_del_dia %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">B{{ h.bloque.numero }} · {{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }}</td>
+            <td style="padding:10px;color:var(--white);">{{ h.materia.codigo }} — {{ h.materia.nombre|truncatechars:30 }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}</td>
+            <td style="padding:10px;color:var(--lime-lt);">{{ h.salon.codigo }} ({{ h.salon.sede.nombre }})</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">No tienes clases este día.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {% elif vista == 'mensual' %}
+    <form method="get" style="margin-bottom:16px;display:flex;gap:10px;align-items:end;">
+      <input type="hidden" name="vista" value="mensual">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Mes</label>
+        <input type="month" name="mes" value="{{ mes_actual|date:'Y-m' }}" onchange="this.form.submit()" style="padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+      </div>
+    </form>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📅 {{ mes_actual|date:"F Y" }}</span></div>
+      <div style="padding:14px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="padding:6px;color:var(--txt3);">Lun</th><th style="padding:6px;color:var(--txt3);">Mar</th><th style="padding:6px;color:var(--txt3);">Mié</th><th style="padding:6px;color:var(--txt3);">Jue</th><th style="padding:6px;color:var(--txt3);">Vie</th><th style="padding:6px;color:var(--txt3);">Sáb</th><th style="padding:6px;color:var(--txt3);">Dom</th>
+        </tr></thead>
+        <tbody>
+          {% for semana in dias_mes %}
+          <tr>
+            {% for dia in semana %}
+            <td style="padding:8px;vertical-align:top;border:1px solid rgba(255,255,255,0.06);opacity:{% if dia.en_mes %}1{% else %}0.35{% endif %};">
+              <div style="color:var(--txt2);font-size:11px;">{{ dia.fecha|date:"d" }}</div>
+              {% if dia.total_bloques %}<div style="color:var(--blue-lt);font-weight:700;">{{ dia.total_bloques }} bloque{{ dia.total_bloques|pluralize }}</div>{% endif %}
+              {% if dia.reprogramaciones %}<div style="color:var(--cyan-lt);font-size:11px;">🔁 {{ dia.reprogramaciones|length }} reprog.</div>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {% else %}
     <div class="kpi-grid" style="margin-bottom:24px;">
       <div class="kpi accent"><div class="kpi-lbl">📅 Lunes</div><div class="kpi-val">{{ grilla.LU|length }}</div></div>
       <div class="kpi"><div class="kpi-lbl">📅 Martes</div><div class="kpi-val">{{ grilla.MA|length }}</div></div>
@@ -45,6 +134,7 @@
       </table>
       </div>
     </div>
+    {% endif %}
   </main>
 </div>
 {% endblock %}

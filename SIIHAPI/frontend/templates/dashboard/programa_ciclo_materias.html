@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}{{ programa.nombre }} · {{ periodo.codigo }} · SIIHAPI{% endblock %}
+
+{% block body %}
+<style>.fila-materia:hover{background:rgba(77,155,255,0.06);}</style>
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='programas' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+        <a href="{% url 'programas' %}" style="color:var(--txt3);text-decoration:none;">Programas y Materias</a> /
+        <a href="{% url 'programa_ciclos' id_programa=programa.id_programa %}" style="color:var(--txt3);text-decoration:none;">{{ programa.nombre }}</a> /
+        {{ periodo.codigo }}
+      </p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Materias · {{ periodo.codigo }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">{{ programa.nombre }} — {{ periodo.fecha_inicio|date:"d/m/Y" }} a {{ periodo.fecha_fin|date:"d/m/Y" }}</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📚 Materias dictadas en este ciclo</span>
+        <span class="tb-badge">{{ materias_con_horario|length }} materia{{ materias_con_horario|length|pluralize }}</span>
+      </div>
+      <p style="color:var(--txt2);margin-bottom:16px;font-size:13px;">Selecciona una materia para ver la lista de estudiantes matriculados.</p>
+
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+            <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Semestre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Horario</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiantes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in materias_con_horario %}
+          <tr class="fila-materia" style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;" onclick="window.location='{% url 'materia_periodo_estudiantes' id_programa=programa.id_programa id_periodo=periodo.id_periodo id_materia=item.materia.id_materia %}'">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);vertical-align:top;">{{ item.materia.codigo }}</td>
+            <td style="padding:10px;color:var(--white);vertical-align:top;">{{ item.materia.nombre }}</td>
+            <td style="padding:10px;text-align:center;color:var(--cyan);vertical-align:top;">{{ item.materia.ciclo }}</td>
+            <td style="padding:10px;color:var(--txt2);font-size:12px;">
+              {% if item.horarios %}
+                {% for h in item.horarios %}
+                <div style="margin-bottom:4px;white-space:nowrap;">
+                  <span style="color:var(--cyan-lt);font-weight:700;">{{ h.dia_label }}</span>
+                  B{{ h.bloque__numero }} ({{ h.bloque__hora_inicio|time:"H:i" }}–{{ h.bloque__hora_fin|time:"H:i" }})
+                  {% if h.docente__usuario__nombre %}· {{ h.docente__usuario__nombre }} {{ h.docente__usuario__apellido }}{% endif %}
+                  {% if h.salon__codigo %}· Salón {{ h.salon__codigo }}{% endif %}
+                </div>
+                {% endfor %}
+              {% else %}
+                <span style="color:var(--txt3);">Sin horario asignado aún</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px;text-align:right;color:var(--lime-lt);vertical-align:top;">{{ item.n_estudiantes }}</td>
+            <td style="padding:10px;text-align:right;vertical-align:top;"><a href="{% url 'materia_periodo_estudiantes' id_programa=programa.id_programa id_periodo=periodo.id_periodo id_materia=item.materia.id_materia %}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();">Ver estudiantes →</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No hay materias con matrículas de este programa en este ciclo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

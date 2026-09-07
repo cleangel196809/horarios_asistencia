@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Mentoría · {{ asignacion.estudiante.usuario.nombre_completo }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='mentoria' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Mentoría</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">{{ asignacion.estudiante.usuario.nombre_completo }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Mentor: {{ asignacion.mentor.nombre_completo }} · Estado: {{ asignacion.get_estado_display }} · Desde {{ asignacion.fecha_inicio|date:"d/m/Y" }}</p>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">➕ Programar sesión</span></div>
+      <form method="post" action="{% url 'sesion_mentoria_crear' asignacion.id_asignacion %}" style="padding:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        {% csrf_token %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Inicio</label>
+          <input type="datetime-local" name="fecha_hora_inicio" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fin</label>
+          <input type="datetime-local" name="fecha_hora_fin" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Modalidad</label>
+          <select name="modalidad" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="VIRTUAL">Virtual</option>
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Salón (si es presencial)</label>
+          <select name="salon" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">—</option>
+            {% for s in salones %}<option value="{{ s.id_salon }}">{{ s.codigo }} ({{ s.sede.nombre }})</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;"><button type="submit" class="btn btn-primary">Programar</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📋 Sesiones</span><span class="tb-badge">{{ sesiones|length }}</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Modalidad</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Bitácora</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for s in sesiones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ s.fecha_hora_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.get_modalidad_display }}</td>
+            <td style="padding:10px;">
+              <form method="post" action="{% url 'sesion_mentoria_actualizar_estado' s.id_sesion %}" style="display:inline-flex;gap:4px;">
+                {% csrf_token %}
+                <select name="estado" style="padding:4px;border-radius:6px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);font-size:11px;">
+                  <option value="PROGRAMADA" {% if s.estado == 'PROGRAMADA' %}selected{% endif %}>Programada</option>
+                  <option value="REALIZADA" {% if s.estado == 'REALIZADA' %}selected{% endif %}>Realizada</option>
+                  <option value="INASISTENCIA" {% if s.estado == 'INASISTENCIA' %}selected{% endif %}>Inasistencia</option>
+                  <option value="CANCELADA" {% if s.estado == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                </select>
+                <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 8px;">↻</button>
+              </form>
+            </td>
+            <td style="padding:10px;color:var(--txt3);font-size:12px;">{% if s.bitacora %}✅ Registrada{% else %}—{% endif %}</td>
+            <td style="padding:10px;"><a href="{% url 'bitacora_mentoria_crear' s.id_sesion %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">{% if s.bitacora %}Ver/editar bitácora{% else %}Registrar bitácora{% endif %}</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay sesiones programadas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

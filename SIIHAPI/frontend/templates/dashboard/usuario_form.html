@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}{% if modo == 'crear' %}Nuevo usuario{% else %}Editar usuario{% endif %} · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='base_datos' %}
+
+  <main class="main-content" style="max-width:640px;">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+        <a href="{% url 'base_datos' %}" style="color:var(--txt3);text-decoration:none;">🗄️ Base de Datos</a> /
+        <a href="{% url 'usuarios_admin' %}" style="color:var(--txt3);text-decoration:none;">Usuarios</a> /
+        {% if modo == 'crear' %}Nuevo{% else %}Editar{% endif %}
+      </p>
+      <h1 style="font-size:28px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">
+        {% if modo == 'crear' %}➕ Nuevo usuario{% else %}✏️ Editar usuario{% endif %}
+      </h1>
+      {% if usuario_obj %}
+      <p style="color:var(--txt2);margin-top:6px;">{{ usuario_obj.nombre }} {{ usuario_obj.apellido }} · {{ usuario_obj.correo }}</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <form method="post" style="display:flex;flex-direction:column;gap:16px;">
+        {% csrf_token %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Nombre *</label>
+            <input type="text" name="nombre" required value="{{ valores.nombre }}" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Apellido *</label>
+            <input type="text" name="apellido" required value="{{ valores.apellido }}" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Correo institucional *</label>
+          <input type="email" name="correo" required value="{{ valores.correo }}" placeholder="usuario@pi.edu.co" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Cédula</label>
+            <input type="text" name="cedula" value="{{ valores.cedula }}" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Teléfono</label>
+            <input type="text" name="telefono" value="{{ valores.telefono }}" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Rol *</label>
+          <select name="rol" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+            {% for code, label in roles %}
+            <option value="{{ code }}" {% if code == valores.rol %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p style="font-size:11px;color:var(--txt3);margin-top:6px;">Administrador obtiene además acceso total al panel de Django Admin (CRUD de toda la base de datos).</p>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">
+            {% if modo == 'crear' %}Contraseña *{% else %}Nueva contraseña (dejar en blanco para no cambiarla){% endif %}
+          </label>
+          <input type="password" name="password" {% if modo == 'crear' %}required{% endif %} minlength="8" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;">
+          <p style="font-size:11px;color:var(--txt3);margin-top:6px;">Mínimo 8 caracteres.</p>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button type="submit" class="btn btn-primary">{% if modo == 'crear' %}Crear usuario{% else %}Guardar cambios{% endif %}</button>
+          <a href="{% url 'usuarios_admin' %}" class="btn btn-ghost">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

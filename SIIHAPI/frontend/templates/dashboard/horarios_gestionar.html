@@ -42,7 +42,7 @@
           <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Docente</label>
           <select name="docente" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:240px;">
             <option value="">— Todos —</option>
-            {% for d in docentes %}<option value="{{ d.id_docente }}" {% if docente_filtro == d.id_docente|stringformat:"s" %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+            {% for d in docentes %}<option value="{{ d.usuario_id }}" {% if docente_filtro == d.usuario_id|stringformat:"s" %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
           </select>
         </div>
         <span style="color:var(--txt3);font-size:12px;margin-left:auto;align-self:center;">
@@ -85,7 +85,7 @@
             </td>
             <td style="padding:6px;">
               <select class="edit edit-docente" data-field="docente" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;min-width:200px;">
-                {% for d in docentes %}<option value="{{ d.id_docente }}" {% if h.docente.id_docente == d.id_docente %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+                {% for d in docentes %}<option value="{{ d.usuario_id }}" {% if h.docente.usuario_id == d.usuario_id %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
               </select>
             </td>
             <td style="padding:6px;">

@@ -19,7 +19,7 @@ class IntegracionLog(models.Model):
         ('REINTENTO', 'En reintento'),
     )
 
-    id_log = models.AutoField(primary_key=True)
+    id_log = models.AutoField(primary_key=True, db_column='id')
     operacion = models.CharField(max_length=25, choices=OPERACION_CHOICES)
     estado = models.CharField(max_length=10, choices=ESTADO_CHOICES)
     endpoint = models.CharField(max_length=200, blank=True)
@@ -32,7 +32,8 @@ class IntegracionLog(models.Model):
     duracion_ms = models.IntegerField(null=True, blank=True)
 
     class Meta:
-        db_table = 'SIIHAPI_INTEGRACION_LOG'
+        managed = False
+        db_table = 'integracion_log'
         verbose_name = 'Log de Integración SISCA'
         verbose_name_plural = 'Logs de Integración SISCA'
         ordering = ['-fecha']

@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Jornadas{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🕒 Jornadas</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Catálogo de Mañana/Tarde/Noche usado en la Matriz de Planeación y en los reportes (ej. Heatmap de inasistencias).</p>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">➕ Nueva jornada</span></div>
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
+        {% csrf_token %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Nombre</label>
+          <input type="text" name="nombre" required placeholder="Mañana / Tarde / Noche" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Hora inicio típica</label>
+          <input type="time" name="hora_inicio_tipica" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Hora fin típica</label>
+          <input type="time" name="hora_fin_tipica" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Orden</label>
+          <input type="number" name="orden" value="0" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="color:var(--txt2);white-space:nowrap;"><input type="checkbox" name="activa" checked> Activa</label>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Crear jornada</button>
+        </div>
+      </form>
+      <div style="padding:0 16px 16px;color:var(--txt3);font-size:12px;">
+        Sugerido: Mañana 06:00–12:00 · Tarde 12:00–18:00 · Noche 18:00–22:00.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📋 Jornadas existentes</span><span class="tb-badge">{{ jornadas|length }}</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Rango horario</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Orden</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>
+          {% for j in jornadas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ j.nombre }}</td>
+            <td style="padding:10px;color:var(--txt2);font-family:'JetBrains Mono',monospace;">{% if j.hora_inicio_tipica %}{{ j.hora_inicio_tipica|time:"H:i" }} – {{ j.hora_fin_tipica|time:"H:i" }}{% else %}—{% endif %}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ j.orden }}</td>
+            <td style="padding:10px;">
+              <form method="post" action="{% url 'jornada_toggle' j.id_jornada %}">
+                {% csrf_token %}
+                <button type="submit" class="btn {% if j.activa %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:11px;padding:4px 10px;">{% if j.activa %}Activa{% else %}Inactiva{% endif %}</button>
+              </form>
+            </td>
+            <td style="padding:10px;"><a href="{% url 'jornada_editar' j.id_jornada %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Editar</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no hay jornadas creadas — crea Mañana/Tarde/Noche arriba antes de armar tu primera Matriz de Planeación.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

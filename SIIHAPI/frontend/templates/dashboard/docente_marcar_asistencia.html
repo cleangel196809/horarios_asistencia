@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Marcar Asistencia · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='marcar_asistencia' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">✅ Marcar Asistencia</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Registro local de asistencia por clase y fecha. Si SISCA reporta el mismo dato más adelante, SISCA tiene prioridad de lectura.</p>
+    </div>
+
+    <form method="get" style="margin-bottom:20px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Clase</label>
+        <select name="horario" onchange="this.form.submit()" style="padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);min-width:280px;">
+          <option value="">Selecciona una clase…</option>
+          {% for h in mis_horarios %}
+          <option value="{{ h.id_horario }}" {% if horario_sel.id_horario == h.id_horario %}selected{% endif %}>{{ h.materia.codigo }} — {{ h.get_dia_display }} B{{ h.bloque.numero }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fecha</label>
+        <input type="date" name="fecha" value="{{ fecha }}" onchange="this.form.submit()" style="padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+      </div>
+      {% if horario_sel %}<input type="hidden" name="horario" value="{{ horario_sel.id_horario }}">{% endif %}
+    </form>
+
+    {% if horario_sel %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="horario" value="{{ horario_sel.id_horario }}">
+      <input type="hidden" name="fecha" value="{{ fecha }}">
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-hdr"><span class="card-title">👨‍🏫 Mi asistencia como docente</span></div>
+        <div style="padding:14px;">
+          <select name="estado_docente" style="padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            {% for cod, lbl in estados_docente %}
+            <option value="{{ cod }}" {% if cod == estado_docente_previo or not estado_docente_previo and cod == 'DICTADA' %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">📋 {{ horario_sel.materia.codigo }} — {{ fecha }}</span>
+          <span class="tb-badge">{{ matriculas|length }} estudiante{{ matriculas|length|pluralize }}</span>
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          </tr></thead>
+          <tbody>
+            {% for mat in matriculas %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:10px;color:var(--white);">{{ mat.estudiante.usuario.nombre_completo }} <span style="color:var(--txt3);">({{ mat.estudiante.codigo }})</span></td>
+              <td style="padding:10px;">
+                <select name="estado_{{ mat.id_matricula }}" style="padding:6px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+                  {% for cod, lbl in estados %}
+                  <option value="{{ cod }}" {% if cod == mat.estado_previo or not mat.estado_previo and cod == 'PRESENTE' %}selected{% endif %}>{{ lbl }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" style="padding:30px;text-align:center;color:var(--txt3);">No hay estudiantes matriculados activos en esta materia/periodo.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary">Guardar asistencia</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="card"><div style="padding:30px;text-align:center;color:var(--txt3);">Selecciona una clase para registrar asistencia.</div></div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

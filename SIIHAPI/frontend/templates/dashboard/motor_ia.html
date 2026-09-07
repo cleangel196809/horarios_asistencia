@@ -298,7 +298,7 @@
       </div>
       <div style="text-align:right;">
         <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Periodo activo</p>
-        <p style="font-size:22px;color:var(--white);font-weight:800;margin-top:4px;">2026-2</p>
+        <p style="font-size:22px;color:var(--white);font-weight:800;margin-top:4px;">{{ periodo_actual_global.codigo|default:"—" }}</p>
       </div>
     </div>
 
@@ -319,10 +319,14 @@
     <div class="step-panel active" data-panel="1">
       <div class="card">
         <div class="card-hdr">
-          <span class="card-title">📦 Verificación de datos del periodo</span>
+          <span class="card-title">📦 Verificación de datos · periodo {{ periodo_verificacion.codigo|default:"—" }}</span>
+          {% if kpis.matriculas > 0 and kpis.salones > 0 and kpis.docentes > 0 and kpis.bloques > 0 %}
           <span class="tb-badge" style="background:rgba(132,204,22,0.18);color:var(--lime-lt);border-color:rgba(132,204,22,0.40);">✓ LISTO</span>
+          {% else %}
+          <span class="tb-badge" style="background:rgba(239,68,68,0.18);color:var(--red-lt);border-color:rgba(239,68,68,0.40);">✗ FALTAN DATOS</span>
+          {% endif %}
         </div>
-        <p style="color:var(--txt2);margin-bottom:16px;">El Motor IA necesita los siguientes datos para optimizar la asignación. Si algo falta, completa la información primero.</p>
+        <p style="color:var(--txt2);margin-bottom:16px;">El Motor IA necesita estos datos <strong>para el periodo {{ periodo_verificacion.codigo|default:"seleccionado" }}</strong> (el que elijas en el paso 2 puede ser otro — vuelve aquí si lo cambias). Si algo falta, complétalo antes de continuar.</p>
 
         <div class="stat-grid">
           <div class="stat-tile {% if kpis.matriculas > 0 %}ok{% else %}err{% endif %}">
@@ -330,6 +334,27 @@
             <div>
               <div class="stat-num">{{ kpis.matriculas }}</div>
               <div class="stat-lbl">Matrículas activas</div>
+            </div>
+          </div>
+          <div class="stat-tile {% if kpis.docentes > 0 %}ok{% else %}err{% endif %}">
+            <div class="stat-icon">👨‍🏫</div>
+            <div>
+              <div class="stat-num">{{ kpis.docentes }}</div>
+              <div class="stat-lbl">Docentes activos</div>
+            </div>
+          </div>
+          <div class="stat-tile {% if kpis.salones > 0 %}ok{% else %}err{% endif %}">
+            <div class="stat-icon">🚪</div>
+            <div>
+              <div class="stat-num">{{ kpis.salones }}</div>
+              <div class="stat-lbl">Salones disponibles</div>
+            </div>
+          </div>
+          <div class="stat-tile {% if kpis.bloques > 0 %}ok{% else %}err{% endif %}">
+            <div class="stat-icon">🕐</div>
+            <div>
+              <div class="stat-num">{{ kpis.bloques }}</div>
+              <div class="stat-lbl">Bloques horarios</div>
             </div>
           </div>
           <div class="stat-tile ok">
@@ -346,17 +371,24 @@
               <div class="stat-lbl">Reglas activas</div>
             </div>
           </div>
-          <div class="stat-tile {% if kpis.salones > 0 %}ok{% else %}err{% endif %}">
-            <div class="stat-icon">🚪</div>
-            <div>
-              <div class="stat-num">{{ kpis.salones }}</div>
-              <div class="stat-lbl">Salones disponibles</div>
-            </div>
-          </div>
         </div>
 
+        {% if kpis.matriculas == 0 and kpis.matriculas_inscritas > 0 %}
+        <div class="data-summary" style="background:rgba(251,146,60,0.08);border-color:rgba(251,146,60,0.30);">
+          ⚠️ <strong>{{ periodo_verificacion.codigo }} tiene {{ kpis.matriculas_inscritas }} matrícula(s) en estado <code>INSCRITA</code> (pre-registro sin confirmar), pero 0 en <code>ACTIVA</code>.</strong>
+          El Motor IA solo programa matrículas <code>ACTIVA</code> — las <code>INSCRITA</code> aún no cuentan como confirmadas (el estudiante se preinscribió pero falta confirmar/pagar la matrícula).
+          Para que el motor pueda usarlas: consigue el Excel <em>"INSCRITOS POR CICLO"</em> actualizado con esas filas en <code>ESTADO=MATRICULADO</code>, y vuelve a correr
+          <code>python manage.py importar_inscritos ruta\archivo.xlsx --periodo {{ periodo_verificacion.codigo }}</code> desde <code>SIIHAPI\backend</code> (es seguro repetirlo: nunca degrada una matrícula ya confirmada).
+        </div>
+        {% elif kpis.matriculas == 0 %}
+        <div class="data-summary" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.30);">
+          ⚠️ <strong>{{ periodo_verificacion.codigo }} no tiene ninguna matrícula todavía</strong> (ni activa ni inscrita). Impórtalas con
+          <code>python manage.py importar_inscritos ruta\archivo.xlsx --periodo {{ periodo_verificacion.codigo }}</code> desde <code>SIIHAPI\backend</code>, o cambia de periodo en el selector de arriba si querías generar otro ciclo.
+        </div>
+        {% endif %}
+
         <div class="data-summary">
-          💡 <strong>¿Cómo funciona?</strong> El motor cargará tus matrículas, docentes con disponibilidad declarada, salones por capacidad y bloques horarios. Aplicará CSP (Constraint Satisfaction Problem) con OR-Tools para encontrar la asignación óptima, y un LLM (Gemini / GPT-4o / Claude) analizará el resultado.
+          💡 <strong>¿Cómo funciona?</strong> El motor cargará las matrículas ACTIVAS de este periodo, docentes con disponibilidad declarada, salones por capacidad y bloques horarios (estos tres últimos son un catálogo global, no por periodo). Aplicará CSP (Constraint Satisfaction Problem) con OR-Tools para encontrar la asignación óptima, y un LLM (Gemini / GPT-4o / Claude) analizará el resultado.
         </div>
 
         <div class="nav-row">
@@ -372,6 +404,16 @@
         <div class="card-hdr">
           <span class="card-title">⚙️ Parámetros del motor</span>
         </div>
+
+        <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:6px 0 8px;">Periodo (ciclo de formación) a generar</p>
+        <select id="cfg-periodo-select" onchange="pickPeriodo(this)"
+                style="width:100%;max-width:320px;padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--white);font-size:13px;font-family:inherit;box-sizing:border-box;margin-bottom:18px;cursor:pointer;">
+          {% for p in periodos_disponibles %}
+          <option value="{{ p.codigo }}" {% if periodo_actual_global and p.id_periodo == periodo_actual_global.id_periodo %}selected{% endif %}>{{ p.codigo }}{% if p.activo %} · activo{% endif %}</option>
+          {% empty %}
+          <option value="2026-2">2026-2</option>
+          {% endfor %}
+        </select>
 
         <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:6px 0 8px;">Modo de ejecución</p>
         <div class="mode-pick">
@@ -407,6 +449,11 @@
             <div class="llm-name">Claude 3.5</div>
             <div class="llm-tag">Anthropic</div>
           </div>
+          <div class="llm-card" data-llm="COPILOT" onclick="pickLlm(this)">
+            <span class="llm-emoji">🔷</span>
+            <div class="llm-name">Microsoft Copilot</div>
+            <div class="llm-tag">Azure OpenAI</div>
+          </div>
           <div class="llm-card" data-llm="HEURISTIC" onclick="pickLlm(this)">
             <span class="llm-emoji">⚙️</span>
             <div class="llm-name">Heurístico</div>
@@ -416,7 +463,7 @@
 
         <p style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:18px 0 10px;">Resumen de la configuración</p>
         <div class="data-summary">
-          <strong>Periodo:</strong> 2026-2  ·  <strong>Modo:</strong> <span id="cfg-modo">Ejecución completa</span>  ·  <strong>IA:</strong> <span id="cfg-llm">Auto</span><br>
+          <strong>Periodo:</strong> <span id="cfg-periodo">{{ periodo_actual_global.codigo|default:"2026-2" }}</span>  ·  <strong>Modo:</strong> <span id="cfg-modo">Ejecución completa</span>  ·  <strong>IA:</strong> <span id="cfg-llm">Auto</span><br>
           Restricciones a respetar: disponibilidad docente, capacidad de salones, no choque de bloques, regla institucional.
         </div>
 
@@ -442,7 +489,8 @@
         </div>
 
         <div class="nav-row" id="exec-nav" style="display:none;">
-          <button class="btn-cta" onclick="gotoStep(4)">Ver resultado <span>→</span></button>
+          <button class="btn-cta" id="exec-nav-ver-resultado" onclick="gotoStep(4)">Ver resultado <span>→</span></button>
+          <button class="btn-back" id="exec-nav-reconfigurar" style="display:none;" onclick="gotoStep(2)"><span>↻</span> Volver a configurar</button>
         </div>
       </div>
     </div>
@@ -693,7 +741,14 @@
 <script>
 (function(){
   // ════════════════ State ════════════════
-  const state = { step: 1, modo: 'COMPLETA', llm: '' };
+  const state = {
+    step: 1, modo: 'COMPLETA', llm: '',
+    periodo: document.getElementById('cfg-periodo-select')?.value || '2026-2',
+  };
+  // Expuesto en window para que las funciones del panel de revisión (fuera
+  // de esta IIFE: analizarArchivo, enviarRevision, publicarSisca, etc.)
+  // usen el mismo periodo elegido aquí, en vez de un valor fijo.
+  window._motorPeriodo = state.periodo;
   const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
 
   // ════════════════ Stepper ════════════════
@@ -718,7 +773,7 @@
   });
 
   // ════════════════ Mode / LLM picker ════════════════
-  const llmNames = {'':'Auto','GEMINI':'Gemini 2.5','OPENAI':'GPT-4o','ANTHROPIC':'Claude 3.5','HEURISTIC':'Heurístico local'};
+  const llmNames = {'':'Auto','GEMINI':'Gemini 2.5','OPENAI':'GPT-4o','ANTHROPIC':'Claude 3.5','COPILOT':'Microsoft Copilot','HEURISTIC':'Heurístico local'};
   const modoNames = {'COMPLETA':'Ejecución completa','SIMULACION':'Simulación'};
 
   window.pickMode = function(el) {
@@ -732,6 +787,11 @@
     el.classList.add('selected');
     state.llm = el.dataset.llm;
     document.getElementById('cfg-llm').textContent = llmNames[state.llm];
+  };
+  window.pickPeriodo = function(sel) {
+    state.periodo = sel.value;
+    window._motorPeriodo = sel.value;
+    document.getElementById('cfg-periodo').textContent = state.periodo;
   };
 
   // ════════════════ Live logs ════════════════
@@ -764,13 +824,15 @@
     // Reset
     document.getElementById('live-logs').innerHTML = '';
     document.getElementById('exec-nav').style.display = 'none';
+    document.getElementById('exec-nav-ver-resultado').style.display = 'none';
+    document.getElementById('exec-nav-reconfigurar').style.display = 'none';
     setProgress(8, 'Inicializando motor CSP…', 'Cargando matrículas y restricciones');
     addLog('Iniciando motor IA híbrido (CSP + LLM)…', 'info');
     await wait(300);
     setProgress(20, 'Cargando datos…', 'Matrículas, docentes, salones, bloques');
-    addLog('Conectando con Oracle XE 21c…', 'info');
+    addLog('Conectando con la base de datos (PostgreSQL)…', 'info');
     await wait(300);
-    addLog(`Modo: ${modoNames[state.modo]} · LLM: ${llmNames[state.llm]}`, 'info');
+    addLog(`Periodo: ${state.periodo} · Modo: ${modoNames[state.modo]} · LLM: ${llmNames[state.llm]}`, 'info');
     setProgress(35, 'Resolviendo CSP…', 'OR-Tools CP-SAT solver activo');
     addLog('Aplicando restricciones de disponibilidad docente…', 'info');
     await wait(400);
@@ -779,7 +841,7 @@
 
     try {
       const fd = new FormData();
-      fd.append('periodo', '2026-2');
+      fd.append('periodo', state.periodo);
       fd.append('modo', state.modo);
       if (state.llm) fd.append('llm', state.llm);
       const r = await fetch('{% url "motor_ia_ejecutar" %}', {
@@ -803,6 +865,7 @@
         // Llenar resultado
         renderResult(d);
         document.getElementById('exec-nav').style.display = 'flex';
+        document.getElementById('exec-nav-ver-resultado').style.display = 'inline-flex';
         // Auto-saltar al step 4 (resultado) que tiene el botón al panel de revisión
         setTimeout(() => gotoStep(4), 1500);
         // Banner sticky con CTA al panel
@@ -810,10 +873,18 @@
       } else {
         setProgress(100, '❌ Error en el motor', d.error || 'Error desconocido');
         addLog('ERROR: ' + (d.error || 'desconocido'), 'warn');
+        if (d.sugerencia) addLog('💡 ' + d.sugerencia, 'warn');
+        if (d.faltantes) {
+          addLog(`Conteos para ${state.periodo} → docentes: ${d.faltantes.docentes} · salones: ${d.faltantes.salones} · bloques: ${d.faltantes.bloques} · matrículas activas: ${d.faltantes.matriculas_activas} · inscritas sin confirmar: ${d.faltantes.matriculas_inscritas}`, 'info');
+        }
+        document.getElementById('exec-nav').style.display = 'flex';
+        document.getElementById('exec-nav-reconfigurar').style.display = 'inline-flex';
       }
     } catch(e) {
       setProgress(100, '❌ Error de conexión', e.message);
       addLog('ERROR: ' + e.message, 'warn');
+      document.getElementById('exec-nav').style.display = 'flex';
+      document.getElementById('exec-nav-reconfigurar').style.display = 'inline-flex';
     }
   };
 
@@ -957,7 +1028,7 @@ async function analizarArchivo(){
   try {
     const fd = new FormData();
     _iaFiles.forEach(f => fd.append('archivos', f));
-    fd.append('periodo', '2026-2');
+    fd.append('periodo', window._motorPeriodo || '2026-2');
     fd.append('forzar_llm', document.getElementById('ia-forzar').checked ? 'true' : 'false');
     const r = await fetch('{% url "motor_ia_analizar" %}', {
       method: 'POST', headers: { 'X-CSRFToken': _csrfTok() }, body: fd
@@ -1147,7 +1218,7 @@ async function enviarRevision(){
   try {
     const fd = new FormData();
     fd.append('instruccion', msg);
-    fd.append('periodo', '2026-2');
+    fd.append('periodo', window._motorPeriodo || '2026-2');
     const r = await fetch('{% url "motor_ia_proponer_edicion" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd });
     const d = await r.json();
     if (d.success && d.plan) {
@@ -1210,7 +1281,7 @@ async function publicarSisca(){
   let estado = null;
   try { estado = await (await fetch('{% url "sisca_estado" %}')).json(); } catch(e){}
   typing.remove();
-  const periodo = '2026-2';
+  const periodo = window._motorPeriodo || '2026-2';
   _revAdd('🧐 <strong>Antes de publicar en SISCA, revisa el borrador.</strong><br>Descarga el archivo y verifica carrera, periodo ('+periodo+') y jornada.<br>'
     + '<a href="{% url "motor_ia_descargar_borrador" %}" target="_blank" style="display:inline-block;margin-top:8px;background:linear-gradient(135deg,#06B6D4,#1F6FEB);color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;">📥 Descargar borrador (Excel)</a><br><br>'
     + (estado && !estado.conectado ? '🔴 SISCA no responde en ' + (estado.base_url||'localhost:8080') + '.<br>' : '🟢 SISCA conectado.<br>')
@@ -1223,7 +1294,7 @@ async function _publicarAhora(){
     let estado = null;
     try { estado = await (await fetch('{% url "sisca_estado" %}')).json(); } catch(e){}
     if (estado && !estado.conectado) { typing.remove(); _revAdd('🔴 SISCA no responde. Inícialo y vuelve a confirmar.', 'bot'); return; }
-    const fd = new FormData(); fd.append('periodo', '2026-2');
+    const fd = new FormData(); fd.append('periodo', window._motorPeriodo || '2026-2');
     const r = await fetch('{% url "sisca_publicar" %}', { method:'POST', headers:{'X-CSRFToken':_csrfTok()}, body: fd });
     const d = await r.json(); typing.remove();
     if (d.success) { _revAdd('✅ <strong>Publicado en SISCA</strong>: ' + (d.total_publicados||'') + ' horario(s). Ya aparecen en SISCA y siguen visibles aquí en SIIHAPI.', 'bot'); }

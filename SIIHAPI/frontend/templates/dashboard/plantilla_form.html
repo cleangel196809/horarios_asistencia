@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{% if plantilla %}Editar Plantilla{% else %}Nueva Plantilla{% endif %}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Motor de Reglas</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">{% if plantilla %}✏️ Editar Plantilla{% else %}➕ Nueva Plantilla de Correo{% endif %}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">El asunto y el cuerpo admiten variables Django Templates, ej. <code>{% templatetag openvariable %} estudiante.nombre {% templatetag closevariable %}</code>.</p>
+    </div>
+    <div class="card">
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:1fr;gap:14px;">
+        {% csrf_token %}
+        {% if not plantilla %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Código (slug único)</label>
+          <input type="text" name="codigo" required placeholder="ej. alerta-inasistencia-jornada" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        {% endif %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Asunto</label>
+          <input type="text" name="asunto" required value="{{ plantilla.asunto|default:'' }}" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Cuerpo (HTML)</label>
+          <textarea name="cuerpo_html" rows="8" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;">{{ plantilla.cuerpo_html|default:'' }}</textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Variables disponibles (separadas por coma)</label>
+          <input type="text" name="variables_disponibles" value="{{ plantilla.variables_disponibles|join:', ' }}" placeholder="jornada, docente, estudiante, valor_metrica, regla, ventana_dias" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="color:var(--txt2);"><input type="checkbox" name="activa" {% if plantilla.activa|default:True %}checked{% endif %}> Plantilla activa</label>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 """
 SIIHAPI - Capa LLM (Large Language Model).
 
-Conecta con Google Gemini, OpenAI o Anthropic Claude para:
+Conecta con Google Gemini, OpenAI, Anthropic Claude o Microsoft Copilot para:
     - Generar resumen ejecutivo del horario en lenguaje natural
     - Detectar anomalias y sugerir optimizaciones
     - Responder preguntas sobre el horario
@@ -11,7 +11,20 @@ Selecciona automaticamente el proveedor segun la API key configurada:
     GEMINI_API_KEY    -> Google Gemini 1.5 Flash
     OPENAI_API_KEY    -> OpenAI GPT-4o-mini
     ANTHROPIC_API_KEY -> Claude 3.5 Haiku
+    AZURE_OPENAI_*    -> Microsoft Copilot (ver nota abajo)
     (ninguna)         -> Analizador heuristico local
+
+Nota sobre "Microsoft Copilot" (Fase 3, 2026-09-04): Copilot (Word/Outlook/
+Teams) NO expone una API publica de tipo "chat completion" que una app
+externa pueda llamar con una simple API key -- no es lo mismo que Gemini,
+OpenAI o Anthropic. El motor real detras de Microsoft Copilot es Azure
+OpenAI Service (los mismos modelos GPT-4o, alojados en el tenant de Azure/
+Microsoft 365 de la institucion). Por eso el proveedor 'COPILOT' aqui se
+implementa contra Azure OpenAI: es la forma honesta y funcional de tener
+"el motor de Copilot" disponible como una opcion mas del Motor IA, usando
+las credenciales de Azure OpenAI que el administrador de TI del Politecnico
+debe generar en su portal de Azure (ver AZURE_OPENAI_API_KEY/_ENDPOINT/
+_DEPLOYMENT en backend/.env.example).
 """
 import os
 import json
@@ -45,6 +58,28 @@ def _get_api_key(nombre):
     )
 
 
+def _get_azure_config():
+    """Config de Azure OpenAI (el motor real detras de Microsoft Copilot).
+    Acepta tanto los nombres estandar de Azure (AZURE_OPENAI_*) como alias
+    con el prefijo COPILOT_* por si el admin de TI prefiere nombrarlas asi
+    en el .env, para que quede claro que son "las llaves de Copilot"."""
+    api_key = _get_api_key('AZURE_OPENAI_API_KEY') or _get_api_key('COPILOT_API_KEY')
+    endpoint = _get_api_key('AZURE_OPENAI_ENDPOINT') or _get_api_key('COPILOT_ENDPOINT')
+    deployment = (_get_api_key('AZURE_OPENAI_DEPLOYMENT') or _get_api_key('COPILOT_DEPLOYMENT')
+                  or 'gpt-4o-mini')
+    api_version = (_get_api_key('AZURE_OPENAI_API_VERSION') or _get_api_key('COPILOT_API_VERSION')
+                   or '2024-08-01-preview')
+    return {
+        'api_key': api_key, 'endpoint': endpoint,
+        'deployment': deployment, 'api_version': api_version,
+    }
+
+
+def _copilot_configurado():
+    cfg = _get_azure_config()
+    return bool(cfg['api_key'] and cfg['endpoint'])
+
+
 def proveedor_disponible():
     """Retorna el primer proveedor con key valida."""
     if _get_api_key('GEMINI_API_KEY'):
@@ -63,6 +98,12 @@ def proveedor_disponible():
         try:
             import anthropic  # noqa
             return 'ANTHROPIC'
+        except ImportError:
+            pass
+    if _copilot_configurado():
+        try:
+            import openai  # noqa (el SDK 'openai' incluye el cliente AzureOpenAI)
+            return 'COPILOT'
         except ImportError:
             pass
     return 'HEURISTIC'
@@ -167,6 +208,29 @@ def _llm_anthropic(prompt, api_key):
 
 
 # ════════════════════════════════════════════════════════════════
+#  IMPLEMENTACION 4: Microsoft Copilot (via Azure OpenAI Service)
+# ════════════════════════════════════════════════════════════════
+def _cliente_azure(cfg):
+    from openai import AzureOpenAI
+    return AzureOpenAI(
+        api_key=cfg['api_key'],
+        azure_endpoint=cfg['endpoint'],
+        api_version=cfg['api_version'],
+    )
+
+
+def _llm_copilot(prompt, cfg):
+    client = _cliente_azure(cfg)
+    response = client.chat.completions.create(
+        model=cfg['deployment'],  # en Azure, 'model' es el nombre del despliegue
+        messages=[{'role': 'user', 'content': prompt}],
+        response_format={'type': 'json_object'},
+        max_tokens=600,
+    )
+    return response.choices[0].message.content, f"copilot:{cfg['deployment']}"
+
+
+# ════════════════════════════════════════════════════════════════
 #  IMPLEMENTACION 4: Analizador heuristico local (sin API key)
 # ════════════════════════════════════════════════════════════════
 def _llm_heuristico(datos):
@@ -264,7 +328,7 @@ def chat_llm(mensaje, historial=None, contexto_archivo='', forzar_proveedor=None
         mensaje:           texto del usuario
         historial:         lista de dicts [{'rol': 'user'|'assistant', 'texto': '...'}]
         contexto_archivo:  texto adicional (ej: contenido de un CSV subido)
-        forzar_proveedor:  'GEMINI' | 'OPENAI' | 'ANTHROPIC' | None=auto
+        forzar_proveedor:  'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'COPILOT' | None=auto
 
     Returns:
         dict con {success, respuesta, proveedor, modelo}
@@ -352,6 +416,30 @@ def chat_llm(mensaje, historial=None, contexto_archivo='', forzar_proveedor=None
                 'proveedor': 'ANTHROPIC',
                 'modelo':    'claude-3-5-haiku',
             }
+
+        elif proveedor == 'COPILOT':
+            cfg = _get_azure_config()
+            if not (cfg['api_key'] and cfg['endpoint']):
+                raise Exception('Sin AZURE_OPENAI_API_KEY/AZURE_OPENAI_ENDPOINT (credenciales de Copilot)')
+            client = _cliente_azure(cfg)
+            messages = [{'role': 'system', 'content': SISTEMA_PROMPT_CHAT}]
+            for h in historial[-10:]:
+                messages.append({
+                    'role': 'user' if h['rol'] == 'user' else 'assistant',
+                    'content': h['texto'],
+                })
+            messages.append({'role': 'user', 'content': full_user_msg})
+            resp = client.chat.completions.create(
+                model=cfg['deployment'],
+                messages=messages,
+                max_tokens=1200,
+            )
+            return {
+                'success':   True,
+                'respuesta': resp.choices[0].message.content,
+                'proveedor': 'COPILOT',
+                'modelo':    f"copilot:{cfg['deployment']}",
+            }
     except Exception as e:
         return {
             'success':   False,
@@ -370,7 +458,9 @@ def chat_llm(mensaje, historial=None, contexto_archivo='', forzar_proveedor=None
             f"Recibi tu mensaje: '{mensaje[:200]}'.\n\n"
             f"Para tener respuestas reales con IA, configura una API key en backend/.env:\n"
             f"  - GEMINI_API_KEY (gratis en https://aistudio.google.com/apikey)\n"
-            f"  - OPENAI_API_KEY (pago en https://platform.openai.com/api-keys)\n\n"
+            f"  - OPENAI_API_KEY (pago en https://platform.openai.com/api-keys)\n"
+            f"  - AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT (Copilot / Azure OpenAI, "
+            f"vía el portal de Azure de la institución)\n\n"
             f"Mientras tanto, puedo ayudarte recordandote:\n"
             f"  1. El Motor IA (boton 'Ejecutar') genera horarios automaticamente.\n"
             f"  2. Aprueba los horarios PROPUESTOS desde el panel Horarios.\n"
@@ -475,6 +565,21 @@ def _llm_anthropic_json(prompt, api_key, temperatura=0.1):
     return r.content[0].text, 'claude-3-5-haiku'
 
 
+def _llm_copilot_json(prompt, cfg, temperatura=0.1):
+    client = _cliente_azure(cfg)
+    r = client.chat.completions.create(
+        model=cfg['deployment'],
+        messages=[
+            {'role': 'system', 'content': 'Extraes horarios academicos a JSON estructurado. Responde solo JSON.'},
+            {'role': 'user', 'content': prompt},
+        ],
+        response_format={'type': 'json_object'},
+        temperature=temperatura,
+        max_tokens=4000,
+    )
+    return r.choices[0].message.content, f"copilot:{cfg['deployment']}"
+
+
 def _limpiar_json(txt):
     """Quita envoltura markdown y extrae el primer objeto/array JSON."""
     t = (txt or '').strip()
@@ -517,12 +622,14 @@ def extraer_horarios_con_ia(texto, periodo='2026-2', catalogo=None, forzar_prove
 
     proveedor = forzar_proveedor or proveedor_disponible()
     raw, modelo = '', ''
-    if proveedor in ('GEMINI', 'OPENAI', 'ANTHROPIC'):
+    if proveedor in ('GEMINI', 'OPENAI', 'ANTHROPIC', 'COPILOT'):
         try:
             if proveedor == 'GEMINI':
                 raw, modelo = _llm_gemini_json(prompt, _get_api_key('GEMINI_API_KEY'))
             elif proveedor == 'OPENAI':
                 raw, modelo = _llm_openai_json(prompt, _get_api_key('OPENAI_API_KEY'))
+            elif proveedor == 'COPILOT':
+                raw, modelo = _llm_copilot_json(prompt, _get_azure_config())
             else:
                 raw, modelo = _llm_anthropic_json(prompt, _get_api_key('ANTHROPIC_API_KEY'))
             data = json.loads(_limpiar_json(raw))
@@ -603,7 +710,7 @@ def analizar_horario_con_ia(datos: Dict[str, Any], forzar_proveedor: Optional[st
     raw = ''
     modelo = ''
 
-    if proveedor in ('GEMINI', 'OPENAI', 'ANTHROPIC'):
+    if proveedor in ('GEMINI', 'OPENAI', 'ANTHROPIC', 'COPILOT'):
         prompt = PROMPT_TEMPLATE.format(**datos)
         try:
             if proveedor == 'GEMINI':
@@ -612,6 +719,8 @@ def analizar_horario_con_ia(datos: Dict[str, Any], forzar_proveedor: Optional[st
                 raw, modelo = _llm_openai(prompt, _get_api_key('OPENAI_API_KEY'))
             elif proveedor == 'ANTHROPIC':
                 raw, modelo = _llm_anthropic(prompt, _get_api_key('ANTHROPIC_API_KEY'))
+            elif proveedor == 'COPILOT':
+                raw, modelo = _llm_copilot(prompt, _get_azure_config())
 
             # Limpiar markdown wrappers comunes
             txt = raw.strip()

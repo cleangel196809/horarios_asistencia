@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='base_datos' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+          <a href="{% url 'base_datos' %}" style="color:var(--txt3);text-decoration:none;">🗄️ Base de Datos</a> / Usuarios
+        </p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Gestión de Usuarios</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Total: <strong style="color:var(--blue-lt);">{{ total }}</strong> usuario{{ total|pluralize }}</p>
+      </div>
+      <a href="{% url 'usuario_crear' %}" class="btn btn-primary">+ Nuevo usuario</a>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Filtrar y buscar</span></div>
+
+      <form method="get" action="{% url 'usuarios_admin' %}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:22px;">
+        <div style="flex:1;min-width:220px;">
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Buscar (cédula, nombre, apellido, correo)</label>
+          <input type="text" name="q" value="{{ q }}" placeholder="Ej. 1032459876 o Andrea Ríos" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Rol</label>
+          <select name="rol" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todos</option>
+            {% for code, label in roles %}
+            <option value="{{ code }}" {% if code == rol_filtro %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;margin-bottom:6px;">Estado</label>
+          <select name="estado" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:9px 12px;">
+            <option value="">Todos</option>
+            {% for code, label in estados %}
+            <option value="{{ code }}" {% if code == estado_filtro %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-cyan">🔎 Filtrar</button>
+        {% if q or rol_filtro or estado_filtro %}
+        <a href="{% url 'usuarios_admin' %}" class="btn btn-ghost">✕ Limpiar</a>
+        {% endif %}
+      </form>
+
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Cédula</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Rol</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+            <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ u.cedula|default:"—" }}</td>
+            <td style="padding:10px;color:var(--white);">{{ u.nombre }} {{ u.apellido }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ u.correo }}</td>
+            <td style="padding:10px;color:var(--cyan);">{{ u.get_rol_display }}</td>
+            <td style="padding:10px;">
+              {% if u.is_active %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(132,204,22,0.16);color:var(--lime-lt);border:1px solid rgba(132,204,22,0.35);">Activo</span>
+              {% else %}
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(239,68,68,0.14);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);">Inactivo</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px;text-align:right;white-space:nowrap;">
+              <a href="{% url 'usuario_editar' id_usuario=u.id_usuario %}" class="btn btn-ghost btn-sm">✏️ Editar</a>
+              {% if u.is_active %}
+              <form method="post" action="{% url 'usuario_inactivar' id_usuario=u.id_usuario %}" style="display:inline;" onsubmit="return confirm('¿Inactivar a {{ u.nombre }} {{ u.apellido }}? No podrá iniciar sesión hasta que lo reactives.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm" style="background:rgba(239,68,68,0.14);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);">🚫 Inactivar</button>
+              </form>
+              {% else %}
+              <form method="post" action="{% url 'usuario_reactivar' id_usuario=u.id_usuario %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm" style="background:rgba(132,204,22,0.14);color:var(--lime-lt);border:1px solid rgba(132,204,22,0.35);">✅ Reactivar</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">
+            {% if q or rol_filtro or estado_filtro %}No se encontraron usuarios con ese filtro.{% else %}No hay usuarios registrados aún.{% endif %}
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Solicitudes de Reprogramación · Docente{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='solicitudes_reprog' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Operación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🔁 Solicitudes de Reprogramación</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Solicita un cambio puntual (una sola fecha) para una de tus clases: cambio de aula, sustitución de docente o cambio de horario. El horario base de tu ciclo no se modifica.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-hdr"><span class="card-title">➕ Nueva solicitud</span></div>
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Clase afectada</label>
+          <select name="horario" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Selecciona…</option>
+            {% for h in mis_horarios %}
+            <option value="{{ h.id_horario }}">{{ h.materia.codigo }} — {{ h.get_dia_display }} B{{ h.bloque.numero }} ({{ h.bloque.hora_inicio|time:"H:i" }}–{{ h.bloque.hora_fin|time:"H:i" }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Tipo de solicitud</label>
+          <select name="tipo" id="id_tipo" required onchange="toggleCamposTipo()" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Selecciona…</option>
+            <option value="CAMBIO_AULA">Cambio de aula</option>
+            <option value="SUSTITUCION_DOCENTE">Sustitución de docente</option>
+            <option value="CAMBIO_HORARIO">Cambio de horario puntual</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fecha afectada (una sola fecha)</label>
+          <input type="date" name="fecha_afectada" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div id="campo_salon" style="display:none;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Salón propuesto</label>
+          <select name="salon_propuesto" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Selecciona…</option>
+            {% for s in salones %}
+            <option value="{{ s.id_salon }}">{{ s.codigo }} ({{ s.sede.nombre }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="campo_docente" style="display:none;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Docente sustituto propuesto</label>
+          <select name="docente_sustituto_propuesto" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Selecciona…</option>
+            {% for d in docentes %}
+            <option value="{{ d.usuario_id }}">{{ d.usuario.nombre_completo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Motivo</label>
+          <textarea name="motivo" required rows="3" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);"></textarea>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Enviar solicitud</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Mis solicitudes</span>
+        <span class="tb-badge">{{ mis_solicitudes|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Clase</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Motivo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for s in mis_solicitudes %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ s.horario.materia.codigo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.get_tipo_display }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ s.fecha_afectada|date:"d/m/Y" }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.motivo|truncatechars:60 }}</td>
+            <td style="padding:10px;color:{% if s.estado == 'APROBADA' %}var(--lime-lt){% elif s.estado == 'RECHAZADA' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ s.get_estado_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no has enviado solicitudes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+function toggleCamposTipo() {
+  var tipo = document.getElementById('id_tipo').value;
+  document.getElementById('campo_salon').style.display = (tipo === 'CAMBIO_AULA') ? 'block' : 'none';
+  document.getElementById('campo_docente').style.display = (tipo === 'SUSTITUCION_DOCENTE') ? 'block' : 'none';
+}
+</script>
+{% endblock %}

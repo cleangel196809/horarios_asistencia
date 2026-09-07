@@ -33,6 +33,39 @@
   .kpi-cell.ok .v{color:var(--lime-lt);}
   .kpi-cell.info .v{color:var(--cyan-lt);}
 
+  /* Fix (2026-09-06): el <select> de filtros se pintaba oscuro/claro con
+     estilos inline, pero el popup nativo de <option> no los heredaba en
+     todos los navegadores -- texto ilegible (blanco sobre blanco, o negro
+     sobre negro segun el tema del sistema operativo). color-scheme:dark
+     en el <select> ya lo resuelve en navegadores modernos; esto es el
+     respaldo explicito para los que lo ignoran. */
+  select.rev-select option{background:#0b1120;color:#fff;}
+
+  /* Buscar + expandir detalle en las tablas de listas (2026-09-06, a pedido
+     del usuario): cada tabla de "Por docente/aula/sede/programa/facultad"
+     tiene su propio buscador, y cada fila se puede hacer clic para
+     desplegar el detalle (clases/dia/bloque/salon) sin salir de la
+     pantalla. */
+  .rev-search{
+    background:var(--surface);color:var(--white);border:1px solid var(--border);
+    border-radius:8px;padding:8px 14px;font-size:13px;width:100%;max-width:320px;
+    margin-bottom:10px;
+  }
+  .rev-search::placeholder{color:var(--txt3);}
+  tr.data-row{cursor:pointer;}
+  tr.data-row:hover{background:rgba(255,255,255,0.03);}
+  .exp-arrow{display:inline-block;width:14px;color:var(--txt3);font-size:11px;}
+  tr.detail-row td{padding:0 !important;background:rgba(255,255,255,0.02);}
+  table.detail-table{width:100%;border-collapse:collapse;margin:6px 0 10px 26px;
+    width:calc(100% - 26px);font-size:12px;}
+  table.detail-table th{color:var(--txt3);text-transform:uppercase;font-size:10px;
+    font-weight:700;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);}
+  table.detail-table td{color:var(--txt2);padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);}
+  .dist-row{cursor:pointer;}
+  .dist-row:hover{background:rgba(255,255,255,0.03);}
+  .dist-detail{margin:0 0 10px 0;padding:8px 12px;background:rgba(255,255,255,0.02);
+    border-radius:8px;}
+
   /* Tabs */
   .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto;}
   .tab{
@@ -208,11 +241,16 @@
       </div>
     </div>
 
-    {# ════════════════ Filtro de estado ════════════════ #}
+    {# ════════════════ Filtro de estado / periodo ════════════════ #}
     <form method="GET" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;">Mostrar:</label>
-      <select name="estado" onchange="this.form.submit()" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;">
+      <select name="estado" onchange="this.form.submit()" class="rev-select" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color-scheme:dark;">
         {% for e, lbl in estados %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+      <label style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700;">Periodo:</label>
+      <select name="periodo" onchange="this.form.submit()" class="rev-select" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color-scheme:dark;">
+        <option value="TODOS" {% if periodo_filtro == 'TODOS' %}selected{% endif %}>Todos los periodos</option>
+        {% for p in periodos_disponibles %}<option value="{{ p }}" {% if periodo_filtro == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
       </select>
       <span style="font-size:12px;color:var(--txt3);">Mostrando <strong style="color:var(--cyan-lt);">{{ kpis.total }}</strong> horarios</span>
     </form>
@@ -222,7 +260,9 @@
       <button class="tab active" data-tab="cal">🗓 Calendario semanal</button>
       <button class="tab" data-tab="doc">👨‍🏫 Por docente <span class="tab-badge">{{ docentes_data|length }}</span></button>
       <button class="tab" data-tab="aula">🏛️ Por aula <span class="tab-badge">{{ aulas_data|length }}</span></button>
+      <button class="tab" data-tab="sede">🏢 Por sede <span class="tab-badge">{{ sedes_data|length }}</span></button>
       <button class="tab" data-tab="prog">📚 Por programa <span class="tab-badge">{{ programas_data|length }}</span></button>
+      <button class="tab" data-tab="fac">🎓 Por facultad <span class="tab-badge">{{ facultades_data|length }}</span></button>
       <button class="tab" data-tab="dist">📊 Distribución</button>
       <button class="tab" data-tab="conf">⚠ Conflictos <span class="tab-badge" {% if kpis.conflictos > 0 %}style="background:rgba(239,68,68,0.20);color:var(--red-lt);"{% endif %}>{{ kpis.conflictos }}</span></button>
     </div>
@@ -267,9 +307,11 @@
 
     {# ──────── TAB 2: DOCENTES ──────── #}
     <div class="tab-pane" data-pane="doc">
-      <table class="data-table">
+      <input type="text" id="search-doc" class="rev-search" placeholder="🔎 Buscar docente…">
+      <table class="data-table" id="tbl-doc">
         <thead>
           <tr>
+            <th></th>
             <th>Docente</th>
             <th>Horas asignadas</th>
             <th>Carga visual</th>
@@ -279,19 +321,38 @@
         </thead>
         <tbody>
           {% for d in docentes_data %}
-          <tr>
+          <tr class="data-row" data-search="{{ d.nombre|lower }}">
+            <td><span class="exp-arrow">▸</span></td>
             <td style="color:var(--white);font-weight:700;">👤 {{ d.nombre }}</td>
             <td><strong style="color:var(--cyan-lt);">{{ d.horas }}</strong> horas</td>
             <td>
-              <div class="bar-wrap">
-                <div class="bar-fill {% if d.horas > 20 %}hot{% else %}ok{% endif %}" style="width:{{ d.horas|add:0|stringformat:'d' }}%;"></div>
+              <div class="bar-wrap" title="{{ d.horas_reales }}h reales de {{ d.carga_max }}h max ({{ d.ocupacion_pct }}%)">
+                <div class="bar-fill {% if d.sobrecargado %}hot{% elif d.ocupacion_pct > 80 %}hot{% else %}ok{% endif %}" style="width:{% if d.ocupacion_pct > 100 %}100{% else %}{{ d.ocupacion_pct }}{% endif %}%;"></div>
               </div>
+              <small style="color:var(--muted);">{{ d.ocupacion_pct }}%{% if d.sobrecargado %} ⚠ sobrecargado{% endif %}</small>
             </td>
             <td>{{ d.materias }}</td>
             <td>{{ d.dias }} / 6</td>
           </tr>
+          <tr class="detail-row" style="display:none;"><td colspan="6">
+            <table class="detail-table">
+              <thead><tr><th>Materia</th><th>Salón</th><th>Sede</th><th>Día</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in d.horarios %}
+                <tr>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.salon.codigo|default:"—" }}</td>
+                  <td>{{ h.salon.sede.nombre|default:"—" }}</td>
+                  <td>{{ h.get_dia_display }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </td></tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin horarios asignados</td></tr>
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt3);">Sin horarios asignados</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -299,9 +360,11 @@
 
     {# ──────── TAB 3: AULAS ──────── #}
     <div class="tab-pane" data-pane="aula">
-      <table class="data-table">
+      <input type="text" id="search-aula" class="rev-search" placeholder="🔎 Buscar aula…">
+      <table class="data-table" id="tbl-aula">
         <thead>
           <tr>
+            <th></th>
             <th>Aula</th>
             <th>Sede</th>
             <th>Horas ocupada</th>
@@ -311,7 +374,8 @@
         </thead>
         <tbody>
           {% for a in aulas_data %}
-          <tr>
+          <tr class="data-row" data-search="{{ a.codigo|lower }} {{ a.nombre|lower }} {{ a.sede|lower }}">
+            <td><span class="exp-arrow">▸</span></td>
             <td style="color:var(--white);font-weight:700;">🏛 {{ a.codigo }} <span style="color:var(--txt3);font-weight:400;">· {{ a.nombre|truncatechars:24 }}</span></td>
             <td>{{ a.sede }}</td>
             <td><strong style="color:var(--cyan-lt);">{{ a.horas }}</strong></td>
@@ -322,8 +386,70 @@
             </td>
             <td><strong>{{ a.ocupacion_pct }}%</strong></td>
           </tr>
+          <tr class="detail-row" style="display:none;"><td colspan="6">
+            <table class="detail-table">
+              <thead><tr><th>Materia</th><th>Docente</th><th>Día</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in a.horarios %}
+                <tr>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.docente.usuario.nombre_completo|default:"—" }}</td>
+                  <td>{{ h.get_dia_display }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </td></tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin aulas asignadas</td></tr>
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt3);">Sin aulas asignadas</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ──────── TAB SEDE (2026-09-06, nuevo) ──────── #}
+    <div class="tab-pane" data-pane="sede">
+      <input type="text" id="search-sede" class="rev-search" placeholder="🔎 Buscar sede…">
+      <table class="data-table" id="tbl-sede">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Sede</th>
+            <th>Aulas usadas</th>
+            <th>Docentes</th>
+            <th>Horas asignadas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sedes_data %}
+          <tr class="data-row" data-search="{{ s.nombre|lower }}">
+            <td><span class="exp-arrow">▸</span></td>
+            <td style="color:var(--white);font-weight:700;">🏢 {{ s.nombre }}</td>
+            <td>{{ s.aulas }}</td>
+            <td>{{ s.docentes }}</td>
+            <td><strong style="color:var(--cyan-lt);">{{ s.horas }}</strong></td>
+          </tr>
+          <tr class="detail-row" style="display:none;"><td colspan="5">
+            <table class="detail-table">
+              <thead><tr><th>Materia</th><th>Docente</th><th>Salón</th><th>Día</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in s.horarios %}
+                <tr>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.docente.usuario.nombre_completo|default:"—" }}</td>
+                  <td>{{ h.salon.codigo|default:"—" }}</td>
+                  <td>{{ h.get_dia_display }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </td></tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin sedes con horarios</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -331,9 +457,11 @@
 
     {# ──────── TAB 4: PROGRAMAS ──────── #}
     <div class="tab-pane" data-pane="prog">
-      <table class="data-table">
+      <input type="text" id="search-prog" class="rev-search" placeholder="🔎 Buscar programa…">
+      <table class="data-table" id="tbl-prog">
         <thead>
           <tr>
+            <th></th>
             <th>Código</th>
             <th>Programa</th>
             <th>Horarios</th>
@@ -343,15 +471,82 @@
         </thead>
         <tbody>
           {% for p in programas_data %}
-          <tr>
+          <tr class="data-row" data-search="{{ p.codigo|lower }} {{ p.nombre|lower }}">
+            <td><span class="exp-arrow">▸</span></td>
             <td style="color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;font-weight:700;">{{ p.codigo }}</td>
             <td style="color:var(--white);">📚 {{ p.nombre|truncatechars:60 }}</td>
             <td><strong style="color:var(--blue-lt);">{{ p.horas }}</strong></td>
             <td>{{ p.materias }}</td>
             <td>{{ p.docentes }}</td>
           </tr>
+          <tr class="detail-row" style="display:none;"><td colspan="6">
+            <table class="detail-table">
+              <thead><tr><th>Materia</th><th>Docente</th><th>Salón</th><th>Día</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in p.horarios %}
+                <tr>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.docente.usuario.nombre_completo|default:"—" }}</td>
+                  <td>{{ h.salon.codigo|default:"—" }}</td>
+                  <td>{{ h.get_dia_display }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </td></tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3);">Sin programas con horarios</td></tr>
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt3);">Sin programas con horarios</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ──────── TAB FACULTAD (2026-09-06, nuevo) ──────── #}
+    <div class="tab-pane" data-pane="fac">
+      <input type="text" id="search-fac" class="rev-search" placeholder="🔎 Buscar facultad…">
+      <table class="data-table" id="tbl-fac">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Código</th>
+            <th>Facultad</th>
+            <th>Horas</th>
+            <th>Programas únicos</th>
+            <th>Docentes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in facultades_data %}
+          <tr class="data-row" data-search="{{ f.codigo|lower }} {{ f.nombre|lower }}">
+            <td><span class="exp-arrow">▸</span></td>
+            <td style="color:var(--cyan-lt);font-family:'JetBrains Mono',monospace;font-weight:700;">{{ f.codigo }}</td>
+            <td style="color:var(--white);">🎓 {{ f.nombre|truncatechars:60 }}</td>
+            <td><strong style="color:var(--blue-lt);">{{ f.horas }}</strong></td>
+            <td>{{ f.programas }}</td>
+            <td>{{ f.docentes }}</td>
+          </tr>
+          <tr class="detail-row" style="display:none;"><td colspan="6">
+            <table class="detail-table">
+              <thead><tr><th>Programa</th><th>Materia</th><th>Docente</th><th>Salón</th><th>Día</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in f.horarios %}
+                <tr>
+                  <td>{{ h.materia.programa.codigo|default:"—" }}</td>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.docente.usuario.nombre_completo|default:"—" }}</td>
+                  <td>{{ h.salon.codigo|default:"—" }}</td>
+                  <td>{{ h.get_dia_display }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </td></tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt3);">Sin facultades con horarios</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -364,9 +559,27 @@
         <div class="dist-bars">
           {% for d in dist_dias %}
           <div class="dist-row">
-            <div class="dist-lbl">{{ d.dia }}</div>
+            <div class="dist-lbl"><span class="exp-arrow">▸</span> {{ d.dia }}</div>
             <div class="dist-track"><div class="dist-fill" style="width:{{ d.pct }}%;"></div></div>
             <div class="dist-num">{{ d.total }}</div>
+          </div>
+          <div class="dist-detail" style="display:none;">
+            <table class="detail-table">
+              <thead><tr><th>Materia</th><th>Docente</th><th>Salón</th><th>Bloque</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for h in d.horarios %}
+                <tr>
+                  <td>{{ h.materia.codigo }} · {{ h.materia.nombre|truncatechars:30 }}</td>
+                  <td>{{ h.docente.usuario.nombre_completo|default:"—" }}</td>
+                  <td>{{ h.salon.codigo|default:"—" }}</td>
+                  <td>B{{ h.bloque.numero }}</td>
+                  <td>{{ h.estado }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" style="text-align:center;color:var(--txt3);">Sin horarios ese día</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
           {% endfor %}
         </div>
@@ -427,8 +640,69 @@
     };
   });
 
+  // ───── Buscar + expandir detalle (2026-09-06, a pedido del usuario) ─────
+  // Cada tabla de lista (docente/aula/sede/programa/facultad) tiene su
+  // propio buscador y sus filas se pueden hacer clic para ver el detalle
+  // (clases, salón, día, bloque, estado) sin salir de esta pantalla.
+  function setupListTable(tableId, searchInputId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const rows = Array.from(table.querySelectorAll('tbody > tr.data-row'));
+
+    rows.forEach(row => {
+      row.addEventListener('click', () => {
+        const det = row.nextElementSibling;
+        if (!det || !det.classList.contains('detail-row')) return;
+        const abierto = det.style.display !== 'none';
+        det.style.display = abierto ? 'none' : 'table-row';
+        const arrow = row.querySelector('.exp-arrow');
+        if (arrow) arrow.textContent = abierto ? '▸' : '▾';
+      });
+    });
+
+    const input = searchInputId ? document.getElementById(searchInputId) : null;
+    if (input) {
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        rows.forEach(row => {
+          const coincide = (row.dataset.search || '').includes(q);
+          row.style.display = coincide ? '' : 'none';
+          const det = row.nextElementSibling;
+          if (det && det.classList.contains('detail-row')) {
+            det.style.display = 'none';
+            const arrow = row.querySelector('.exp-arrow');
+            if (arrow) arrow.textContent = '▸';
+            if (!coincide) det.style.display = 'none';
+          }
+        });
+      });
+    }
+  }
+  setupListTable('tbl-doc', 'search-doc');
+  setupListTable('tbl-aula', 'search-aula');
+  setupListTable('tbl-sede', 'search-sede');
+  setupListTable('tbl-prog', 'search-prog');
+  setupListTable('tbl-fac', 'search-fac');
+
+  // Distribución por día: cada fila (div, no <tr>) también se expande.
+  document.querySelectorAll('.dist-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const det = row.nextElementSibling;
+      if (!det || !det.classList.contains('dist-detail')) return;
+      const abierto = det.style.display !== 'none';
+      det.style.display = abierto ? 'none' : 'block';
+      const arrow = row.querySelector('.exp-arrow');
+      if (arrow) arrow.textContent = abierto ? '▸' : '▾';
+    });
+  });
+
   const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
   const $notif = document.getElementById('notif');
+
+  // Periodo activo del filtro de esta pantalla (2026-09-06): las acciones
+  // masivas de abajo deben afectar SOLO este periodo, nunca todos a la vez.
+  const periodoActivo = new URLSearchParams(window.location.search).get('periodo') || 'TODOS';
+  const periodoLabel = periodoActivo === 'TODOS' ? 'TODOS los periodos' : ('el periodo ' + periodoActivo);
 
   function notif(tipo, msg) {
     $notif.className = 'notif ' + tipo;
@@ -439,9 +713,10 @@
   }
 
   window.aprobarTodos = async function() {
-    if (!confirm('¿Aprobar TODOS los horarios propuestos? Esto los hará elegibles para publicar a SISCA.')) return;
+    if (!confirm('¿Aprobar TODOS los horarios propuestos de ' + periodoLabel + '? Esto los hará elegibles para publicar a SISCA.')) return;
     try {
-      const r = await fetch('{% url "revision_aprobar_todos" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}});
+      const body = new URLSearchParams({periodo: periodoActivo});
+      const r = await fetch('{% url "revision_aprobar_todos" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken, 'Content-Type':'application/x-www-form-urlencoded'}, body});
       const d = await r.json();
       if (d.success) {
         notif('ok', '✅ ' + d.mensaje + ' — recargando…');
@@ -453,9 +728,10 @@
   };
 
   window.eliminarPropuestas = async function() {
-    if (!confirm('¿Eliminar TODOS los horarios PROPUESTOS sin publicar? Útil para re-ejecutar el Motor IA desde cero.')) return;
+    if (!confirm('¿Eliminar TODOS los horarios PROPUESTOS sin publicar de ' + periodoLabel + '? Útil para re-ejecutar el Motor IA desde cero.')) return;
     try {
-      const r = await fetch('{% url "revision_eliminar_propuesta" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}});
+      const body = new URLSearchParams({periodo: periodoActivo});
+      const r = await fetch('{% url "revision_eliminar_propuesta" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken, 'Content-Type':'application/x-www-form-urlencoded'}, body});
       const d = await r.json();
       if (d.success) {
         notif('info', '🗑 ' + d.mensaje + ' — recargando…');

@@ -6,11 +6,16 @@ from django.conf import settings
 class Estudiante(models.Model):
     """RF-21 · Registro de estudiantes."""
 
-    id_estudiante = models.AutoField(primary_key=True)
+    # Fase 2 (2026-09-03): la tabla unificada 'estudiantes_perfil' usa
+    # usuario_id como PK (perfil 1:1 sobre 'usuarios'), no un id_estudiante
+    # autonumérico separado — se convierte 'usuario' en la PK real (mismo
+    # patrón que Docente en apps.personal).
     usuario = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='estudiante'
+        related_name='estudiante',
+        primary_key=True,
+        db_column='usuario_id',
     )
     codigo = models.CharField(max_length=20, unique=True)
     programa = models.ForeignKey('academico.Programa', on_delete=models.PROTECT)
@@ -19,7 +24,9 @@ class Estudiante(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = 'SIIHAPI_ESTUDIANTE'
+        # Fase 2 (2026-09-03): tabla compartida con planeación/SISCA.
+        managed = False
+        db_table = 'estudiantes_perfil'
         verbose_name = 'Estudiante'
         verbose_name_plural = 'Estudiantes'
         indexes = [
@@ -34,7 +41,7 @@ class Estudiante(models.Model):
 class Periodo(models.Model):
     """Periodo académico (ej: 2026-1, 2026-2)."""
 
-    id_periodo = models.AutoField(primary_key=True)
+    id_periodo = models.AutoField(primary_key=True, db_column='id')
     codigo = models.CharField(max_length=10, unique=True, help_text='Ej: 2026-2')
     nombre = models.CharField(max_length=60)
     fecha_inicio = models.DateField()
@@ -43,7 +50,8 @@ class Periodo(models.Model):
     activo = models.BooleanField(default=False)
 
     class Meta:
-        db_table = 'SIIHAPI_PERIODO'
+        managed = False
+        db_table = 'periodos'
         verbose_name = 'Periodo Académico'
         verbose_name_plural = 'Periodos Académicos'
         ordering = ['-fecha_inicio']
@@ -57,6 +65,7 @@ class Matricula(models.Model):
 
     ESTADO_CHOICES = (
         ('ACTIVA',     'Activa'),
+        ('INSCRITA',   'Inscrita'),   # Fase 3 (2026-09-04): pre-registro sin confirmar aun (ver importar_inscritos)
         ('CANCELADA',  'Cancelada'),
         ('FINALIZADA', 'Finalizada'),
     )

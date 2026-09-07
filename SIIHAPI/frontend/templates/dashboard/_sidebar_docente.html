@@ -10,7 +10,18 @@
 
   <div class="sb-lbl" style="margin-top:14px;">Operación</div>
   <a class="sb-item {% if active == 'disponibilidad' %}active{% endif %}" href="{% url 'docente_disponibilidad' %}"><span class="ico">🕐</span> Mi disponibilidad</a>
+  <a class="sb-item {% if active == 'solicitudes_reprog' %}active{% endif %}" href="{% url 'docente_solicitudes_reprogramacion' %}"><span class="ico">🔁</span> Solicitar reprogramación</a>
   <a class="sb-item {% if active == 'asistencia' %}active{% endif %}" href="{% url 'docente_asistencia' %}"><span class="ico">📋</span> Asistencia (SISCA)</a>
+  <a class="sb-item {% if active == 'marcar_asistencia' %}active{% endif %}" href="{% url 'docente_marcar_asistencia' %}"><span class="ico">✅</span> Marcar asistencia</a>
+  <a class="sb-item {% if active == 'justificaciones' %}active{% endif %}" href="{% url 'mis_justificaciones' %}"><span class="ico">📝</span> Mis justificaciones</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Eventos</div>
+  <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'calendario_eventos' %}"><span class="ico">📅</span> Calendario de eventos</a>
+  <a class="sb-item {% if active == 'proponer_evento' %}active{% endif %}" href="{% url 'docente_proponer_evento' %}"><span class="ico">➕</span> Proponer evento</a>
+  <a class="sb-item {% if active == 'mis_inscripciones_eventos' %}active{% endif %}" href="{% url 'mis_inscripciones_eventos' %}"><span class="ico">🎟️</span> Mis inscripciones</a>
+
+  <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
+  <a class="sb-item {% if active == 'reportes' %}active{% endif %}" href="{% url 'docente_reportes' %}"><span class="ico">📊</span> Reportes</a>
 
   <div class="sb-spacer"></div>
   <div class="sb-status">

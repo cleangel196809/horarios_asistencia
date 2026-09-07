@@ -22,8 +22,8 @@ def cargar_disponibilidad():
     disp = {}
     try:
         from apps.personal.models import DisponibilidadDocente
-        for d in DisponibilidadDocente.objects.all():
-            disp.setdefault(d.docente_id, set()).add((d.dia, int(d.bloque)))
+        for d in DisponibilidadDocente.objects.select_related('bloque').all():
+            disp.setdefault(d.docente_id, set()).add((d.dia, d.bloque.numero))
     except Exception:
         pass
     return disp

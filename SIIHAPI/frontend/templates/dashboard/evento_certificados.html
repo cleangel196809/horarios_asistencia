@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Certificados · {{ evento.nombre }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='eventos' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">{{ evento.nombre }}</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎓 Certificados</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Solo se puede emitir certificado a quien registra al menos una entrada (Asistencia IN) al evento.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">👥 Inscritos</span>
+        <span class="tb-badge">{{ inscripciones|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Usuario</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asistió</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Certificado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for i in inscripciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ i.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:{% if i.asistio %}var(--lime-lt){% else %}#f87171{% endif %};">{% if i.asistio %}Sí{% else %}No{% endif %}</td>
+            <td style="padding:10px;color:var(--txt2);">{% if i.certificado_existente %}{{ i.certificado_existente.get_tipo_display }} — {{ i.certificado_existente.fecha_emision|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td style="padding:10px;">
+              {% if i.certificado_existente %}
+              <a href="{% url 'certificado_descargar' i.certificado_existente.id_certificado %}" class="btn btn-lime" style="font-size:11px;padding:4px 10px;" target="_blank">Descargar</a>
+              {% elif i.asistio %}
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="id_inscripcion" value="{{ i.id_inscripcion }}">
+                <select name="tipo" style="padding:4px;border-radius:6px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);font-size:11px;">
+                  {% for cod, lbl in tipos %}
+                  <option value="{{ cod }}">{{ lbl }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary" style="font-size:11px;padding:4px 10px;">Emitir</button>
+              </form>
+              {% else %}
+              <span style="color:var(--txt3);font-size:11px;">Sin asistencia</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">Nadie se ha inscrito a este evento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

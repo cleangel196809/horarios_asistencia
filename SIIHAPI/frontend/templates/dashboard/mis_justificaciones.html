@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Mis Justificaciones{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if es_docente_flag %}
+  {% include 'dashboard/_sidebar_docente.html' with active='justificaciones' %}
+  {% else %}
+  {% include 'dashboard/_sidebar_estudiante.html' with active='justificaciones' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Asistencia</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">📝 Mis Justificaciones</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Sube el soporte de una inasistencia o clase no dictada para que Secretaría/Coordinación la revise.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-hdr"><span class="card-title">➕ Nueva justificación</span></div>
+      <form method="post" enctype="multipart/form-data" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="tipo_asistencia" value="{% if es_docente_flag %}docente{% else %}estudiante{% endif %}">
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Clase / fecha afectada</label>
+          <select name="asistencia_id" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Selecciona…</option>
+            {% for a in asistencias_propias %}
+            <option value="{{ a.id_asistencia }}">{{ a.horario.materia.codigo }} — {{ a.fecha|date:"d/m/Y" }} ({{ a.get_estado_display }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Motivo</label>
+          <textarea name="motivo" required rows="3" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);"></textarea>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Soporte (opcional)</label>
+          <input type="file" name="soporte_archivo" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Enviar justificación</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Historial</span>
+        <span class="tb-badge">{{ justificaciones|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Clase</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Motivo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Soporte</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for j in justificaciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">
+              {% if j.asistencia_docente %}{{ j.asistencia_docente.horario.materia.codigo }}
+              {% elif j.asistencia_estudiante %}{{ j.asistencia_estudiante.horario.materia.codigo }}
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">
+              {% if j.asistencia_docente %}{{ j.asistencia_docente.fecha|date:"d/m/Y" }}
+              {% elif j.asistencia_estudiante %}{{ j.asistencia_estudiante.fecha|date:"d/m/Y" }}
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">{{ j.motivo|truncatechars:60 }}</td>
+            <td style="padding:10px;">{% if j.soporte_archivo %}<a href="{{ j.soporte_archivo.url }}" target="_blank" style="color:var(--cyan);">Ver archivo</a>{% else %}<span style="color:var(--txt3);">—</span>{% endif %}</td>
+            <td style="padding:10px;color:{% if j.estado == 'APROBADA' %}var(--lime-lt){% elif j.estado == 'RECHAZADA' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ j.get_estado_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no has enviado justificaciones.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

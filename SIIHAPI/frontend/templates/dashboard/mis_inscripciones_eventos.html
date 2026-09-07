@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Mis Eventos{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if request.user.rol_efectivo == 'DOCENTE' %}
+  {% include 'dashboard/_sidebar_docente.html' with active='mis_inscripciones_eventos' %}
+  {% elif request.user.rol_efectivo == 'ESTUDIANTE' %}
+  {% include 'dashboard/_sidebar_estudiante.html' with active='mis_inscripciones_eventos' %}
+  {% else %}
+  {% include 'dashboard/_sidebar.html' with active='mis_inscripciones_eventos' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Eventos</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎟️ Mis Inscripciones</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Tu código QR de asistencia y, si ya asististe, tu certificado de participación.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Eventos</span>
+        <span class="tb-badge">{{ inscripciones|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Evento</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">QR</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Certificado</th>
+        </tr></thead>
+        <tbody>
+          {% for i in inscripciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);"><a href="{% url 'evento_detalle' i.evento.id_evento %}" style="color:var(--white);">{{ i.evento.nombre }}</a></td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ i.evento.fecha_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:{% if i.estado == 'CANCELADO' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ i.get_estado_display }}{% if i.asistio %} · Asistió{% endif %}</td>
+            <td style="padding:10px;">
+              {% if i.estado != 'CANCELADO' %}
+              <img src="{% url 'inscripcion_qr_imagen' i.id_inscripcion %}" alt="QR" style="width:52px;height:52px;background:#fff;padding:3px;border-radius:6px;">
+              {% else %}<span style="color:var(--txt3);">—</span>{% endif %}
+            </td>
+            <td style="padding:10px;">
+              {% if i.tiene_certificado %}
+              <a href="{% url 'certificado_descargar' i.certificado.id_certificado %}" class="btn btn-lime" style="font-size:11px;padding:4px 10px;" target="_blank">Descargar PDF</a>
+              {% elif i.asistio %}
+              <span style="color:var(--txt3);font-size:11px;">Pendiente de emisión</span>
+              {% else %}
+              <span style="color:var(--txt3);font-size:11px;">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Aún no te has inscrito a ningún evento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

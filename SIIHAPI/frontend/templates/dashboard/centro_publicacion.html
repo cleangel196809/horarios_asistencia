@@ -28,7 +28,7 @@
     <div class="card" style="margin-bottom:22px;background:linear-gradient(135deg,rgba(31,111,235,0.06),rgba(99,102,241,0.04));border-color:rgba(77,155,255,0.20);">
       <div class="card-hdr">
         <span class="card-title">📋 Flujo de Publicación</span>
-        <span class="tb-badge" style="font-size:11px;">Periodo: 2026-2</span>
+        <span class="tb-badge" style="font-size:11px;">Periodo: {{ periodo_cod }}</span>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;">
@@ -204,7 +204,7 @@ async function aprobar() {
   notif('info', '⏳ Aprobando horarios propuestos...');
   try {
     const fd = new FormData();
-    fd.append('periodo', '2026-2');
+    fd.append('periodo', '{{ periodo_cod }}');
     const r = await fetch('{% url "aprobar_horarios" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd});
     const d = await r.json();
     if (d.success) {
@@ -224,7 +224,7 @@ async function publicar(republicar = false) {
   notif('info', '⏳ ' + (republicar ? 'Re-enviando' : 'Publicando') + ' horarios a SISCA... (puede tardar varios segundos)');
   try {
     const fd = new FormData();
-    fd.append('periodo', '2026-2');
+    fd.append('periodo', '{{ periodo_cod }}');
     if (republicar) fd.append('republicar', 'true');
     const r = await fetch('{% url "sisca_publicar" %}', {method:'POST', headers:{'X-CSRFToken':csrftoken}, body: fd});
     const d = await r.json();

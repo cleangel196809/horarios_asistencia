@@ -2,6 +2,7 @@
 {% block title %}Programas Académicos · SIIHAPI{% endblock %}
 
 {% block body %}
+<style>.fila-programa:hover{background:rgba(77,155,255,0.06);}</style>
 <div class="app-shell">
   {% include 'dashboard/_sidebar.html' with active='programas' %}
 
@@ -9,7 +10,7 @@
     <div style="margin-bottom:24px;">
       <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Académico</p>
       <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">Programas y Materias</h1>
-      <p style="color:var(--txt2);margin-top:6px;">27 programas distribuidos en 4 tipos y 6 facultades</p>
+      <p style="color:var(--txt2);margin-top:6px;">{{ total_programas }} programa{{ total_programas|pluralize }} distribuido{{ total_programas|pluralize }} en {{ tipos|length }} tipos y {{ total_facultades }} facultad{{ total_facultades|pluralize:"es" }}</p>
     </div>
 
     <div class="kpi-grid" style="margin-bottom:24px;">
@@ -41,18 +42,20 @@
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tipo</th>
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Facultad</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {% for p in programas %}
-          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+          <tr class="fila-programa" style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;" onclick="window.location='{% url 'programa_ciclos' id_programa=p.id_programa %}'">
             <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ p.codigo }}</td>
             <td style="padding:10px;color:var(--white);">{{ p.nombre }}</td>
             <td style="padding:10px;color:var(--cyan);">{{ p.get_tipo_display }}</td>
             <td style="padding:10px;color:var(--txt2);">{{ p.facultad.nombre }}</td>
+            <td style="padding:10px;text-align:right;"><a href="{% url 'programa_ciclos' id_programa=p.id_programa %}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();">Ver ciclos →</a></td>
           </tr>
           {% empty %}
-          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">No hay programas. Ejecuta <code>cargar_datos_reales.bat</code>.</td></tr>
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay programas. Ejecuta <code>cargar_datos_reales.bat</code>.</td></tr>
           {% endfor %}
         </tbody>
       </table>

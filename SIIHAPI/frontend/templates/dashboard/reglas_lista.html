@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Reglas de Intervención{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Motor de Reglas</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">⚙️ Reglas de Intervención</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Correos automáticos disparados cuando una métrica cruza un umbral. Ver también la <a href="{% url 'logs_intervencion' %}" style="color:var(--cyan-lt);">bitácora de envíos</a>.</p>
+      </div>
+      <a href="{% url 'regla_crear' %}" class="btn btn-primary">+ Nueva regla</a>
+    </div>
+
+    <div class="card">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Métrica</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Condición</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Ventana</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Plantilla</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for r in reglas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ r.nombre }}</td>
+            <td style="padding:10px;color:var(--txt2);font-size:12px;">{{ r.get_metrica_display }}</td>
+            <td style="padding:10px;color:var(--txt2);font-family:'JetBrains Mono',monospace;">{{ r.get_operador_display }} {{ r.umbral }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ r.ventana_dias }} días</td>
+            <td style="padding:10px;color:var(--txt2);">{{ r.plantilla.codigo }}</td>
+            <td style="padding:10px;">
+              <form method="post" action="{% url 'regla_activar_toggle' r.id_regla %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn {% if r.activa %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:11px;padding:4px 10px;">{% if r.activa %}Activa{% else %}Inactiva{% endif %}</button>
+              </form>
+            </td>
+            <td style="padding:10px;display:flex;gap:6px;">
+              <a href="{% url 'regla_editar' r.id_regla %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Editar</a>
+              <form method="post" action="{% url 'regla_disparar_ahora' r.id_regla %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">🔔 Disparar ahora</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" style="padding:30px;text-align:center;color:var(--txt3);">No hay reglas de intervención creadas. Primero crea una <a href="{% url 'plantilla_crear' %}" style="color:var(--cyan-lt);">plantilla de correo</a>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

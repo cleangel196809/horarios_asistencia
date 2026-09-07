@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ matriz.nombre }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Matriz de Planeación</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">{{ matriz.nombre }}</h1>
+      <p style="color:var(--txt2);margin-top:6px;">
+        {{ matriz.facultad.nombre }} · {{ matriz.periodo.codigo }} · {{ matriz.sede.nombre }} · {{ matriz.jornada.nombre }} · Ciclo {{ matriz.ciclo }}
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;padding:16px;">
+      <span style="font-size:12px;color:var(--txt3);">Estado actual</span>
+      <div style="font-size:22px;font-weight:800;margin-top:4px;color:{% if matriz.estado == 'PUBLICADO' %}var(--lime-lt){% elif matriz.estado == 'APROBADO' %}var(--cyan-lt){% elif matriz.estado == 'EN_REVISION' %}#fbbf24{% else %}var(--white){% endif %};">{{ matriz.get_estado_display }}</div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        {% if matriz.estado == 'BORRADOR' %}
+        <form method="post" action="{% url 'matriz_planeacion_vincular_ia' matriz.id_matriz %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ghost" {% if not ultima_ia_disponible %}disabled title="No hay corrida COMPLETADA del Motor IA para este periodo"{% endif %}>🤖 Vincular última corrida del Motor IA</button>
+        </form>
+        <form method="post" action="{% url 'matriz_planeacion_enviar_revision' matriz.id_matriz %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">Enviar a revisión</button>
+        </form>
+        {% elif matriz.estado == 'EN_REVISION' %}
+        <form method="post" action="{% url 'matriz_planeacion_aprobar' matriz.id_matriz %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">✅ Aprobar (Coordinación)</button>
+        </form>
+        {% elif matriz.estado == 'APROBADO' %}
+        <form method="post" action="{% url 'matriz_planeacion_publicar' matriz.id_matriz %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">🚀 Publicar</button>
+        </form>
+        {% elif matriz.estado == 'PUBLICADO' %}
+        <a href="{% url 'centro_publicacion' %}" class="btn btn-ghost">Ir al Centro de Publicación (SISCA)</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">🤖 Corrida del Motor IA vinculada</span></div>
+      <div style="padding:16px;">
+        {% if matriz.asignacion_ia %}
+        <p style="color:var(--white);">Job: <code>{{ matriz.asignacion_ia.job_id }}</code></p>
+        <p style="color:var(--txt2);">Asignaciones exitosas: {{ matriz.asignacion_ia.asignaciones_exitosas }} · Conflictos residuales: {{ matriz.asignacion_ia.conflictos_residuales }} · Matrículas totales: {{ matriz.asignacion_ia.total_matriculas }}</p>
+        {% else %}
+        <p style="color:var(--txt3);">Aún no se ha vinculado ninguna corrida del Motor IA a esta matriz.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📋 Metadatos</span></div>
+      <div style="padding:16px;color:var(--txt2);font-size:13px;line-height:1.9;">
+        <div>Creada por: {{ matriz.created_by.nombre_completo|default:"—" }} · {{ matriz.created_at|date:"d/m/Y H:i" }}</div>
+        {% if matriz.aprobado_por %}<div>Aprobada por: {{ matriz.aprobado_por.nombre_completo }} · {{ matriz.fecha_aprobacion|date:"d/m/Y H:i" }}</div>{% endif %}
+        {% if matriz.publicado_por %}<div>Publicada por: {{ matriz.publicado_por.nombre_completo }} · {{ matriz.fecha_publicacion|date:"d/m/Y H:i" }}</div>{% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -39,11 +39,16 @@
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          {% if not es_solo_consulta %}
           <button class="btn btn-primary" id="btn-ej">🤖 Ejecutar Motor IA</button>
           <button class="btn btn-cyan" id="btn-aprobar">✅ Aprobar propuestos</button>
           <a class="btn btn-lime" href="{% url 'integracion_sisca' %}">📤 Publicar a SISCA</a>
+          {% endif %}
+          <a class="btn btn-ghost" href="{% url 'reportes_categoria' %}">📊 Reportes por categoría</a>
+          {% include 'dashboard/_periodo_btn.html' %}
         </div>
         <div id="coord-out" style="display:none;margin-top:14px;padding:14px;background:var(--surface-glass);border-radius:10px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;"></div>
+        {% include 'dashboard/_periodo_panel.html' %}
       </div>
 
       <div class="card">

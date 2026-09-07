@@ -52,13 +52,51 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         ('COORDINADOR',   'Coordinador Académico'),
         ('DOCENTE',       'Docente'),
         ('ESTUDIANTE',    'Estudiante'),
+        # Fase 2 (2026-09-03): roles propios del esquema unificado
+        # (integracion_pi/planeación) sin vista dedicada en SIIHAPI todavía.
+        # Ver ROL_EQUIVALENCIAS mas abajo para como se mapean a efectos de
+        # permisos y dashboard.
+        ('ADMIN',                'Administrador (unificado)'),
+        ('DECANO',               'Decano'),
+        ('SECRETARIA_ACADEMICA', 'Secretaria Academica'),
+        # Fase 3 (2026-09-04): roles de SOLO CONSULTA. Ven el mismo
+        # dashboard/menu que Coordinador (horarios, docentes, estudiantes,
+        # programas y sedes en modo lectura) pero NUNCA pueden ejecutar el
+        # Motor IA, aprobar/editar/publicar horarios, hacer carga masiva ni
+        # tocar la integracion SISCA. Ver permisos.ROLES_SOLO_CONSULTA.
+        ('BIENESTAR_ACADEMICO', 'Bienestar Academico'),
+        ('MENTORIAS',           'Mentorias'),
     )
 
-    id_usuario = models.AutoField(primary_key=True)
+    # Fase 2 (2026-09-03): equivalencias de vocabulario entre el esquema
+    # unificado y el vocabulario propio de SIIHAPI. SIIHAPI solo tiene 4
+    # "niveles" de acceso (ADMINISTRADOR/COORDINADOR/DOCENTE/ESTUDIANTE); los
+    # roles de planeación sin equivalente 1:1 se mapean al nivel mas cercano:
+    #   - ADMIN                 -> ADMINISTRADOR (equivalente exacto)
+    #   - DECANO                -> COORDINADOR   (academico/horarios/reportes;
+    #                                             NO incluye panel ejecutivo/
+    #                                             auditoria, reservado a
+    #                                             ADMINISTRADOR)
+    #   - SECRETARIA_ACADEMICA  -> COORDINADOR   (mismo criterio anterior)
+    # Ajustar este diccionario si se necesita otro nivel de acceso.
+    ROL_EQUIVALENCIAS = {
+        'ADMIN': 'ADMINISTRADOR',
+        'DECANO': 'COORDINADOR',
+        'SECRETARIA_ACADEMICA': 'COORDINADOR',
+        # Fase 3 (2026-09-04): mismo nivel de dashboard que Coordinador,
+        # pero de solo consulta -- ver permisos.ROLES_SOLO_CONSULTA (se usa
+        # el rol CRUDO, no rol_efectivo, para distinguirlos y bloquearles
+        # las acciones que si puede hacer un Coordinador real).
+        'BIENESTAR_ACADEMICO': 'COORDINADOR',
+        'MENTORIAS': 'COORDINADOR',
+    }
+
+    id_usuario = models.AutoField(primary_key=True, db_column='id')
     # Override del campo password (heredado de AbstractBaseUser) para
     # permitir hashes Argon2id de 128 chars en hex + prefijo + salt = 173 chars.
-    # El default de Django (128 chars) no alcanza.
-    password = models.CharField(max_length=255, verbose_name='Contrasena')
+    # El default de Django (128 chars) no alcanza. db_column='password_hash':
+    # así se llama la columna en la tabla unificada 'usuarios' (Fase 2).
+    password = models.CharField(max_length=255, verbose_name='Contrasena', db_column='password_hash')
     correo = models.EmailField(
         unique=True,
         max_length=120,
@@ -68,7 +106,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     nombre = models.CharField(max_length=80)
     apellido = models.CharField(max_length=80)
     cedula = models.CharField(max_length=20, unique=True, null=True, blank=True)
-    rol = models.CharField(max_length=15, choices=ROL_CHOICES, default='ESTUDIANTE')
+    rol = models.CharField(max_length=25, choices=ROL_CHOICES, default='ESTUDIANTE')
     telefono = models.CharField(max_length=20, blank=True)
     estado = models.CharField(
         max_length=1,
@@ -78,14 +116,14 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     # Habeas Data (RNF-39, RNF-41)
     acepta_terminos = models.BooleanField(default=False)
-    fecha_aceptacion_habeas_data = models.DateTimeField(null=True, blank=True)
+    fecha_aceptacion_habeas_data = models.DateTimeField(null=True, blank=True, db_column='fecha_aceptacion_terminos')
 
     # Control de intentos fallidos (RNF-13)
     intentos_fallidos = models.IntegerField(default=0)
     bloqueado_hasta = models.DateTimeField(null=True, blank=True)
 
     # Auditoría temporal
-    fecha_creacion = models.DateTimeField(default=timezone.now)
+    fecha_creacion = models.DateTimeField(default=timezone.now, db_column='created_at')
     ultimo_login = models.DateTimeField(null=True, blank=True)
     ultima_actividad = models.DateTimeField(null=True, blank=True)
 
@@ -95,11 +133,22 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     objects = UsuarioManager()
 
+    @property
+    def rol_efectivo(self):
+        """Rol normalizado al vocabulario interno de SIIHAPI, para chequeos
+        de permisos y dispatch de dashboard (ver ROL_EQUIVALENCIAS). El campo
+        `rol` conserva siempre el valor real guardado en la BD."""
+        return self.ROL_EQUIVALENCIAS.get(self.rol, self.rol)
+
     USERNAME_FIELD = 'correo'
     REQUIRED_FIELDS = ['nombre', 'apellido']
 
     class Meta:
-        db_table = 'SIIHAPI_USUARIO'
+        # Fase 2 (2026-09-03): tabla compartida con planeación/SISCA vía el
+        # esquema unificado de integracion_pi — managed=False, Django NO
+        # crea/altera esta tabla, solo lee/escribe sobre la que ya existe.
+        managed = False
+        db_table = 'usuarios'
         verbose_name = 'Usuario'
         verbose_name_plural = 'Usuarios'
         indexes = [
@@ -144,17 +193,18 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
 class TokenRecuperacion(models.Model):
     """Token de un solo uso para recuperación de contraseña (RF-02)."""
-    id_token = models.AutoField(primary_key=True)
+    id_token = models.AutoField(primary_key=True, db_column='id')
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='tokens_recuperacion')
     token = models.CharField(max_length=128, unique=True)
-    fecha_creacion = models.DateTimeField(default=timezone.now)
+    fecha_creacion = models.DateTimeField(default=timezone.now, db_column='created_at')
     fecha_expiracion = models.DateTimeField()
     usado = models.BooleanField(default=False)
     fecha_uso = models.DateTimeField(null=True, blank=True)
     ip_solicitante = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
-        db_table = 'SIIHAPI_TOKEN_RECUPERACION'
+        managed = False
+        db_table = 'tokens_recuperacion'
         verbose_name = 'Token de Recuperación'
         verbose_name_plural = 'Tokens de Recuperación'
 
@@ -164,7 +214,7 @@ class TokenRecuperacion(models.Model):
 
 class IntentoLogin(models.Model):
     """Registro de intentos de login para auditoría (RNF-40)."""
-    id_intento = models.AutoField(primary_key=True)
+    id_intento = models.AutoField(primary_key=True, db_column='id')
     correo = models.CharField(max_length=120)
     exitoso = models.BooleanField()
     ip = models.GenericIPAddressField(null=True, blank=True)
@@ -172,7 +222,8 @@ class IntentoLogin(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        db_table = 'SIIHAPI_INTENTO_LOGIN'
+        managed = False
+        db_table = 'intentos_login'
         verbose_name = 'Intento de Login'
         verbose_name_plural = 'Intentos de Login'
         indexes = [

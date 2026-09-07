@@ -133,3 +133,15 @@ preview_diapo5.jpg
 admin@pi.edu.co
 admin@politecnico.edu.co
 
+
+# Fase 3 (2026-09-04): copias de seguridad de la BD (contienen hashes de
+# contrasena y datos personales) -- nunca deben ir al repositorio.
+SIIHAPI/backend/backups/
+SIIHAPI/backend/_to_delete/
+
+# 2026-09-07: archivos con datos reales de estudiantes/docentes o sin
+# relacion con el proyecto -- nunca deben ir a este repo publico.
+/Checklist_Auditoria_Propofol_ConsultaExterna_Res3100-2019.xlsx
+/Checklist_Auditoria_Propofol_ConsultaExterna_Res3100-2019_v2.xlsx
+SIIHAPI/backend/INSCRITOS_POR_CICLO_2026_3T.xlsx
+SIIHAPI/backend/data_carga/

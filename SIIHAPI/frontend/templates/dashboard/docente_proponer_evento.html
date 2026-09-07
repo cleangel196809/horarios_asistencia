@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Proponer Evento{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar_docente.html' with active='proponer_evento' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Eventos</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">➕ Proponer Evento</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Propón una actividad para una de tus materias. Queda en Borrador hasta que Coordinación la apruebe.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-hdr"><span class="card-title">📝 Nueva propuesta</span></div>
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Nombre del evento</label>
+          <input type="text" name="nombre" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Materia (opcional)</label>
+          <select name="materia" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">Ninguna en particular…</option>
+            {% for m in mis_materias %}
+            <option value="{{ m.id_materia }}">{{ m.codigo }} — {{ m.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Modalidad</label>
+          <select name="modalidad" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="VIRTUAL">Virtual</option>
+            <option value="HIBRIDO">Híbrido</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fecha y hora de inicio</label>
+          <input type="datetime-local" name="fecha_inicio" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Fecha y hora de fin</label>
+          <input type="datetime-local" name="fecha_fin" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Cupo máximo (opcional)</label>
+          <input type="number" name="cupo_maximo" min="1" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Descripción</label>
+          <textarea name="descripcion" rows="3" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);"></textarea>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Enviar propuesta</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📋 Mis propuestas</span>
+        <span class="tb-badge">{{ mis_eventos|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Evento</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>
+          {% for e in mis_eventos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ e.nombre }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--txt2);">{{ e.fecha_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:{% if e.estado == 'PUBLICADO' %}var(--lime-lt){% elif e.estado == 'CANCELADO' %}#f87171{% else %}var(--cyan-lt){% endif %};">{{ e.get_estado_display }}</td>
+            <td style="padding:10px;"><a href="{% url 'evento_detalle' e.id_evento %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:30px;text-align:center;color:var(--txt3);">Aún no has propuesto eventos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -4,11 +4,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta name="theme-color" content="#0A0814">
+<meta name="theme-color" content="#0A1442">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>{% block title %}SIIHAPI{% endblock %} · Politécnico Internacional</title>
+<title>{% block title %}INTEGRA-PI{% endblock %} · Politécnico Internacional</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'css/siihapi.css' %}?v={% now 'U' %}">
@@ -23,18 +23,30 @@
 <body data-rol="{{ request.user.rol|default:'' }}">
 
 <canvas id="bg3d" aria-hidden="true"></canvas>
+<img src="{% static 'img/logo_politecnico.svg' %}" alt="" aria-hidden="true" id="bgLogo" onerror="this.style.display='none'">
 
 {% block topbar %}
 <header class="topbar">
   <a href="{% url 'landing' %}" class="tb-logo" style="text-decoration:none;">
     <img src="{% static 'img/logo_politecnico.svg' %}" alt="Politécnico" height="34" onerror="this.style.display='none'">
     <div class="tb-logo-text">
-      <span class="tb-logo-name">SIIHAPI</span>
+      <span class="tb-logo-name">INTEGRA-PI</span>
       <span class="tb-logo-sub">Politécnico Internacional</span>
     </div>
   </a>
   <div class="tb-spacer"></div>
   {% if request.user.is_authenticated %}
+    <form method="post" action="{% url 'seleccionar_periodo' %}" class="periodo-selector" title="Ciclo de formación que se está consultando">
+      {% csrf_token %}
+      <span class="periodo-ico">🗓️</span>
+      <select id="periodoSelect" name="periodo_id" class="periodo-select" onchange="this.form.submit()">
+        {% for p in periodos_disponibles %}
+        <option value="{{ p.id_periodo }}" {% if periodo_actual_global and p.id_periodo == periodo_actual_global.id_periodo %}selected{% endif %}>{{ p.codigo }}</option>
+        {% empty %}
+        <option value="">Sin ciclos</option>
+        {% endfor %}
+      </select>
+    </form>
     <span class="tb-badge {{ request.user.rol|lower }}">{{ request.user.get_rol_display }}</span>
     <a href="{% url 'logout' %}" class="tb-user" style="text-decoration:none;">
       <div class="tb-avatar">{{ request.user.avatar_initials }}</div>

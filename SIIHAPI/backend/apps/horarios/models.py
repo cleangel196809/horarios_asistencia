@@ -1,17 +1,20 @@
 """SIIHAPI · Modelos de Horarios (RF-26 a RF-37, RF-40)."""
+from django.conf import settings
 from django.db import models
 
 
 class Bloque(models.Model):
     """Bloques horarios de 80 minutos (14 bloques diarios, 6:00 a 22:00)."""
 
-    id_bloque = models.AutoField(primary_key=True)
+    id_bloque = models.AutoField(primary_key=True, db_column='id')
     numero = models.IntegerField(unique=True, help_text='1 a 14')
     hora_inicio = models.TimeField()
     hora_fin = models.TimeField()
 
     class Meta:
-        db_table = 'SIIHAPI_BLOQUE'
+        # Fase 2 (2026-09-03): tabla compartida con planeación/SISCA.
+        managed = False
+        db_table = 'bloques_horario'
         verbose_name = 'Bloque Horario'
         verbose_name_plural = 'Bloques Horarios'
         ordering = ['numero']
@@ -82,7 +85,7 @@ class AsignacionIA(models.Model):
         ('FALLIDA',    'Fallida'),
     )
 
-    id_asignacion = models.AutoField(primary_key=True)
+    id_asignacion = models.AutoField(primary_key=True, db_column='id')
     periodo = models.ForeignKey('matriculas.Periodo', on_delete=models.CASCADE)
     estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='EN_COLA')
     job_id = models.CharField(max_length=80, unique=True)
@@ -98,14 +101,18 @@ class AsignacionIA(models.Model):
     parametros = models.JSONField(default=dict, blank=True)
     log = models.TextField(blank=True)
 
+    # db_column='creado_por': en la tabla unificada la columna se llama así
+    # (no 'creado_por_id', el default de Django) — Fase 2, 2026-09-03.
     creado_por = models.ForeignKey(
         'autenticacion.Usuario',
         on_delete=models.SET_NULL,
-        null=True, blank=True
+        null=True, blank=True,
+        db_column='creado_por',
     )
 
     class Meta:
-        db_table = 'SIIHAPI_ASIGNACION_IA'
+        managed = False
+        db_table = 'asignaciones_ia'
         verbose_name = 'Asignación IA'
         verbose_name_plural = 'Asignaciones IA'
         ordering = ['-fecha_inicio']
@@ -117,7 +124,7 @@ class AsignacionIA(models.Model):
 class ReglaNegocio(models.Model):
     """RF-29 · Reglas de negocio personalizadas para la IA."""
 
-    id_regla = models.AutoField(primary_key=True)
+    id_regla = models.AutoField(primary_key=True, db_column='id')
     nombre = models.CharField(max_length=120)
     descripcion = models.TextField(blank=True)
     regla_json = models.JSONField(help_text='Regla declarativa para el solver CSP')
@@ -125,10 +132,47 @@ class ReglaNegocio(models.Model):
     prioridad = models.IntegerField(default=5)
 
     class Meta:
-        db_table = 'SIIHAPI_REGLA_NEGOCIO'
+        managed = False
+        db_table = 'reglas_negocio'
         verbose_name = 'Regla de Negocio'
         verbose_name_plural = 'Reglas de Negocio'
         ordering = ['prioridad']
 
     def __str__(self):
         return self.nombre
+
+
+class SolicitudReprogramacion(models.Model):
+    """Sprint 1 (2026-09-06) -- RF 1.4. Reprogramaciones puntuales (una
+    sola fecha) -- NO modifica el Horario base, que sigue siendo el
+    horario regular del resto del ciclo. El Docente titular del Horario
+    la solicita; Coordinador/Secretaria Academica/Decano/Admin la
+    aprueban o rechazan (via @operacion_required, igual que el resto de
+    aprobaciones de horarios)."""
+    TIPO_CHOICES = (
+        ('CAMBIO_AULA', 'Cambio de aula'),
+        ('SUSTITUCION_DOCENTE', 'Sustitución de docente'),
+        ('CAMBIO_HORARIO', 'Cambio de horario puntual'),
+    )
+    ESTADO_CHOICES = (('PENDIENTE', 'Pendiente'), ('APROBADA', 'Aprobada'), ('RECHAZADA', 'Rechazada'))
+
+    id_solicitud = models.AutoField(primary_key=True)
+    horario = models.ForeignKey(Horario, on_delete=models.CASCADE, related_name='solicitudes_reprogramacion')
+    tipo = models.CharField(max_length=25, choices=TIPO_CHOICES)
+    fecha_afectada = models.DateField(help_text='Fecha calendario concreta afectada -- el Horario base no cambia')
+    salon_propuesto = models.ForeignKey('infraestructura.Salon', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    docente_sustituto_propuesto = models.ForeignKey('personal.Docente', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    motivo = models.TextField()
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='solicitudes_reprogramacion')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PENDIENTE')
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    fecha_revision = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'horarios_solicitudes_reprogramacion'
+        indexes = [models.Index(fields=['estado']), models.Index(fields=['fecha_afectada'])]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Solicitud #{self.id_solicitud} [{self.estado}] · {self.horario}'

@@ -13,14 +13,37 @@
     </div>
 
     <div class="card">
-      <div class="card-hdr"><span class="card-title">Lista de docentes</span><span class="tb-badge">{{ total }} activos</span></div>
-      <div style="overflow-x:auto;">
+      <div class="card-hdr">
+        <span class="card-title">Lista de docentes</span>
+        <span class="tb-badge">{{ total_filtrado }} {% if q %}encontrado{{ total_filtrado|pluralize }}{% else %}activos{% endif %}</span>
+      </div>
+
+      <form method="get" action="{% url 'docentes' %}" style="padding:14px 16px 4px;position:relative;" autocomplete="off">
+        <div style="position:relative;max-width:420px;">
+          <input
+            type="text"
+            id="docSearchInput"
+            name="q"
+            value="{{ q }}"
+            placeholder="Buscar por cédula, nombre o apellido…"
+            style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 40px 10px 14px;font-size:13px;"
+          >
+          <button type="submit" title="Buscar" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--txt3);cursor:pointer;font-size:15px;padding:4px 6px;">🔎</button>
+          <div id="docSuggestions" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface-2, var(--surface));border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:20;box-shadow:0 12px 28px rgba(0,0,0,0.35);"></div>
+        </div>
+        {% if q %}
+        <a href="{% url 'docentes' %}" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--txt3);text-decoration:none;">✕ Limpiar búsqueda «{{ q }}»</a>
+        {% endif %}
+      </form>
+
+      <div style="overflow-x:auto;margin-top:10px;">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="border-bottom:1px solid var(--border);">
-            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">ID</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Cédula</th>
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Nombre</th>
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Correo</th>
+            <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Facultad</th>
             <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Contrato</th>
             <th style="text-align:right;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Carga máx.</th>
           </tr>
@@ -28,14 +51,21 @@
         <tbody>
           {% for d in docentes %}
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">DOC-{{ d.id_docente }}</td>
+            <td style="padding:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-lt);">{{ d.usuario.cedula|default:"—" }}</td>
             <td style="padding:10px;color:var(--white);">{{ d.usuario.nombre }} {{ d.usuario.apellido }}</td>
             <td style="padding:10px;color:var(--txt2);">{{ d.usuario.correo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ d.facultad.nombre|default:"—" }}</td>
             <td style="padding:10px;color:var(--cyan);">{{ d.get_tipo_contrato_display }}</td>
             <td style="padding:10px;text-align:right;color:var(--lime-lt);">{{ d.carga_horaria_max }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay docentes registrados aún. <br><br>Ejecuta <code>cargar_datos_reales.bat</code> y luego <code>cargar_demo.bat</code>.</td></tr>
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">
+            {% if q %}
+              No se encontraron docentes que coincidan con «{{ q }}».
+            {% else %}
+              No hay docentes registrados aún. <br><br>Ejecuta <code>cargar_datos_reales.bat</code> y luego <code>cargar_demo.bat</code>.
+            {% endif %}
+          </td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -43,4 +73,56 @@
     </div>
   </main>
 </div>
+
+<script>
+(function(){
+  var input = document.getElementById('docSearchInput');
+  var box = document.getElementById('docSuggestions');
+  if(!input || !box) return;
+
+  var timer = null;
+  var lastQuery = '';
+
+  function hideBox(){ box.style.display = 'none'; box.innerHTML = ''; }
+
+  function renderResultados(resultados, q){
+    if(!resultados.length){ hideBox(); return; }
+    box.innerHTML = '';
+    resultados.forEach(function(r){
+      var item = document.createElement('div');
+      item.textContent = r.nombre + ' ' + r.apellido + (r.cedula ? '  ·  C.C. ' + r.cedula : '');
+      item.style.cssText = 'padding:10px 14px;cursor:pointer;color:var(--white);font-size:13px;border-bottom:1px solid rgba(255,255,255,0.06);';
+      item.addEventListener('mouseenter', function(){ item.style.background = 'rgba(124,185,255,0.12)'; });
+      item.addEventListener('mouseleave', function(){ item.style.background = 'transparent'; });
+      item.addEventListener('click', function(){
+        input.value = r.cedula || (r.nombre + ' ' + r.apellido);
+        hideBox();
+        input.form.submit();
+      });
+      box.appendChild(item);
+    });
+    box.style.display = 'block';
+  }
+
+  input.addEventListener('input', function(){
+    var q = input.value.trim();
+    lastQuery = q;
+    if(timer) clearTimeout(timer);
+    if(q.length < 2){ hideBox(); return; }
+    timer = setTimeout(function(){
+      fetch("{% url 'docentes_autocomplete' %}?q=" + encodeURIComponent(q))
+        .then(function(resp){ return resp.json(); })
+        .then(function(data){
+          if(q !== lastQuery) return; // respuesta desactualizada, se ignora
+          renderResultados(data.resultados || [], q);
+        })
+        .catch(function(){ hideBox(); });
+    }, 220);
+  });
+
+  document.addEventListener('click', function(e){
+    if(e.target !== input && !box.contains(e.target)) hideBox();
+  });
+})();
+</script>
 {% endblock %}

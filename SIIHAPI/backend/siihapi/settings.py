@@ -56,6 +56,11 @@ INSTALLED_APPS = [
     'apps.horarios',
     'apps.reportes',
     'apps.integracion_sisca',
+    'apps.asistencias',
+    'apps.bienestar',
+    'apps.eventos',
+    'apps.decano',
+    'apps.mentoria',
 ]
 
 # ── Middleware ──
@@ -86,6 +91,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # Fase 2 (2026-09-03): ciclos de formacion disponibles en
+                # todas las paginas (selector del topbar en base.html).
+                'apps.matriculas.context_processors.periodos_ctx',
             ],
         },
     },
@@ -95,23 +103,33 @@ WSGI_APPLICATION = 'siihapi.wsgi.application'
 ASGI_APPLICATION = 'siihapi.asgi.application'
 
 # ════════════════════════════════════════════════════════════
-#  ORACLE XE 21c — Misma instancia que SISCA, esquema SIIHAPI
+#  POSTGRESQL — base unificada "integracion_pi" (Fase 2, 2026-09-03)
+#  Reemplaza a Oracle XE. SIIHAPI comparte el catálogo académico
+#  (facultades, programas, materias, sedes, salones, docentes,
+#  periodos, bloques, asignaciones IA, reglas de negocio, log de
+#  integración) con planeación y SISCA vía tablas managed=False
+#  (ver apps/*/models.py). Matricula y Horario siguen siendo
+#  tablas propias de SIIHAPI (SIIHAPI_MATRICULA/SIIHAPI_HORARIO),
+#  a integrar con el concepto de "grupo" en la Fase 3 vía API.
+#
+#  DATABASE_URL tiene prioridad (útil para producción, p.ej. Neon);
+#  si no está definida se arma con las variables POSTGRES_* (dev
+#  local, apuntando por defecto a integracion_pi).
 # ════════════════════════════════════════════════════════════
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.oracle',
-        'NAME': (
-            f"{env('ORACLE_HOST', default='localhost')}:"
-            f"{env('ORACLE_PORT', default='1521')}/"
-            f"{env('ORACLE_SERVICE', default='XEPDB1')}"
-        ),
-        'USER': env('ORACLE_USER', default='SIIHAPI'),
-        'PASSWORD': env('ORACLE_PASSWORD', default='siihapi_2026'),
-        # OPTIONS vacío - oracledb moderno NO acepta 'threaded' ni 'use_returning_into'
-        # (esos parámetros eran del driver antiguo cx_Oracle)
-        'OPTIONS': {},
+if env('DATABASE_URL', default=''):
+    DATABASES = {'default': env.db('DATABASE_URL')}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'HOST': env('POSTGRES_HOST', default='localhost'),
+            'PORT': env('POSTGRES_PORT', default='5432'),
+            'NAME': env('POSTGRES_DB', default='integracion_pi'),
+            'USER': env('POSTGRES_USER', default='postgres'),
+            'PASSWORD': env('POSTGRES_PASSWORD', default=''),
+        }
     }
-}
+DATABASES['default'].setdefault('CONN_MAX_AGE', 60)
 
 # Conexión a SISCA en sólo-lectura para consultar asistencia (RF-42)
 # Se gestiona desde apps.integracion_sisca via API REST (no conexión directa)
@@ -121,9 +139,15 @@ DATABASES = {
 # ════════════════════════════════════════════════════════════
 # Argon2id es la recomendación OWASP 2024 para hashing de contraseñas.
 # Generamos hashes de 64 bytes (128 caracteres en hexadecimal).
+# Argon2PasswordHasher (estándar de Django) primero: es el formato ya usado
+# para las cuentas de docentes reales cargadas en integracion_pi (Fase de
+# datos reales, 2026-09-03) y el que espera el resto del ecosistema
+# (planeación). El hasher custom de SIIHAPI se deja como fallback SOLO
+# para poder seguir verificando hashes antiguos que ya existan con ese
+# formato — no se usa para generar hashes nuevos.
 PASSWORD_HASHERS = [
-    'apps.autenticacion.hashers.Argon2id128CharHasher',  # ← custom de SIIHAPI
-    'django.contrib.auth.hashers.Argon2PasswordHasher',  # fallback
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'apps.autenticacion.hashers.Argon2id128CharHasher',  # legado, solo verificación
     'django.contrib.auth.hashers.PBKDF2PasswordHasher',
 ]
 
@@ -257,6 +281,7 @@ else:
 
 SESSION_COOKIE_AGE = 30 * 60  # 30 minutos
 
+
 # ════════════════════════════════════════════════════════════
 #  SEGURIDAD EN PRODUCCION (se activa automaticamente con DEBUG=False)
 # ════════════════════════════════════════════════════════════
@@ -297,6 +322,42 @@ LANGUAGE_CODE = 'es-co'
 TIME_ZONE = 'America/Bogota'
 USE_I18N = True
 USE_TZ = True
+
+# ════════════════════════════════════════════════════════════
+#  CELERY -- Motor de Intervención del Decano (Sprint 4, 2026-09-06)
+# ════════════════════════════════════════════════════════════
+# Mismo criterio que CACHES/CHANNEL_LAYERS arriba: con USE_REDIS=False
+# (modo dev sin infraestructura Redis) las tareas corren SÍNCRONAS en el
+# mismo proceso (CELERY_TASK_ALWAYS_EAGER=True) -- el sistema sigue
+# funcionando sin levantar Redis/worker/beat. Con USE_REDIS=True se
+# necesita Redis real + 'celery -A siihapi worker' + 'celery -A siihapi
+# beat' corriendo aparte (ver siihapi/celery.py).
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=env('REDIS_URL', default='redis://127.0.0.1:6379/2'))
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=CELERY_BROKER_URL)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ALWAYS_EAGER = not USE_REDIS
+CELERY_TASK_EAGER_PROPAGATES = not USE_REDIS
+
+CELERY_BEAT_SCHEDULE = {
+    # Entregable 4 de la especificación Roles+Decano: Celery Beat corre
+    # evaluar_reglas_intervencion cada N horas para métricas acumuladas
+    # (ventana_dias) -- las reglas de reacción inmediata (post_save) se
+    # disparan aparte, ver apps/decano/signals.py.
+    'decano-evaluar-reglas-intervencion': {
+        'task': 'apps.decano.tasks.evaluar_reglas_intervencion',
+        'schedule': env.float('DECANO_REGLAS_INTERVALO_SEGUNDOS', default=4 * 60 * 60),  # cada 4 horas
+    },
+    # Reutiliza el mismo comando de Sprint 2 (recalcular_alertas_riesgo),
+    # ahora también disparado por Beat en vez de solo cron manual/Task
+    # Scheduler -- el comando sigue funcionando igual si se corre a mano.
+    'asistencias-recalcular-alertas-riesgo': {
+        'task': 'apps.asistencias.tasks.recalcular_alertas_riesgo',
+        'schedule': env.float('ALERTAS_RIESGO_INTERVALO_SEGUNDOS', default=24 * 60 * 60),  # diaria
+    },
+}
 
 # ── Archivos estáticos ──
 STATIC_URL = '/static/'

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Mentorías{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='mentoria' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Mentoría</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎓 Mis Mentorías</h1>
+      </div>
+      {% if request.user.rol == 'BIENESTAR_ACADEMICO' or request.user.rol == 'ADMIN' or request.user.rol == 'ADMINISTRADOR' %}
+      <a href="{% url 'asignacion_mentoria_crear' %}" class="btn btn-primary">+ Derivar estudiante a mentor</a>
+      {% endif %}
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">📅 Próximas sesiones</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          {% for s in proximas_sesiones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ s.asignacion.estudiante.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ s.fecha_hora_inicio|date:"d/m/Y H:i" }}</td>
+            <td style="padding:10px;color:var(--txt3);">{{ s.get_modalidad_display }}</td>
+            <td style="padding:10px;"><a href="{% url 'asignacion_mentoria_detalle' s.asignacion_id %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver</a></td>
+          </tr>
+          {% empty %}
+          <tr><td style="padding:24px;text-align:center;color:var(--txt3);">No hay sesiones programadas próximamente.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">👥 Asignaciones de mentoría</span><span class="tb-badge">{{ asignaciones|length }}</span></div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Mentor</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Origen</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Inicio</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>
+          {% for a in asignaciones %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ a.estudiante.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ a.mentor.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt3);font-size:12px;">{% if a.caso_bienestar_origen %}Caso Bienestar #{{ a.caso_bienestar_origen_id }}{% else %}Manual{% endif %}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ a.fecha_inicio|date:"d/m/Y" }}</td>
+            <td style="padding:10px;color:{% if a.estado == 'ACTIVA' %}var(--lime-lt){% elif a.estado == 'CANCELADA' %}#f87171{% else %}var(--txt2){% endif %};">{{ a.get_estado_display }}</td>
+            <td style="padding:10px;"><a href="{% url 'asignacion_mentoria_detalle' a.id_asignacion %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Ver</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--txt3);">No tienes asignaciones de mentoría todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

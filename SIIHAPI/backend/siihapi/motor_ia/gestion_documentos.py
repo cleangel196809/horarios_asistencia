@@ -353,7 +353,8 @@ def _interpretar_instruccion(instruccion: str, sesion: SesionDocumento,
     try:
         from siihapi.motor_ia.llm import (_get_api_key, proveedor_disponible,
                                           _llm_gemini_json, _llm_openai_json,
-                                          _llm_anthropic_json, _limpiar_json)
+                                          _llm_anthropic_json, _llm_copilot_json,
+                                          _get_azure_config, _limpiar_json)
         prov = forzar_proveedor or proveedor_disponible()
         raw = ""
         if prov == "GEMINI":
@@ -362,6 +363,8 @@ def _interpretar_instruccion(instruccion: str, sesion: SesionDocumento,
             raw, _ = _llm_openai_json(prompt, _get_api_key("OPENAI_API_KEY"))
         elif prov == "ANTHROPIC":
             raw, _ = _llm_anthropic_json(prompt, _get_api_key("ANTHROPIC_API_KEY"))
+        elif prov == "COPILOT":
+            raw, _ = _llm_copilot_json(prompt, _get_azure_config())
         if raw:
             data = json.loads(_limpiar_json(raw))
             return data.get("operaciones", []), data.get("duda")

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Base de Datos · SIIHAPI{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='base_datos' %}
+
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Administrador</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);letter-spacing:-0.02em;">🗄️ Administración de Base de Datos</h1>
+      <p style="color:var(--txt2);margin-top:6px;">CRUD completo de todas las tablas, copias de seguridad y restauración, y gestión de usuarios del sistema.</p>
+    </div>
+
+    <div class="kpi-grid">
+      <a href="{% url 'usuarios_admin' %}" class="kpi accent" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">👤 Usuarios totales</div><div class="kpi-val">{{ total_usuarios }}</div></a>
+      <a href="{% url 'usuarios_admin' %}?estado=A" class="kpi" style="text-decoration:none;display:block;cursor:pointer;"><div class="kpi-lbl">✅ Usuarios activos</div><div class="kpi-val">{{ total_usuarios_activos }}</div></a>
+      <div class="kpi"><div class="kpi-lbl">📦 Tablas del sistema</div><div class="kpi-val">{{ total_tablas }}</div></div>
+      <div class="kpi accent"><div class="kpi-lbl">💾 Copias de seguridad</div><div class="kpi-val">{{ backups|length }}</div></div>
+    </div>
+
+    <!-- ── Gestión de Usuarios ── -->
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr">
+        <span class="card-title">👤 Gestión de Usuarios</span>
+        <a href="{% url 'usuario_crear' %}" class="btn btn-primary btn-sm">+ Nuevo usuario</a>
+      </div>
+      <p style="color:var(--txt2);margin-bottom:16px;font-size:13px;">Ver, crear, modificar e inactivar cualquier usuario del sistema (Administrador, Coordinador, Docente, Estudiante).</p>
+      <a href="{% url 'usuarios_admin' %}" class="btn btn-cyan btn-full">📋 Abrir listado completo de usuarios</a>
+    </div>
+
+    <!-- ── Explorador de la Base de Datos (CRUD completo) ── -->
+    <div class="card" style="margin-bottom:22px;">
+      <div class="card-hdr">
+        <span class="card-title">🗂️ Explorador de la Base de Datos — CRUD completo</span>
+        <span class="tb-badge">{{ inventario|length }} módulos</span>
+      </div>
+      <p style="color:var(--txt2);margin-bottom:18px;font-size:13px;">Cada tabla se administra con el editor nativo de Django (validación de tipos, relaciones y restricciones incluida) para no arriesgar la integridad de los datos con ediciones libres. Se abre en una pestaña nueva.</p>
+
+      {% for grupo in inventario %}
+      <div style="margin-bottom:18px;">
+        <p style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">{{ grupo.app }}</p>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tbody>
+            {% for m in grupo.modelos %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px 10px;color:var(--white);width:34%;">{{ m.nombre }}</td>
+              <td style="padding:8px 10px;color:var(--txt3);font-family:'JetBrains Mono',monospace;font-size:11px;">{{ m.tabla }}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--lime-lt);font-family:'JetBrains Mono',monospace;">{% if m.total is not None %}{{ m.total }}{% else %}—{% endif %}</td>
+              <td style="padding:8px 10px;text-align:right;width:160px;">
+                {% if m.registrado %}
+                <a href="{{ m.admin_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">🔧 Administrar</a>
+                {% else %}
+                <span style="font-size:11px;color:var(--txt3);">no registrada</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ── Backup y Restauración ── -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">💾 Copias de Seguridad y Restauración</span>
+      </div>
+
+      <form method="post" action="{% url 'bd_backup_ejecutar' %}" style="margin-bottom:22px;">
+        {% csrf_token %}
+        <p style="color:var(--txt2);margin-bottom:12px;font-size:13px;">Genera una copia completa de todas las tablas del sistema (formato JSON) y la descarga automáticamente. Se guarda también en el servidor para restaurar más tarde.</p>
+        <button type="submit" class="btn btn-primary">📥 Crear copia de seguridad ahora</button>
+      </form>
+
+      <div style="border-top:1px solid var(--border);padding-top:18px;margin-bottom:22px;">
+        <p style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:10px;">Copias guardadas en el servidor</p>
+        {% if backups %}
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:8px 10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Archivo</th>
+              <th style="text-align:left;padding:8px 10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Fecha</th>
+              <th style="text-align:right;padding:8px 10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Tamaño</th>
+              <th style="text-align:right;padding:8px 10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in backups %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:8px 10px;color:var(--white);font-family:'JetBrains Mono',monospace;font-size:12px;">{{ b.nombre }}</td>
+              <td style="padding:8px 10px;color:var(--txt2);">{{ b.fecha|date:"d/m/Y H:i" }}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--cyan-lt);">{{ b.tamano_kb }} KB</td>
+              <td style="padding:8px 10px;text-align:right;white-space:nowrap;">
+                <a href="{% url 'bd_backup_descargar' filename=b.nombre %}" class="btn btn-ghost btn-sm">⬇️ Descargar</a>
+                <form method="post" action="{% url 'bd_backup_eliminar' filename=b.nombre %}" style="display:inline;" onsubmit="return confirm('¿Eliminar la copia de seguridad {{ b.nombre }}? Esta acción no se puede deshacer.');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm" style="background:rgba(239,68,68,0.14);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);">🗑️ Eliminar</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p style="color:var(--txt3);font-size:13px;">Aún no hay copias de seguridad guardadas. Crea la primera con el botón de arriba.</p>
+        {% endif %}
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:18px;">
+        <p style="font-size:12px;color:#fca5a5;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:10px;">⚠️ Restaurar base de datos</p>
+        <p style="color:var(--txt2);margin-bottom:14px;font-size:13px;">Restaurar sobrescribe los datos existentes que coincidan con la copia elegida. Esta acción no se puede deshacer — se recomienda crear una copia de seguridad nueva justo antes de restaurar.</p>
+
+        <form method="post" action="{% url 'bd_restore' %}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:14px;max-width:520px;">
+          {% csrf_token %}
+
+          <div>
+            <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:6px;">Subir un archivo de copia de seguridad (.json)</label>
+            <input type="file" name="archivo" accept=".json" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;">
+          </div>
+
+          {% if backups %}
+          <div>
+            <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:6px;">— o elige una copia ya guardada en el servidor —</label>
+            <select name="backup_existente" style="width:100%;background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;">
+              <option value="">(ninguna seleccionada)</option>
+              {% for b in backups %}
+              <option value="{{ b.nombre }}">{{ b.nombre }} — {{ b.fecha|date:"d/m/Y H:i" }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div>
+            <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:6px;">Escribe <strong style="color:#fca5a5;">RESTAURAR</strong> para confirmar</label>
+            <input type="text" name="confirmacion" placeholder="RESTAURAR" required style="width:100%;background:var(--surface);color:var(--white);border:1px solid rgba(239,68,68,0.35);border-radius:8px;padding:8px 12px;font-size:13px;">
+          </div>
+
+          <button type="submit" class="btn" style="background:rgba(239,68,68,0.18);color:#fca5a5;border:1px solid rgba(239,68,68,0.45);" onclick="return confirm('¿Confirmas que quieres restaurar la base de datos? Esto puede sobrescribir datos existentes.');">♻️ Restaurar base de datos</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

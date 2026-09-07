@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}{{ evento.nombre }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if request.user.rol_efectivo == 'DOCENTE' %}
+  {% include 'dashboard/_sidebar_docente.html' with active='eventos' %}
+  {% elif request.user.rol_efectivo == 'ESTUDIANTE' %}
+  {% include 'dashboard/_sidebar_estudiante.html' with active='eventos' %}
+  {% else %}
+  {% include 'dashboard/_sidebar.html' with active='eventos' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">{{ evento.get_tipo_display }} · {{ evento.get_estado_display }}</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">{{ evento.nombre }}</h1>
+      {% if evento.descripcion %}<p style="color:var(--txt2);margin-top:6px;">{{ evento.descripcion }}</p>{% endif %}
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">ℹ️ Detalles</span></div>
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">
+        <div><span style="color:var(--txt3);">Inicio:</span> <span style="color:var(--white);">{{ evento.fecha_inicio|date:"d/m/Y H:i" }}</span></div>
+        <div><span style="color:var(--txt3);">Fin:</span> <span style="color:var(--white);">{{ evento.fecha_fin|date:"d/m/Y H:i" }}</span></div>
+        <div><span style="color:var(--txt3);">Modalidad:</span> <span style="color:var(--white);">{{ evento.get_modalidad_display }}</span></div>
+        <div><span style="color:var(--txt3);">Cupo:</span> <span style="color:var(--white);">{{ n_inscritos }}{% if evento.cupo_maximo %} / {{ evento.cupo_maximo }}{% endif %}</span></div>
+        {% if evento.materia %}<div><span style="color:var(--txt3);">Materia:</span> <span style="color:var(--white);">{{ evento.materia.codigo }} — {{ evento.materia.nombre }}</span></div>{% endif %}
+        <div><span style="color:var(--txt3);">Propuesto por:</span> <span style="color:var(--white);">{{ evento.propuesto_por.nombre_completo }}</span></div>
+        {% if evento.aprobado_por %}<div><span style="color:var(--txt3);">Aprobado por:</span> <span style="color:var(--white);">{{ evento.aprobado_por.nombre_completo }}</span></div>{% endif %}
+      </div>
+      {% if reservas %}
+      <div style="padding:0 16px 16px;">
+        <p style="color:var(--txt3);font-size:11px;text-transform:uppercase;margin-bottom:6px;">Salones reservados</p>
+        {% for r in reservas %}
+        <span class="tb-badge" style="margin-right:6px;">{{ r.salon.codigo }} ({{ r.salon.sede.nombre }}) — {{ r.get_estado_display }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if evento.estado == 'PUBLICADO' or evento.estado == 'EN_CURSO' %}
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">🎟️ Mi inscripción</span></div>
+      <div style="padding:16px;">
+        {% if mi_inscripcion %}
+          <p style="color:var(--txt2);margin-bottom:10px;">Estado: <strong style="color:var(--white);">{{ mi_inscripcion.get_estado_display }}</strong></p>
+          {% if mi_inscripcion.estado != 'CANCELADO' %}
+          <img src="{% url 'inscripcion_qr_imagen' mi_inscripcion.id_inscripcion %}" alt="Mi QR" style="width:160px;height:160px;background:#fff;padding:8px;border-radius:8px;">
+          {% endif %}
+        {% else %}
+          <form method="post" action="{% url 'evento_inscribirse' evento.id_evento %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary" {% if cupo_lleno %}disabled{% endif %}>{% if cupo_lleno %}Cupo lleno — unirme a lista de espera{% else %}Inscribirme{% endif %}</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if puede_escanear %}
+    <div style="margin-bottom:20px;">
+      <a href="{% url 'evento_escanear_qr' evento.id_evento %}" class="btn btn-cyan">📷 Escanear asistencia</a>
+      {% if puede_gestionar %}<a href="{% url 'evento_certificados' evento.id_evento %}" class="btn btn-lime">🎓 Certificados</a>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if inscritos %}
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">👥 Inscritos</span>
+        <span class="tb-badge">{{ inscritos|length }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Usuario</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Estado</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Inscrito</th>
+        </tr></thead>
+        <tbody>
+          {% for i in inscritos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">{{ i.usuario.nombre_completo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ i.get_estado_display }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ i.fecha_inscripcion|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="padding:30px;text-align:center;color:var(--txt3);">Nadie se ha inscrito todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

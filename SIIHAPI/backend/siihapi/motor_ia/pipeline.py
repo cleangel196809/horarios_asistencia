@@ -679,14 +679,14 @@ def _guardar_horarios_propuestos(horarios: list, periodo: str, usuario_id: int,
             for mat in matriculas:
                 if (dia_cod, bloque.id_bloque, salon.id_salon) in ocup_salon:
                     continue
-                if (dia_cod, bloque.id_bloque, docente.id_docente) in ocup_doc:
+                if (dia_cod, bloque.id_bloque, docente.usuario_id) in ocup_doc:
                     continue
                 try:
                     Horario.objects.create(
                         matricula=mat, materia=materia, docente=docente,
                         salon=salon, bloque=bloque, dia=dia_cod, estado='PROPUESTO')
                     ocup_salon.add((dia_cod, bloque.id_bloque, salon.id_salon))
-                    ocup_doc.add((dia_cod, bloque.id_bloque, docente.id_docente))
+                    ocup_doc.add((dia_cod, bloque.id_bloque, docente.usuario_id))
                     creados += 1
                 except Exception as exc:
                     log.warning(f"[Pipeline] No se creo horario: {exc}")

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Plantillas de Correo{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Decano · Motor de Reglas</p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">✉️ Plantillas de Correo</h1>
+      </div>
+      <a href="{% url 'plantilla_crear' %}" class="btn btn-primary">+ Nueva plantilla</a>
+    </div>
+    <div class="card">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Código</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Asunto</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Variables</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Activa</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>
+          {% for p in plantillas %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);font-family:'JetBrains Mono',monospace;">{{ p.codigo }}</td>
+            <td style="padding:10px;color:var(--txt2);">{{ p.asunto }}</td>
+            <td style="padding:10px;color:var(--txt3);font-size:12px;">{{ p.variables_disponibles|join:", " }}</td>
+            <td style="padding:10px;color:{% if p.activa %}var(--lime-lt){% else %}var(--txt3){% endif %};">{% if p.activa %}Sí{% else %}No{% endif %}</td>
+            <td style="padding:10px;"><a href="{% url 'plantilla_editar' p.id_plantilla %}" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">Editar</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">No hay plantillas de correo creadas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

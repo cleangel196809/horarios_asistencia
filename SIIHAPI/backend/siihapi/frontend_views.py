@@ -10,18 +10,27 @@ Estructura por bloques:
     6. COORDINADOR (aprobacion de horarios)
     7. DOCENTE (mi horario, disponibilidad, mis materias, asistencia)
     8. ESTUDIANTE (mi horario, mis materias, asistencia, notas)
+    9. ADMIN (base de datos: CRUD via Django Admin, backup/restore, gestion de usuarios)
 """
 import json
+import os
+import re
 import uuid
 import random
-from datetime import timedelta
+import tempfile
+import calendar
+from datetime import date, datetime, timedelta
 
+from django.apps import apps as django_apps
 from django.conf import settings as djsettings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.contrib.auth.decorators import login_required
+from django.core.management import call_command
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse, HttpResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -30,7 +39,11 @@ from django.views.decorators.http import require_http_methods
 from apps.infraestructura.models import Sede, Salon
 from apps.academico.models import Facultad, Programa, Materia
 from apps.matriculas.models import Periodo, Estudiante, Matricula
-from apps.horarios.models import Bloque, Horario, AsignacionIA, ReglaNegocio
+from apps.matriculas.periodo_utils import get_periodo_seleccionado, set_periodo_seleccionado
+from apps.horarios.models import Bloque, Horario, AsignacionIA, ReglaNegocio, SolicitudReprogramacion
+from apps.asistencias.models import AsistenciaEstudiante, AsistenciaDocente, Justificacion, AlertaRiesgo
+from apps.bienestar.models import CasoBienestar
+from apps.eventos.models import Evento, ReservaRecurso, InscripcionEvento, AsistenciaEvento, Certificado
 from apps.personal.models import Docente, DisponibilidadDocente
 from apps.autenticacion.models import IntentoLogin, Usuario
 from apps.integracion_sisca.models import IntegracionLog
@@ -39,6 +52,9 @@ from apps.integracion_sisca.cliente import get_cliente, ClienteSISCAError
 from .permisos import (
     rol_requerido, admin_required, staff_required,
     docente_required, estudiante_required, es_staff,
+    es_docente, es_estudiante, es_solo_consulta,
+    gestion_periodos_required,
+    operacion_required, bloquear_solo_consulta,
 )
 
 
@@ -47,29 +63,41 @@ from .permisos import (
 # ════════════════════════════════════════════════════════════════
 
 def landing(request):
+    # Fase 2 (2026-09-03): datos reales de integracion_pi, sin numeros de
+    # relleno. Antes se usaba "or 87" / "or '8.430'" como demo si la BD
+    # (Oracle) estaba vacia; ahora la BD compartida siempre tiene datos
+    # reales, asi que se muestran tal cual (incluido 0 si aplica).
     stats = {
         'sedes':       Sede.objects.filter(estado='A').count(),
         'salones':     Salon.objects.filter(activo=True).count(),
         'programas':   Programa.objects.filter(activo=True).count(),
-        'docentes':    Docente.objects.filter(activo=True).count() or 87,
-        'estudiantes': Estudiante.objects.filter(activo=True).count() or '8.430',
+        'docentes':    Docente.objects.filter(activo=True).count(),
+        'estudiantes': Estudiante.objects.filter(activo=True).count(),
     }
+    sedes = Sede.objects.filter(estado='A').order_by('nombre')
     return render(request, 'landing.html', {
         'stats': stats,
+        'sedes': sedes,
         'mision': 'Formar profesionales integrales, capaces de transformar la sociedad mediante la innovacion, el liderazgo y la excelencia academica.',
     })
 
 
 def login_view(request):
+    """RF-01 (Fase 3, 2026-09-04): el ingreso se decide SOLO por correo +
+    contrasena -- ya no se pide elegir un boton de rol ni se valida que
+    coincida con uno. El rol real vive en user.rol (columna 'rol' de la
+    BD) y dashboard() despacha automaticamente al panel correcto segun
+    user.rol_efectivo (ver Usuario.ROL_EQUIVALENCIAS): administrador como
+    administrador, decano/secretaria academica/coordinador como
+    coordinador, docente como docente, estudiante como estudiante, y
+    bienestar academico/mentorias tambien como coordinador pero de solo
+    consulta (ver permisos.ROLES_SOLO_CONSULTA)."""
     if request.user.is_authenticated:
         return redirect('dashboard')
-
-    rol_pref = request.GET.get('rol', 'ESTUDIANTE')
 
     if request.method == 'POST':
         correo = request.POST.get('correo', '').strip().lower()
         contrasena = request.POST.get('contrasena', '')
-        rol = request.POST.get('rol', '')
         ip = request.META.get('REMOTE_ADDR')
         user_agent = request.META.get('HTTP_USER_AGENT', '')[:255]
 
@@ -78,15 +106,11 @@ def login_view(request):
         if user is None:
             IntentoLogin.objects.create(correo=correo, exitoso=False, ip=ip, user_agent=user_agent)
             messages.error(request, 'Credenciales invalidas')
-            return render(request, 'auth/login.html', {'rol_pref': rol})
-
-        if user.rol != rol:
-            messages.error(request, 'Rol incorrecto para este usuario')
-            return render(request, 'auth/login.html', {'rol_pref': rol})
+            return render(request, 'auth/login.html')
 
         if user.esta_bloqueado():
             messages.error(request, 'Tu cuenta esta temporalmente bloqueada por intentos fallidos')
-            return render(request, 'auth/login.html', {'rol_pref': rol})
+            return render(request, 'auth/login.html')
 
         django_login(request, user)
         user.resetear_intentos()
@@ -99,7 +123,7 @@ def login_view(request):
         messages.success(request, f'Bienvenido {user.nombre_completo}')
         return redirect('dashboard')
 
-    return render(request, 'auth/login.html', {'rol_pref': rol_pref})
+    return render(request, 'auth/login.html')
 
 
 def logout_view(request):
@@ -108,13 +132,105 @@ def logout_view(request):
     return redirect('landing')
 
 
+# Fase 2 (2026-09-03): estandar de codigo para ciclos de formacion
+# (periodos academicos): AÑO-CICLOT, ej. "2026-4T" (4 ciclos/trimestres
+# por año). Solo aplica a los ciclos creados desde esta vista; los
+# codigos historicos (ej. "2026-2") no se tocan.
+PERIODO_CODIGO_RE = re.compile(r'^(?P<anio>\d{4})-(?P<ciclo>[1-4])T$')
+
+
+def _ciclo_sort_key(c):
+    """Ordena ciclos de formacion (Materia.ciclo: '1'..'12', semestre) de
+    forma CRONOLOGICA (1,2,3,...,12) en vez de alfabetica (2026-09-06, a
+    pedido del usuario -- el campo es CharField porque a veces trae datos
+    legacy no numericos, asi que un sort/order_by de texto normal deja
+    '10','11','12' antes que '2'..'9'). Los valores numericos van primero
+    en su orden real; cualquier valor no numerico legacy queda al final,
+    ordenado alfabeticamente entre si para no romper con datos viejos."""
+    s = str(c).strip()
+    if s.isdigit():
+        return (0, int(s), '')
+    return (1, 0, s)
+
+
+@gestion_periodos_required
+@require_http_methods(['POST'])
+def crear_periodo(request):
+    """Crea un nuevo ciclo de formacion (Periodo) y lo marca como el actual.
+
+    Solo Admin, Decano y Secretaria Academica pueden llegar aqui (ver
+    permisos.gestion_periodos_required). Los demas roles solo ven los
+    ciclos ya creados en el selector del topbar (context_processors.py).
+    """
+    destino = request.META.get('HTTP_REFERER') or reverse('dashboard')
+
+    codigo = request.POST.get('codigo', '').strip().upper()
+    nombre = request.POST.get('nombre', '').strip()
+    fecha_inicio = request.POST.get('fecha_inicio', '').strip()
+    fecha_fin = request.POST.get('fecha_fin', '').strip()
+
+    m = PERIODO_CODIGO_RE.match(codigo)
+    if not m:
+        messages.error(request, 'El código del ciclo debe tener el formato AÑO-CICLOT, por ejemplo 2026-4T.')
+        return redirect(destino)
+
+    if not fecha_inicio or not fecha_fin:
+        messages.error(request, 'Debes indicar la fecha de inicio y de fin del ciclo.')
+        return redirect(destino)
+
+    if Periodo.objects.filter(codigo=codigo).exists():
+        messages.error(request, f'Ya existe un ciclo con el código {codigo}.')
+        return redirect(destino)
+
+    if not nombre:
+        nombre = f"Trimestre {m.group('ciclo')} de {m.group('anio')}"
+
+    # El nuevo ciclo pasa a ser "el actual" en todo el sistema (dashboard,
+    # selector del topbar, etc. ya filtran por activo=True).
+    Periodo.objects.update(activo=False)
+    nuevo = Periodo.objects.create(
+        codigo=codigo,
+        nombre=nombre,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        activo=True,
+    )
+    # Quien lo crea pasa a "ver" ese ciclo de inmediato (ver seleccionar_periodo).
+    set_periodo_seleccionado(request, nuevo)
+    messages.success(request, f'Ciclo de formación {codigo} creado y marcado como actual.')
+    return redirect(destino)
+
+
+@login_required
+@require_http_methods(['POST'])
+def seleccionar_periodo(request):
+    """Guarda en la sesion del usuario el ciclo elegido en el selector del
+    topbar (base.html). A partir de ahi, get_periodo_seleccionado(request)
+    hace que TODAS las vistas que antes usaban Periodo.objects.filter(
+    activo=True).first() consulten con este ciclo en su lugar -- sin esto,
+    el selector solo era decorativo."""
+    destino = request.META.get('HTTP_REFERER') or reverse('dashboard')
+    periodo_id = request.POST.get('periodo_id', '').strip()
+    if not periodo_id:
+        set_periodo_seleccionado(request, None)
+        return redirect(destino)
+    try:
+        periodo = Periodo.objects.get(id_periodo=periodo_id)
+    except (Periodo.DoesNotExist, ValueError):
+        messages.error(request, 'Ese ciclo de formación ya no existe.')
+        return redirect(destino)
+    set_periodo_seleccionado(request, periodo)
+    messages.success(request, f'Ahora estás viendo el ciclo {periodo.codigo}.')
+    return redirect(destino)
+
+
 # ════════════════════════════════════════════════════════════════
 #  2. DASHBOARD RAIZ - despacha por rol
 # ════════════════════════════════════════════════════════════════
 
 @login_required
 def dashboard(request):
-    rol = request.user.rol
+    rol = request.user.rol_efectivo
     template_map = {
         'ADMINISTRADOR': 'dashboard/admin.html',
         'COORDINADOR':   'dashboard/coordinador.html',
@@ -123,7 +239,7 @@ def dashboard(request):
     }
     template = template_map.get(rol, 'dashboard/admin.html')
 
-    periodo_actual = Periodo.objects.filter(activo=True).first()
+    periodo_actual = get_periodo_seleccionado(request)
     periodo_cod = periodo_actual.codigo if periodo_actual else '2026-2'
 
     if rol in ('ADMINISTRADOR', 'COORDINADOR'):
@@ -144,6 +260,11 @@ def dashboard(request):
             },
             'ultima_ia': ultima_ia,
             'ultimo_log_sisca': ultimo_log_sisca,
+            # Sprint 2 (2026-09-06): Bienestar/Mentoría caen en esta rama
+            # porque su rol_efectivo también mapea a 'COORDINADOR' -- se
+            # distingue por el rol CRUDO para mostrarles su propio enlace
+            # de sidebar (bienestar_dashboard) sin tocar ROL_EQUIVALENCIAS.
+            'es_bienestar_o_mentoria': request.user.rol in ('BIENESTAR_ACADEMICO', 'MENTORIAS'),
         }
     elif rol == 'DOCENTE':
         doc = Docente.objects.filter(usuario=request.user).first()
@@ -217,14 +338,15 @@ def sedes_view(request):
 def programas_view(request):
     tipo_filtro = request.GET.get('tipo', '')
     facultades = Facultad.objects.all().annotate(num_programas=Count('programas'))
-    programas = Programa.objects.filter(activo=True).select_related('facultad')
+    programas_activos = Programa.objects.filter(activo=True)
+    programas = programas_activos.select_related('facultad')
     if tipo_filtro:
         programas = programas.filter(tipo=tipo_filtro)
     stats_tipo = {}
     for t, label in Programa.TIPO_CHOICES:
         stats_tipo[t] = {
             'label': label,
-            'count': Programa.objects.filter(tipo=t, activo=True).count(),
+            'count': programas_activos.filter(tipo=t).count(),
         }
     return render(request, 'dashboard/programas.html', {
         'facultades': facultades,
@@ -232,16 +354,161 @@ def programas_view(request):
         'stats_tipo': stats_tipo,
         'tipos': Programa.TIPO_CHOICES,
         'tipo_filtro': tipo_filtro,
+        # Fase 3 (2026-09-04): antes era texto fijo "27 programas... 4
+        # tipos y 6 facultades"; ahora sale de la BD real.
+        'total_programas': programas_activos.count(),
+        'total_facultades': facultades.filter(num_programas__gt=0).count(),
+    })
+
+
+@staff_required
+def programa_ciclos_view(request, id_programa):
+    """Fase 3 (2026-09-04): primer nivel del despliegue de 'Programas y
+    Materias' -- al hacer click en una carrera se listan los ciclos de
+    formacion (Periodo) en los que ese programa ha tenido matriculas."""
+    programa = get_object_or_404(Programa, id_programa=id_programa)
+
+    periodos = (
+        Periodo.objects
+        .filter(matricula__materia__programa=programa)
+        .annotate(
+            n_materias=Count('matricula__materia', distinct=True),
+            n_matriculas=Count('matricula', distinct=True),
+            n_estudiantes=Count('matricula__estudiante', distinct=True),
+        )
+        .distinct()
+        .order_by('-fecha_inicio')
+    )
+
+    return render(request, 'dashboard/programa_ciclos.html', {
+        'programa': programa,
+        'periodos': periodos,
+    })
+
+
+@staff_required
+def programa_ciclo_materias_view(request, id_programa, id_periodo):
+    """Segundo nivel: al hacer click en un ciclo de formacion se listan las
+    materias de ese programa que tuvieron matriculas en ese periodo, con un
+    resumen de sus horarios asignados (dia, bloque, docente, salon)."""
+    programa = get_object_or_404(Programa, id_programa=id_programa)
+    periodo = get_object_or_404(Periodo, id_periodo=id_periodo)
+
+    materias = (
+        Materia.objects
+        .filter(programa=programa, matricula__periodo=periodo)
+        .annotate(n_estudiantes=Count('matricula', distinct=True,
+                                       filter=Q(matricula__periodo=periodo)))
+        .distinct()
+        .order_by('nombre')
+    )
+
+    horarios_por_materia = {}
+    horarios_qs = (
+        Horario.objects
+        .filter(matricula__periodo=periodo, materia__programa=programa)
+        .select_related('docente__usuario', 'salon', 'bloque', 'materia')
+        .values('materia_id', 'dia', 'bloque__numero', 'bloque__hora_inicio', 'bloque__hora_fin',
+                'docente__usuario__nombre', 'docente__usuario__apellido', 'salon__codigo', 'estado')
+        .distinct()
+        .order_by('materia_id', 'dia', 'bloque__numero')
+    )
+    dias_map = dict(Horario.DIA_CHOICES)
+    for h in horarios_qs:
+        h['dia_label'] = dias_map.get(h['dia'], h['dia'])
+        horarios_por_materia.setdefault(h['materia_id'], []).append(h)
+
+    materias_con_horario = []
+    for m in materias:
+        materias_con_horario.append({
+            'materia': m,
+            'n_estudiantes': m.n_estudiantes,
+            'horarios': horarios_por_materia.get(m.id_materia, []),
+        })
+    # Orden cronologico por ciclo (1,2,...,12), no alfabetico -- ciclo es
+    # CharField y .order_by('ciclo') a nivel de BD ordena como texto
+    # (2026-09-06, a pedido del usuario, ver _ciclo_sort_key).
+    materias_con_horario.sort(
+        key=lambda x: (_ciclo_sort_key(x['materia'].ciclo), x['materia'].nombre or '')
+    )
+
+    return render(request, 'dashboard/programa_ciclo_materias.html', {
+        'programa': programa,
+        'periodo': periodo,
+        'materias_con_horario': materias_con_horario,
+    })
+
+
+@staff_required
+def materia_periodo_estudiantes_view(request, id_programa, id_periodo, id_materia):
+    """Tercer nivel: al hacer click en una materia (dentro de un ciclo) se
+    listan los estudiantes matriculados en ella para ese periodo, junto con
+    su estado de matricula, nota (si existe) y su horario asignado."""
+    programa = get_object_or_404(Programa, id_programa=id_programa)
+    periodo = get_object_or_404(Periodo, id_periodo=id_periodo)
+    materia = get_object_or_404(Materia, id_materia=id_materia, programa=programa)
+
+    matriculas = (
+        Matricula.objects
+        .filter(materia=materia, periodo=periodo)
+        .select_related('estudiante__usuario')
+        .prefetch_related('horarios__docente__usuario', 'horarios__salon', 'horarios__bloque')
+        .order_by('estudiante__usuario__apellido', 'estudiante__usuario__nombre')
+    )
+
+    return render(request, 'dashboard/materia_periodo_estudiantes.html', {
+        'programa': programa,
+        'periodo': periodo,
+        'materia': materia,
+        'matriculas': matriculas,
+        'total_estudiantes': matriculas.count(),
     })
 
 
 @staff_required
 def docentes_view(request):
-    docentes = Docente.objects.filter(activo=True).select_related('usuario')[:200]
+    """Fase 3 (2026-09-04): antes mostraba un "DOC-{id_docente}" que ya no
+    existe (Docente usa usuario_id como PK desde la Fase 2) -- ahora la
+    columna ID muestra la cedula real del docente. Se agrega busqueda por
+    cedula/nombre/apellido (parametro GET 'q'); el autocompletado en vivo
+    lo sirve docentes_autocomplete()."""
+    q = request.GET.get('q', '').strip()
+    docentes_qs = Docente.objects.filter(activo=True).select_related('usuario', 'facultad')
+    if q:
+        docentes_qs = docentes_qs.filter(
+            Q(usuario__cedula__icontains=q) |
+            Q(usuario__nombre__icontains=q) |
+            Q(usuario__apellido__icontains=q)
+        )
+    total_general = Docente.objects.filter(activo=True).count()
     return render(request, 'dashboard/docentes.html', {
-        'docentes': docentes,
-        'total': Docente.objects.filter(activo=True).count(),
+        'docentes': docentes_qs.order_by('usuario__apellido', 'usuario__nombre')[:200],
+        'total': total_general,
+        'total_filtrado': docentes_qs.count() if q else total_general,
+        'q': q,
     })
+
+
+@staff_required
+def docentes_autocomplete(request):
+    """Fase 3 (2026-09-04): sugerencias en vivo para el buscador de
+    Docentes (por cedula, nombre o apellido). Devuelve como maximo 8
+    coincidencias entre docentes activos."""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'resultados': []})
+    docentes_qs = Docente.objects.filter(activo=True).select_related('usuario').filter(
+        Q(usuario__cedula__icontains=q) |
+        Q(usuario__nombre__icontains=q) |
+        Q(usuario__apellido__icontains=q)
+    ).order_by('usuario__apellido', 'usuario__nombre')[:8]
+    resultados = [{
+        'cedula': d.usuario.cedula or '',
+        'nombre': d.usuario.nombre,
+        'apellido': d.usuario.apellido,
+        'correo': d.usuario.correo,
+    } for d in docentes_qs]
+    return JsonResponse({'resultados': resultados})
 
 
 @staff_required
@@ -263,23 +530,47 @@ def estudiantes_view(request):
 #  4. ADMIN/COORDINADOR - Motor IA + Horarios + SISCA
 # ════════════════════════════════════════════════════════════════
 
-@staff_required
+@operacion_required
 def motor_ia_view(request):
+    """Fase 3 (2026-09-04): el tile "Matrículas activas" del paso 1
+    (Verificación de datos) ahora se calcula SOBRE EL PERIODO seleccionado
+    en el topbar (get_periodo_seleccionado), no en toda la base de datos.
+    Antes mostraba un conteo global que quedaba en verde/OK aunque el
+    ciclo que realmente se iba a ejecutar (2026-3T, 2026-4T, ...) no
+    tuviera ninguna matrícula ACTIVA -- lo que llevaba al motor a fallar
+    con "No hay suficientes datos para el solver" sin que el paso 1 lo
+    hubiera advertido. También se expone 'matriculas_inscritas': las que
+    llegaron por importar_inscritos con ESTADO=INSCRITO (pre-registro sin
+    confirmar) y que el motor NO usa todavía -- para que quede visible por
+    qué el periodo puede verse "sin datos" aunque sí tenga inscripciones."""
     asignaciones = AsignacionIA.objects.order_by('-fecha_inicio')[:20]
     ultima = asignaciones.first() if asignaciones else None
+    periodo_sel = get_periodo_seleccionado(request)
+
+    if periodo_sel:
+        matriculas_activas = Matricula.objects.filter(periodo=periodo_sel, estado='ACTIVA').count()
+        matriculas_inscritas = Matricula.objects.filter(periodo=periodo_sel, estado='INSCRITA').count()
+    else:
+        matriculas_activas = 0
+        matriculas_inscritas = 0
+
     return render(request, 'dashboard/motor_ia.html', {
         'asignaciones': asignaciones,
         'ultima': ultima,
+        'periodo_verificacion': periodo_sel,
         'kpis': {
-            'matriculas': Matricula.objects.filter(estado='ACTIVA').count(),
-            'horarios':   Horario.objects.count(),
+            'matriculas':           matriculas_activas,
+            'matriculas_inscritas': matriculas_inscritas,
+            'horarios':   Horario.objects.filter(matricula__periodo=periodo_sel).distinct().count() if periodo_sel else 0,
             'reglas':     ReglaNegocio.objects.filter(activa=True).count(),
             'salones':    Salon.objects.filter(activo=True).count(),
+            'docentes':   Docente.objects.filter(activo=True).count(),
+            'bloques':    Bloque.objects.count(),
         },
     })
 
 
-@staff_required
+@operacion_required
 def motor_ia_grupos(request):
     """Fase 1 — Genera y muestra el plan de GRUPOS por asignatura (techo de
     estudiantes/capacidad, virtual 8-30, presencial por capacidad)."""
@@ -299,7 +590,7 @@ def motor_ia_grupos(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def motor_ia_analizar(request):
     """Recibe un archivo (CSV/XLSX/PDF/DOCX), lo analiza con el pipeline IA
@@ -360,7 +651,7 @@ def motor_ia_analizar(request):
     return JsonResponse(resultado)
 
 
-@staff_required
+@operacion_required
 def motor_ia_descargar_borrador(request):
     """Exporta los horarios PROPUESTO/APROBADO (borrador) a Excel para AUDITORIA
     HUMANA antes de publicar a SISCA. Incluye carrera, periodo y jornada para
@@ -527,7 +818,7 @@ def _queryset_desde_filtro(filtro):
     return qs
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def motor_ia_proponer_edicion(request):
     """Interpreta una instrucción y devuelve un plan de cambios SIN aplicarlo."""
@@ -596,7 +887,7 @@ def motor_ia_proponer_edicion(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def motor_ia_aplicar_edicion(request):
     """Aplica un plan de edición previamente confirmado por el usuario."""
@@ -637,11 +928,12 @@ def motor_ia_aplicar_edicion(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def motor_ia_ejecutar(request):
     """RF-26 - Motor IA Hibrido: CSP solver + LLM analyst."""
     from .motor_ia import resolver_csp, analizar_horario_con_ia, proveedor_disponible, SolverError
+    from .motor_ia.jornadas import bloques_validos_para_ia
 
     periodo_cod = request.POST.get('periodo', '2026-2')
     modo = request.POST.get('modo', 'COMPLETA')
@@ -668,27 +960,82 @@ def motor_ia_ejecutar(request):
 
     # === Cargar datos para el solver ===
     matriculas = list(Matricula.objects.filter(periodo=periodo, estado='ACTIVA').select_related(
-        'estudiante', 'materia'
+        'estudiante', 'materia__programa__facultad'
     )[:1000])
-    salones = list(Salon.objects.filter(activo=True))
-    bloques = list(Bloque.objects.all().order_by('numero'))
-    docentes = list(Docente.objects.filter(activo=True))
+    # Fase 4 (2026-09-05): excluye sedes inactivas (ej. Calle 80, aun no
+    # habilitada -- marcala como Inactiva en Sedes desde el Admin) y
+    # restringe los bloques a las 4 jornadas fijas (RF-39, ver
+    # motor_ia/jornadas.py); corre 'python manage.py corregir_bloques_horario
+    # --aplicar' si bloques queda vacio.
+    salones = list(Salon.objects.filter(activo=True, sede__estado='A').select_related('sede'))
+    bloques = bloques_validos_para_ia(list(Bloque.objects.all().order_by('numero')))
+    docentes = list(Docente.objects.filter(activo=True).select_related('facultad', 'sede'))
 
     if not (docentes and salones and bloques and matriculas):
+        # Fase 3 (2026-09-04): antes este mensaje era genérico ("Faltan
+        # datos") y no decía CUÁL de los 4 conjuntos estaba vacío ni para
+        # qué periodo -- obligaba a adivinar. Ahora arma la lista exacta de
+        # lo que falta, con los conteos reales de ESTE periodo, y si el
+        # problema son las matrículas distingue el caso más común: sí hay
+        # inscripciones pero están en INSCRITA (pre-registro sin confirmar,
+        # ver importar_inscritos) y el motor solo usa ACTIVA.
+        faltantes = []
+        if not docentes:
+            faltantes.append('docentes activos (0 encontrados) — revisa Docentes y marca activos=True')
+        if not salones:
+            faltantes.append('salones activos (0 encontrados) — revisa Sedes y Salones')
+        if not bloques:
+            faltantes.append(
+                'bloques horarios dentro de las 4 jornadas fijas (Diurna/Especial/'
+                'Nocturna/Sabatino) -- corre \'python manage.py corregir_bloques_horario '
+                '--aplicar\' una sola vez, es idempotente'
+            )
+        if not matriculas:
+            inscritas = Matricula.objects.filter(periodo=periodo, estado='INSCRITA').count()
+            if inscritas:
+                faltantes.append(
+                    f'matrículas ACTIVAS para {periodo_cod} (0 activas, pero hay {inscritas} en '
+                    f'estado INSCRITA sin confirmar — el motor no las usa hasta que se confirmen)'
+                )
+            else:
+                faltantes.append(f'matrículas para el periodo {periodo_cod} (0 encontradas, ni activas ni inscritas)')
+
+        mensaje_log = 'Faltan datos: ' + '; '.join(faltantes)
         asignacion.estado = 'FALLIDA'
         asignacion.fecha_fin = timezone.now()
-        asignacion.log = 'Faltan datos (matriculas, docentes, salones o bloques vacios).'
+        asignacion.log = mensaje_log
         asignacion.save()
+
+        if not matriculas and Matricula.objects.filter(periodo=periodo, estado='INSCRITA').exists():
+            sugerencia = (
+                f'Las inscripciones de {periodo_cod} están como INSCRITA (pre-registro), no ACTIVA. '
+                f'Consigue el Excel "INSCRITOS POR CICLO" actualizado (con ESTADO=MATRICULADO para los '
+                f'confirmados) y vuelve a correr: python manage.py importar_inscritos ruta\\archivo.xlsx '
+                f'--periodo {periodo_cod} — es idempotente, solo sube de INSCRITA a ACTIVA, nunca al revés.'
+            )
+        elif not matriculas:
+            sugerencia = (
+                f'No hay ninguna matrícula (ni activa ni inscrita) para {periodo_cod}. Impórtalas con: '
+                f'python manage.py importar_inscritos ruta\\archivo.xlsx --periodo {periodo_cod}'
+            )
+        else:
+            sugerencia = 'Carga los datos base (docentes, salones o bloques) desde sus módulos en el dashboard de Admin.'
+
         return JsonResponse({
             'success': False,
-            'error': 'No hay suficientes datos para el solver',
-            'sugerencia': 'Ejecuta cargar_datos_reales.bat y luego cargar_demo.bat',
+            'error': 'No hay suficientes datos para el solver: ' + '; '.join(faltantes),
+            'sugerencia': sugerencia,
+            'faltantes': {
+                'docentes': len(docentes), 'salones': len(salones),
+                'bloques': len(bloques), 'matriculas_activas': len(matriculas),
+                'matriculas_inscritas': Matricula.objects.filter(periodo=periodo, estado='INSCRITA').count(),
+            },
         }, status=400)
 
     # === Cargar restricciones de disponibilidad docente (RF-17) ===
     restricciones = list(
         DisponibilidadDocente.objects.filter(docente__activo=True)
-        .values_list('docente_id', 'dia', 'bloque')
+        .values_list('docente_id', 'dia', 'bloque__numero')
     )
 
     if modo == 'SIMULACION':
@@ -826,7 +1173,7 @@ def motor_ia_ejecutar(request):
     })
 
 
-@staff_required
+@operacion_required
 def motor_ia_chat_view(request):
     """Pagina del chat conversacional IA."""
     from .motor_ia.llm import proveedor_disponible
@@ -836,7 +1183,7 @@ def motor_ia_chat_view(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def motor_ia_chat_enviar(request):
     """RF-37 (extension) - Chat conversacional con el LLM."""
@@ -893,7 +1240,7 @@ def motor_ia_chat_enviar(request):
     return JsonResponse(resultado)
 
 
-@staff_required
+@operacion_required
 def motor_ia_metricas(request):
     asignaciones = AsignacionIA.objects.order_by('-fecha_inicio')[:50]
     total = AsignacionIA.objects.count()
@@ -1055,13 +1402,15 @@ def horarios_view(request):
         'cat_bloques': Bloque.objects.order_by('numero'),
         # Catálogos para los filtros de carrera y ciclo
         'cat_carreras': Programa.objects.filter(activo=True).order_by('nombre'),
+        # Orden cronologico (1,2,...,12), no alfabetico -- ver _ciclo_sort_key.
         'cat_ciclos': sorted(set(
-            Materia.objects.exclude(ciclo=None).values_list('ciclo', flat=True))),
+            Materia.objects.exclude(ciclo=None).values_list('ciclo', flat=True)
+        ), key=_ciclo_sort_key),
         'cat_periodos': Periodo.objects.order_by('-codigo'),
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def generar_horarios_desde_matriculas(request):
     """Genera horarios PROPUESTO desde las matriculas activas, asignando
@@ -1077,7 +1426,7 @@ def generar_horarios_desde_matriculas(request):
     DIAS = ['LU', 'MA', 'MI', 'JU', 'VI'] + (['SA'] if incluir_sabado else [])
     destino_error = request.META.get('HTTP_REFERER') or '/dashboard/carga-masiva/'
 
-    periodo = Periodo.objects.filter(activo=True).first()
+    periodo = get_periodo_seleccionado(request)
     matriculas = list(
         Matricula.objects.filter(estado='ACTIVA')
         .select_related('materia', 'estudiante').order_by('id_matricula')
@@ -1115,8 +1464,8 @@ def generar_horarios_desde_matriculas(request):
     from siihapi.motor_ia.salones import salon_apto, es_programa_virtual
     from siihapi.motor_ia.docentes import horas_materia, cargar_disponibilidad, docente_disponible, carga_max
     _disp = cargar_disponibilidad()
-    _carga_max = {d.id_docente: carga_max(d) for d in docentes}
-    _carga_usada = {d.id_docente: 0.0 for d in docentes}
+    _carga_max = {d.usuario_id: carga_max(d) for d in docentes}
+    _carga_usada = {d.usuario_id: 0.0 for d in docentes}
     # Salon virtual (los programas virtuales NO ocupan salon fisico)
     salon_virtual = (Salon.objects.filter(tipo__icontains='VIRT').first()
                      or Salon.objects.filter(nombre__icontains='VIRTUAL').first()
@@ -1156,11 +1505,11 @@ def generar_horarios_desde_matriculas(request):
             # 1) Elegir DOCENTE: disponible en (dia,bloque), con carga libre, sin cruce
             docente = None
             for d in docentes_barajados:
-                if (dia, bloque.id_bloque, d.id_docente) in ocupado_docente:
+                if (dia, bloque.id_bloque, d.usuario_id) in ocupado_docente:
                     continue
-                if not docente_disponible(_disp, d.id_docente, dia, bloque.numero):
+                if not docente_disponible(_disp, d.usuario_id, dia, bloque.numero):
                     continue
-                if _carga_usada[d.id_docente] + horas > _carga_max[d.id_docente]:
+                if _carga_usada[d.usuario_id] + horas > _carga_max[d.usuario_id]:
                     continue
                 docente = d; break
             if docente is None:
@@ -1180,8 +1529,8 @@ def generar_horarios_desde_matriculas(request):
                 if salon is None:
                     continue
                 ocupado_salon.add((dia, bloque.id_bloque, salon.id_salon))
-            ocupado_docente.add((dia, bloque.id_bloque, docente.id_docente))
-            _carga_usada[docente.id_docente] += horas
+            ocupado_docente.add((dia, bloque.id_bloque, docente.usuario_id))
+            _carga_usada[docente.usuario_id] += horas
             nuevos.append(Horario(
                 matricula=mat, materia=materia, docente=docente,
                 salon=salon, bloque=bloque, dia=dia, estado='PROPUESTO',
@@ -1203,7 +1552,7 @@ def generar_horarios_desde_matriculas(request):
     return redirect('revision_propuesta')
 
 
-@staff_required
+@operacion_required
 def revision_propuesta(request):
     """Panel de revisión visual post-IA / post-carga masiva.
 
@@ -1216,12 +1565,26 @@ def revision_propuesta(request):
     estado_filtro = request.GET.get('estado', 'PENDIENTES')
     qs = Horario.objects.select_related(
         'matricula__estudiante__usuario', 'matricula__periodo',
-        'materia__programa', 'docente__usuario', 'salon__sede', 'bloque'
+        'materia__programa__facultad', 'docente__usuario', 'salon__sede', 'bloque'
     )
     if estado_filtro == 'PENDIENTES':
         qs = qs.filter(estado__in=['PROPUESTO', 'APROBADO'])
     elif estado_filtro and estado_filtro != 'TODOS':
         qs = qs.filter(estado=estado_filtro)
+
+    # Filtrar por periodo academico (2026-09-06): esta pantalla mezclaba TODOS
+    # los periodos de una vez (una generacion del Motor IA para 2026-3T junto
+    # con cargas masivas de otros periodos), lo que ademas contamina el conteo
+    # de "conflictos" con choques entre periodos que en la vida real nunca se
+    # superponen. Default 'TODOS' preserva el comportamiento anterior.
+    periodo_filtro = request.GET.get('periodo', 'TODOS')
+    if periodo_filtro and periodo_filtro != 'TODOS':
+        qs = qs.filter(matricula__periodo__codigo=periodo_filtro)
+
+    periodos_disponibles = list(
+        Periodo.objects.filter(matricula__horarios__isnull=False)
+        .distinct().order_by('-codigo').values_list('codigo', flat=True)
+    )
 
     horarios = list(qs[:1500])
     bloques = list(Bloque.objects.all().order_by('numero'))
@@ -1319,6 +1682,34 @@ def revision_propuesta(request):
         })
     aulas_data.sort(key=lambda x: -x['horas'])
 
+    # ───── Ocupación por Sede (2026-09-06, agregado a pedido del usuario) ─────
+    por_sede = defaultdict(list)
+    for h in horarios:
+        try:
+            sede_id = h.salon.sede_id if h.salon else None
+        except Exception:
+            sede_id = None
+        por_sede[sede_id].append(h)
+    sedes_data = []
+    for sid, hs in por_sede.items():
+        if not hs: continue
+        try:
+            sede_obj = hs[0].salon.sede if hs[0].salon else None
+        except Exception:
+            sede_obj = None
+        nombre = getattr(sede_obj, 'nombre', None) or 'Sin sede asignada'
+        aulas_unicas = len({h.salon_id for h in hs})
+        docentes_s = len({h.docente_id for h in hs})
+        sedes_data.append({
+            'id': sid if sid is not None else 'SIN_SEDE',
+            'nombre': nombre,
+            'horas': len(hs),
+            'aulas': aulas_unicas,
+            'docentes': docentes_s,
+            'horarios': hs,
+        })
+    sedes_data.sort(key=lambda x: -x['horas'])
+
     # ───── Distribución por Programa ─────
     por_programa = defaultdict(list)
     for h in horarios:
@@ -1337,8 +1728,39 @@ def revision_propuesta(request):
             'horas': len(hs),
             'materias': materias_unicas,
             'docentes': docentes_p,
+            'horarios': hs,
         })
     programas_data.sort(key=lambda x: -x['horas'])
+
+    # ───── Distribución por Facultad (2026-09-06, agregado a pedido del usuario) ─────
+    por_facultad = defaultdict(list)
+    for h in horarios:
+        try:
+            fac_id = h.materia.programa.facultad_id if h.materia and h.materia.programa_id else None
+        except Exception:
+            fac_id = None
+        por_facultad[fac_id].append(h)
+    facultades_data = []
+    for fid, hs in por_facultad.items():
+        if not hs: continue
+        try:
+            fac_obj = hs[0].materia.programa.facultad if hs[0].materia and hs[0].materia.programa_id else None
+        except Exception:
+            fac_obj = None
+        codigo = getattr(fac_obj, 'codigo', '—') if fac_obj else '—'
+        nombre = getattr(fac_obj, 'nombre', None) or 'Sin facultad asignada'
+        programas_f = len({h.materia.programa_id for h in hs if h.materia and h.materia.programa_id})
+        docentes_f = len({h.docente_id for h in hs})
+        facultades_data.append({
+            'id': fid if fid is not None else 'SIN_FAC',
+            'codigo': codigo,
+            'nombre': nombre,
+            'horas': len(hs),
+            'programas': programas_f,
+            'docentes': docentes_f,
+            'horarios': hs,
+        })
+    facultades_data.sort(key=lambda x: -x['horas'])
 
     # ───── Conflictos detectados ─────
     conflictos = []
@@ -1367,8 +1789,11 @@ def revision_propuesta(request):
 
     # ───── Distribución por día ─────
     dist_dias = Counter(h.dia for h in horarios)
+    horarios_por_dia = defaultdict(list)
+    for h in horarios:
+        horarios_por_dia[h.dia].append(h)
     dist_dias_data = [
-        {'dia': lbl, 'cod': cod, 'total': dist_dias.get(cod, 0)}
+        {'dia': lbl, 'cod': cod, 'total': dist_dias.get(cod, 0), 'horarios': horarios_por_dia.get(cod, [])}
         for cod, lbl in DIAS
     ]
     max_dia = max((d['total'] for d in dist_dias_data), default=1) or 1
@@ -1392,11 +1817,15 @@ def revision_propuesta(request):
         'estado_filtro': estado_filtro,
         'estados': [('PENDIENTES','Pendientes de publicar'), ('PROPUESTO','Propuestos'),
                     ('APROBADO','Aprobados'), ('PUBLICADO','Publicados'), ('TODOS','Todos')],
+        'periodo_filtro': periodo_filtro,
+        'periodos_disponibles': periodos_disponibles,
         'calendario': calendario,
         'dias': DIAS,
         'docentes_data': docentes_data[:50],
         'aulas_data': aulas_data[:50],
+        'sedes_data': sedes_data[:50],
         'programas_data': programas_data[:50],
+        'facultades_data': facultades_data[:50],
         'conflictos': conflictos[:50],
         'dist_dias': dist_dias_data,
         'ultima_ia': ultima_ia,
@@ -1404,37 +1833,69 @@ def revision_propuesta(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def revision_aprobar_todos(request):
-    """Aprueba TODOS los horarios PROPUESTO de un golpe."""
-    n = Horario.objects.filter(estado='PROPUESTO').update(estado='APROBADO')
+    """Aprueba los horarios PROPUESTO de un golpe -- acotado al periodo activo
+    en el filtro de la pantalla (2026-09-06: antes tocaba TODOS los periodos
+    a la vez, mezclando distintas generaciones del Motor IA sin querer)."""
+    periodo = request.POST.get('periodo') or request.GET.get('periodo') or 'TODOS'
+    qs = Horario.objects.filter(estado='PROPUESTO')
+    if periodo and periodo != 'TODOS':
+        qs = qs.filter(matricula__periodo__codigo=periodo)
+    n = qs.update(estado='APROBADO')
     return JsonResponse({'success': True, 'aprobados': n, 'mensaje': f'{n} horarios aprobados'})
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def revision_eliminar_propuesta(request):
-    """Elimina TODOS los horarios PROPUESTO sin publicar (para regenerar)."""
-    n, _ = Horario.objects.filter(estado='PROPUESTO').delete()
+    """Elimina los horarios PROPUESTO sin publicar (para regenerar) -- acotado
+    al periodo activo en el filtro de la pantalla (ver revision_aprobar_todos)."""
+    periodo = request.POST.get('periodo') or request.GET.get('periodo') or 'TODOS'
+    qs = Horario.objects.filter(estado='PROPUESTO')
+    if periodo and periodo != 'TODOS':
+        qs = qs.filter(matricula__periodo__codigo=periodo)
+    n, _ = qs.delete()
     return JsonResponse({'success': True, 'eliminados': n, 'mensaje': f'{n} propuestas eliminadas'})
 
 
-@staff_required
+@operacion_required
 def centro_publicacion(request):
-    """Panel unificado: subir -> revisar -> aprobar -> publicar."""
+    """Panel unificado: subir -> revisar -> aprobar -> publicar.
+
+    2026-09-06: acotado al ciclo de formacion SELECCIONADO en el topbar
+    (get_periodo_seleccionado -- la misma fuente de verdad que usan ya
+    todas las demas vistas del app desde la Fase 3, ver periodo_utils.py).
+    Antes esta pantalla mezclaba TODOS los periodos en sus contadores, Y
+    el badge "Periodo: 2026-2" junto con el POST 'periodo' de los botones
+    Aprobar/Publicar estaban HARDCODEADOS en el template sin importar el
+    ciclo real activo -- si el usuario trabajaba en otro ciclo (ej.
+    2026-3T, el que se estaba usando en el Motor IA), esta pantalla igual
+    mandaba '2026-2' al aprobar/publicar, lo que fallaba silenciosamente
+    en cualquier otro periodo. Ahora todo (contadores, muestra de
+    horarios, aprobar, publicar) respeta el mismo periodo que el usuario
+    tiene seleccionado arriba.
+    """
     from .integracion_sisca_helpers import _cliente_disponible
     cfg = getattr(djsettings, 'SIIHAPI', {})
     cliente = get_cliente()
     sisca_conectado = cliente.ping()
 
-    propuestos = Horario.objects.filter(estado='PROPUESTO').count()
-    aprobados = Horario.objects.filter(estado='APROBADO').count()
-    publicados = Horario.objects.filter(estado='PUBLICADO').count()
-    cancelados = Horario.objects.filter(estado='CANCELADO').count()
+    periodo_actual = get_periodo_seleccionado(request)
+    periodo_cod = periodo_actual.codigo if periodo_actual else 'TODOS'
+
+    horarios_qs = Horario.objects.all()
+    if periodo_actual:
+        horarios_qs = horarios_qs.filter(matricula__periodo=periodo_actual)
+
+    propuestos = horarios_qs.filter(estado='PROPUESTO').count()
+    aprobados = horarios_qs.filter(estado='APROBADO').count()
+    publicados = horarios_qs.filter(estado='PUBLICADO').count()
+    cancelados = horarios_qs.filter(estado='CANCELADO').count()
 
     # Tomar muestras (priorizando APROBADOS, luego PUBLICADOS, luego PROPUESTOS)
-    base_qs = Horario.objects.select_related(
+    base_qs = horarios_qs.select_related(
         'matricula', 'materia', 'docente__usuario', 'salon__sede', 'bloque'
     )
     horarios_aprobados = list(base_qs.filter(estado='APROBADO').order_by('dia', 'bloque__numero')[:30])
@@ -1450,12 +1911,13 @@ def centro_publicacion(request):
     return render(request, 'dashboard/centro_publicacion.html', {
         'sisca_url': cfg.get('SISCA_API_URL', 'http://localhost:8080'),
         'sisca_conectado': sisca_conectado,
+        'periodo_cod': periodo_cod,
         'kpis': {
             'propuestos':  propuestos,
             'aprobados':   aprobados,
             'publicados':  publicados,
             'cancelados':  cancelados,
-            'total':       Horario.objects.count(),
+            'total':       horarios_qs.count(),
         },
         'horarios_aprobados': horarios_aprobados,
         'ultima_publicacion': ultima_pub,
@@ -1482,14 +1944,14 @@ def horario_detalle(request, id_horario):
 
     # Si es estudiante o docente, solo puede ver SU horario
     user = request.user
-    if user.rol == 'DOCENTE':
+    if user.rol_efectivo == 'DOCENTE':
         docente = Docente.objects.filter(usuario=user).first()
-        if not docente or h.docente_id != docente.id_docente:
+        if not docente or h.docente_id != docente.usuario_id:
             messages.error(request, 'No tienes acceso a este horario')
             return redirect('docente_mi_horario')
-    elif user.rol == 'ESTUDIANTE':
+    elif user.rol_efectivo == 'ESTUDIANTE':
         est = Estudiante.objects.filter(usuario=user).first()
-        if not est or h.matricula.estudiante_id != est.id_estudiante:
+        if not est or h.matricula.estudiante_id != est.usuario_id:
             messages.error(request, 'No tienes acceso a este horario')
             return redirect('estudiante_mi_horario')
 
@@ -1745,7 +2207,7 @@ def _titular_desde_request_siihapi(request, horario_ref=None):
     plan = ''
     centro = 'SEDE CALLE 73'
     try:
-        if u.rol == 'ESTUDIANTE':
+        if u.rol_efectivo == 'ESTUDIANTE':
             from .models import Estudiante
             est = Estudiante.objects.select_related('programa').filter(usuario=u).first()
             if est:
@@ -1866,12 +2328,12 @@ def horarios_exportar_pdf_completo(request):
 
     # Si es estudiante, filtrar solo sus matrículas
     try:
-        if request.user.rol == 'ESTUDIANTE':
+        if request.user.rol_efectivo == 'ESTUDIANTE':
             from .models import Estudiante
             est = Estudiante.objects.filter(usuario=request.user).first()
             if est:
                 qs = qs.filter(matricula__estudiante=est)
-        elif request.user.rol == 'DOCENTE':
+        elif request.user.rol_efectivo == 'DOCENTE':
             from .models import Docente
             doc = Docente.objects.filter(usuario=request.user).first()
             if doc:
@@ -1948,11 +2410,11 @@ def _filtrar_horarios_categoria(request):
 
     # Restringir por rol (estudiante ve solo lo suyo; docente lo suyo)
     try:
-        if request.user.rol == 'ESTUDIANTE':
+        if request.user.rol_efectivo == 'ESTUDIANTE':
             est = Estudiante.objects.filter(usuario=request.user).first()
             if est:
                 qs = qs.filter(matricula__estudiante=est)
-        elif request.user.rol == 'DOCENTE':
+        elif request.user.rol_efectivo == 'DOCENTE':
             doc = Docente.objects.filter(usuario=request.user).first()
             if doc:
                 qs = qs.filter(docente=doc)
@@ -2175,7 +2637,7 @@ def _horario_exportar_pdf_legacy(request, id_horario):
     story.append(Spacer(1, 0.6*cm))
 
     # ── Estudiante (solo si rol estudiante o admin/coord) ──
-    if request.user.rol in ('ADMINISTRADOR', 'COORDINADOR', 'ESTUDIANTE'):
+    if request.user.rol_efectivo in ('ADMINISTRADOR', 'COORDINADOR', 'ESTUDIANTE'):
         story.append(Paragraph('5. Estudiante', sub_style))
         est = h.matricula.estudiante
         tabla_est = [
@@ -2234,7 +2696,7 @@ def _estilo_tabla_detalle(color_primario):
     ])
 
 
-@staff_required
+@operacion_required
 def horarios_gestionar(request):
     """Vista de edicion inline de horarios asignados."""
     estado_filtro = request.GET.get('estado', '')
@@ -2248,7 +2710,7 @@ def horarios_gestionar(request):
     if estado_filtro:
         qs = qs.filter(estado=estado_filtro)
     if docente_filtro:
-        qs = qs.filter(docente__id_docente=docente_filtro)
+        qs = qs.filter(docente__usuario_id=docente_filtro)
     if dia_filtro:
         qs = qs.filter(dia=dia_filtro)
 
@@ -2269,7 +2731,7 @@ def horarios_gestionar(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def horario_actualizar(request, id_horario):
     """API JSON para editar un horario."""
@@ -2281,7 +2743,7 @@ def horario_actualizar(request, id_horario):
     cambios = {}
     if 'docente' in request.POST:
         try:
-            h.docente = Docente.objects.get(id_docente=request.POST['docente'])
+            h.docente = Docente.objects.get(usuario_id=request.POST['docente'])
             cambios['docente'] = h.docente.usuario.nombre_completo
         except Docente.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Docente invalido'}, status=400)
@@ -2308,15 +2770,23 @@ def horario_actualizar(request, id_horario):
         h.estado = request.POST['estado']
         cambios['estado'] = h.estado
 
-    # Verificar choque despues del cambio
+    # Verificar choque despues del cambio -- mismas 3 dimensiones que el
+    # Motor IA (ocupado_doc/ocupado_sal/ocupado_mat en motor_ia/solver.py):
+    # docente, salon y matricula/estudiante (Sprint 1, RF 1.2, 2026-09-06).
     choque = Horario.objects.exclude(id_horario=h.id_horario).filter(
         dia=h.dia, bloque=h.bloque
-    ).filter(Q(docente=h.docente) | Q(salon=h.salon))
+    ).filter(Q(docente=h.docente) | Q(salon=h.salon) | Q(matricula=h.matricula))
     if choque.exists():
         primer = choque.first()
+        if primer.matricula_id == h.matricula_id:
+            detalle = f'el estudiante {h.matricula.estudiante.usuario.nombre_completo} ya tiene otra clase'
+        elif primer.docente_id == h.docente_id:
+            detalle = f'el docente {primer.docente.usuario.nombre_completo} ya tiene clase'
+        else:
+            detalle = f'el salón {primer.salon.codigo} ya está ocupado'
         return JsonResponse({
             'success': False,
-            'error': f'Conflicto: {primer.docente.usuario.nombre_completo} o salon {primer.salon.codigo} ya tienen clase en {h.get_dia_display()} bloque {h.bloque.numero}',
+            'error': f'Conflicto: {detalle} en {h.get_dia_display()} bloque {h.bloque.numero}',
         }, status=400)
 
     h.save()
@@ -2327,7 +2797,7 @@ def horario_actualizar(request, id_horario):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def horario_eliminar(request, id_horario):
     """API JSON para eliminar un horario."""
@@ -2340,7 +2810,7 @@ def horario_eliminar(request, id_horario):
         return JsonResponse({'success': False, 'error': 'No existe'}, status=404)
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def aprobar_horarios(request):
     """RF-33 - El COORDINADOR aprueba todos los horarios PROPUESTOS del periodo."""
@@ -2366,7 +2836,7 @@ def aprobar_horarios(request):
     return JsonResponse({'success': True, 'aprobados': n, 'mensaje': msg})
 
 
-@login_required
+@bloquear_solo_consulta
 def integracion_sisca(request):
     cfg = getattr(djsettings, 'SIIHAPI', {})
     return render(request, 'dashboard/integracion_sisca.html', {
@@ -2374,7 +2844,7 @@ def integracion_sisca(request):
     })
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def sisca_publicar(request):
     """RF-40 - Publica horarios APROBADOS del periodo a SISCA.
@@ -2484,7 +2954,7 @@ def sisca_publicar(request):
 
 
 
-@staff_required
+@operacion_required
 @require_http_methods(["POST"])
 def sisca_publicar_ui(request):
     """Wrapper de sisca_publicar para formularios de la interfaz: ejecuta la
@@ -2505,7 +2975,7 @@ def sisca_publicar_ui(request):
         messages.error(request, msg)
     return redirect(destino)
 
-@login_required
+@bloquear_solo_consulta
 def sisca_estado(request):
     """JSON con el estado actual de la integracion (consumido por JS)."""
     cliente = get_cliente()
@@ -2530,7 +3000,7 @@ def sisca_estado(request):
     })
 
 
-@login_required
+@bloquear_solo_consulta
 def sisca_logs(request):
     """JSON con los ultimos logs para la tabla del panel."""
     try:
@@ -2561,7 +3031,7 @@ def sisca_logs(request):
 #  Carga masiva CSV/Excel (RF-15, RF-20, RF-23, RF-25, RF-30)
 # ════════════════════════════════════════════════════════════════
 
-@staff_required
+@operacion_required
 def carga_masiva_view(request):
     """Pagina principal de carga masiva."""
     if request.method == 'POST':
@@ -2596,7 +3066,7 @@ def carga_masiva_view(request):
                 _raw, _es_ia = None, False
             if _es_ia and _raw:
                 from siihapi.motor_ia.pipeline import analizar_archivo_pipeline
-                _per = Periodo.objects.filter(activo=True).first()
+                _per = get_periodo_seleccionado(request)
                 _res = analizar_archivo_pipeline(
                     contenido=_raw, nombre_archivo=archivo.name,
                     periodo=_per.codigo if _per else '2026-2',
@@ -2667,7 +3137,7 @@ def carga_masiva_view(request):
     })
 
 
-@staff_required
+@operacion_required
 def descargar_plantilla(request, tipo):
     """Descarga una plantilla CSV de ejemplo."""
     from . import cargas_masivas
@@ -2790,15 +3260,29 @@ def _resumen_horarios_por_categoria(facultad_id=None, programa_id=None):
     return resultado
 
 
-@admin_required
+@staff_required
 def reportes_categoria_view(request):
-    """Página de Reportes por Categoría: selectores + descargas + resumen."""
+    """Página de Reportes por Categoría: selectores + descargas + resumen.
+
+    2026-09-06: abierta a ADMINISTRADOR y COORDINADOR (antes @admin_required
+    dejaba a Coordinador sin ningun modulo de reportes -- ver comentario en
+    apps.autenticacion.models.Usuario.ROL_EQUIVALENCIAS, que ya documentaba
+    esta intencion: Coordinador ve reportes/academico, NO el panel ejecutivo
+    ni auditoria, que siguen reservados a ADMINISTRADOR mas abajo."""
     facultades = Facultad.objects.filter(activa=True).order_by('nombre')
     programas = (Programa.objects.filter(activo=True)
                  .select_related('facultad').order_by('nombre'))
-    ciclos = list(Materia.objects.values_list('ciclo', flat=True)
-                  .distinct().order_by('ciclo'))
-    ciclos = [c for c in ciclos if c]
+    # Orden cronologico (1,2,...,12), no alfabetico -- .order_by('ciclo') a
+    # nivel de BD ordena como texto (2026-09-06, ver _ciclo_sort_key).
+    # OJO: se usa set() en vez de .distinct() -- Materia tiene Meta.ordering
+    # = ['programa','ciclo','nombre'], y sin un .order_by() explicito que lo
+    # reemplace, Django arrastra ese ordering por defecto a la consulta;
+    # Postgres entonces exige esas columnas en el SELECT para el DISTINCT,
+    # lo que en la practica hace el distinct() sobre (ciclo, programa,
+    # nombre) en vez de solo ciclo -- devuelve duplicados. set() en Python
+    # no tiene ese problema.
+    ciclos = set(Materia.objects.values_list('ciclo', flat=True))
+    ciclos = sorted([c for c in ciclos if c], key=_ciclo_sort_key)
 
     resumen = _resumen_horarios_por_categoria()
     kpis = {
@@ -2821,10 +3305,15 @@ def reportes_categoria_view(request):
     })
 
 
-@admin_required
+@staff_required
 def auditoria_pdf_categorias(request):
     """Exporta en PDF (ReportLab) la auditoría/resumen de horarios filtrado
-    por facultad y/o programa, con encabezado del Politécnico Internacional."""
+    por facultad y/o programa, con encabezado del Politécnico Internacional.
+
+    2026-09-06: abierta a ADMINISTRADOR y COORDINADOR -- es el boton "PDF
+    Auditoria" del propio modulo de Reportes por categoria (reportes_categoria.html),
+    no la auditoria completa (login/SISCA/Motor IA), que sigue en
+    auditoria_view bajo @admin_required."""
     from io import BytesIO
     from django.http import HttpResponse
 
@@ -2968,7 +3457,10 @@ def auditoria_pdf_categorias(request):
 
 @docente_required
 def docente_mi_horario(request):
-    """Vista del docente para ver sus bloques asignados."""
+    """Vista del docente para ver sus bloques asignados.
+    Sprint 1 (2026-09-06): admite ?vista=semanal|diaria|mensual (RF 1.5) --
+    mismos datos de 'horarios', solo reagrupados; diaria/mensual además
+    resuelven SolicitudReprogramacion APROBADA para la(s) fecha(s) mostradas."""
     try:
         docente = Docente.objects.select_related('usuario').get(usuario=request.user)
     except Docente.DoesNotExist:
@@ -2983,10 +3475,19 @@ def docente_mi_horario(request):
     dias = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA']
     grilla = {d: list(horarios.filter(dia=d)) for d in dias}
 
+    vista = request.GET.get('vista', 'semanal')
+    contexto_extra = {}
+    if vista == 'diaria':
+        contexto_extra = _contexto_vista_diaria(request, horarios)
+    elif vista == 'mensual':
+        contexto_extra = _contexto_vista_mensual(request, horarios)
+
     return render(request, 'dashboard/docente_mi_horario.html', {
         'docente':  docente,
         'horarios': horarios,
         'grilla':   grilla,
+        'vista':    vista,
+        **contexto_extra,
     })
 
 
@@ -3081,9 +3582,77 @@ def docente_mis_estudiantes(request):
     })
 
 
+def _resumen_asistencia_hibrido(horarios_qs, filtrar_por_matricula=False):
+    """RF 2.1 -- modo HÍBRIDO (Sprint 2, 2026-09-06): si SISCA responde
+    para el id_sisca de un Horario se usa ese dato tal cual (autoridad);
+    si no, se calcula localmente desde asistencias.AsistenciaEstudiante.
+    filtrar_por_matricula=True limita el cálculo local a la matrícula
+    exacta de cada Horario (vista de UN estudiante); False agrega sobre
+    todos los estudiantes de ese Horario (vista de un docente).
+    Corrige además un desvío ya existente: docente_asistencia/
+    estudiante_asistencia pasaban 'horarios'/'asistencia_sisca' a un
+    template que en realidad esperaba 'materias_resumen'/'error_sisca'
+    (encontrado 2026-09-06 al implementar el modo híbrido)."""
+    error_sisca = None
+    sisca_por_horario = {}
+    try:
+        cliente = get_cliente()
+        if cliente.ping():
+            for h in horarios_qs:
+                if h.id_sisca:
+                    try:
+                        sisca_por_horario[h.id_horario] = cliente.get_asistencia(h.id_sisca)
+                    except ClienteSISCAError:
+                        pass
+        else:
+            error_sisca = 'SISCA no respondió al ping.'
+    except ClienteSISCAError as exc:
+        error_sisca = str(exc)
+    except Exception:
+        error_sisca = 'No fue posible conectar con SISCA.'
+
+    materias_resumen = []
+    materias_vistas = set()
+    for h in horarios_qs:
+        if h.materia_id in materias_vistas:
+            continue
+        materias_vistas.add(h.materia_id)
+
+        if h.id_horario in sisca_por_horario:
+            data = dict(sisca_por_horario[h.id_horario])
+            data.setdefault('origen', 'SISCA')
+        else:
+            qs_local = AsistenciaEstudiante.objects.filter(horario__materia_id=h.materia_id, horario__docente_id=h.docente_id)
+            if filtrar_por_matricula:
+                qs_local = qs_local.filter(matricula_id=h.matricula_id)
+            sesiones_totales = qs_local.values('fecha').distinct().count()
+            total_registros = qs_local.count()
+            presentes = qs_local.filter(estado__in=['PRESENTE', 'TARDANZA', 'JUSTIFICADO']).count()
+            pct = round((presentes / total_registros) * 100, 1) if total_registros else None
+            if filtrar_por_matricula:
+                en_riesgo = 0
+            else:
+                por_estudiante = qs_local.values('matricula').annotate(
+                    total=Count('id_asistencia'),
+                    presentes=Count('id_asistencia', filter=Q(estado__in=['PRESENTE', 'TARDANZA', 'JUSTIFICADO'])),
+                )
+                en_riesgo = sum(1 for e in por_estudiante if e['total'] and (e['presentes'] / e['total']) * 100 < 80)
+            data = {
+                'sesiones_realizadas':  sesiones_totales,
+                'sesiones_totales':     sesiones_totales,
+                'porcentaje_asistencia_promedio': pct,
+                'estudiantes_en_riesgo': en_riesgo,
+                'origen': 'LOCAL',
+            }
+        materias_resumen.append({'materia': h.materia, 'data': data})
+
+    return materias_resumen, error_sisca
+
+
 @docente_required
 def docente_asistencia(request):
-    """Vista del docente para consultar asistencia de sus estudiantes en SISCA."""
+    """Vista del docente para consultar asistencia de sus estudiantes.
+    Modo HÍBRIDO (Sprint 2, 2026-09-06): ver _resumen_asistencia_hibrido."""
     try:
         docente = Docente.objects.select_related('usuario').get(usuario=request.user)
     except Docente.DoesNotExist:
@@ -3094,26 +3663,59 @@ def docente_asistencia(request):
         'materia', 'matricula__estudiante__usuario', 'bloque'
     ).filter(docente=docente, estado='PUBLICADO').order_by('materia__nombre')
 
-    # Intentar obtener datos de asistencia desde SISCA
-    asistencia_sisca = {}
-    try:
-        cliente = get_cliente()
-        if cliente.ping():
-            for h in horarios:
-                if h.id_sisca:
-                    try:
-                        data = cliente.get_asistencia(h.id_sisca)
-                        asistencia_sisca[h.id_horario] = data
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    materias_resumen, error_sisca = _resumen_asistencia_hibrido(horarios, filtrar_por_matricula=False)
 
     return render(request, 'dashboard/docente_asistencia.html', {
-        'docente':        docente,
-        'horarios':       horarios,
-        'asistencia_sisca': asistencia_sisca,
-        'sisca_conectado': bool(asistencia_sisca) or False,
+        'docente':         docente,
+        'materias_resumen': materias_resumen,
+        'error_sisca':     error_sisca,
+    })
+
+
+@docente_required
+def docente_reportes(request):
+    """Reportes del docente (2026-09-06): resumen de su carga horaria,
+    materias y horas por dia, con botones de descarga en PDF/Excel.
+
+    Los botones reutilizan los endpoints ya existentes
+    horarios_exportar_pdf_completo / horarios_exportar_excel_completo, que
+    YA auto-filtran por docente=request.user cuando rol_efectivo ==
+    'DOCENTE' (ver _filtrar_horarios_categoria) -- no hace falta escribir
+    generacion de PDF/Excel nueva."""
+    try:
+        docente = Docente.objects.select_related('usuario').get(usuario=request.user)
+    except Docente.DoesNotExist:
+        messages.error(request, 'No se encontró perfil de docente.')
+        return redirect('dashboard')
+
+    periodo_actual = get_periodo_seleccionado(request)
+    horarios = Horario.objects.select_related(
+        'materia__programa', 'salon__sede', 'bloque', 'matricula__periodo'
+    ).filter(docente=docente)
+    if periodo_actual:
+        horarios = horarios.filter(matricula__periodo=periodo_actual)
+
+    dias = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA']
+    horas_por_dia = [(d, label, horarios.filter(dia=d).count()) for d, label in Horario.DIA_CHOICES if d in dias]
+
+    total_materias = horarios.values('materia').distinct().count()
+    total_estudiantes = horarios.values('matricula__estudiante').distinct().count()
+    total_horas = horarios.count()
+    carga_max = docente.carga_horaria_max or 20
+    ocupacion_pct = round((total_horas / carga_max) * 100) if carga_max else 0
+    sobrecargado = total_horas > carga_max
+
+    return render(request, 'dashboard/docente_reportes.html', {
+        'docente':          docente,
+        'periodo_actual':   periodo_actual,
+        'horas_por_dia':    horas_por_dia,
+        'total_materias':   total_materias,
+        'total_estudiantes': total_estudiantes,
+        'total_horas':      total_horas,
+        'carga_max':        carga_max,
+        'ocupacion_pct':    ocupacion_pct,
+        'sobrecargado':     sobrecargado,
+        'active':           'reportes',
     })
 
 
@@ -3123,14 +3725,15 @@ def docente_asistencia(request):
 
 @estudiante_required
 def estudiante_mi_horario(request):
-    """Vista del estudiante para ver su horario del periodo activo."""
+    """Vista del estudiante para ver su horario del periodo activo.
+    Sprint 1 (2026-09-06): admite ?vista=semanal|diaria|mensual (RF 1.5)."""
     try:
         estudiante = Estudiante.objects.select_related('usuario', 'programa').get(usuario=request.user)
     except Estudiante.DoesNotExist:
         messages.error(request, 'No se encontró perfil de estudiante.')
         return redirect('dashboard')
 
-    periodo_actual = Periodo.objects.filter(activo=True).first()
+    periodo_actual = get_periodo_seleccionado(request)
     horarios = Horario.objects.select_related(
         'materia__programa', 'docente__usuario', 'salon__sede', 'bloque', 'matricula__periodo'
     ).filter(matricula__estudiante=estudiante).order_by('dia', 'bloque__numero')
@@ -3141,11 +3744,20 @@ def estudiante_mi_horario(request):
     dias = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA']
     grilla = {d: list(horarios.filter(dia=d)) for d in dias}
 
+    vista = request.GET.get('vista', 'semanal')
+    contexto_extra = {}
+    if vista == 'diaria':
+        contexto_extra = _contexto_vista_diaria(request, horarios)
+    elif vista == 'mensual':
+        contexto_extra = _contexto_vista_mensual(request, horarios)
+
     return render(request, 'dashboard/estudiante_mi_horario.html', {
         'estudiante':    estudiante,
         'horarios':      horarios,
         'grilla':        grilla,
         'periodo_actual': periodo_actual,
+        'vista':         vista,
+        **contexto_extra,
     })
 
 
@@ -3158,7 +3770,7 @@ def estudiante_mis_materias(request):
         messages.error(request, 'No se encontró perfil de estudiante.')
         return redirect('dashboard')
 
-    periodo_actual = Periodo.objects.filter(activo=True).first()
+    periodo_actual = get_periodo_seleccionado(request)
     horarios = Horario.objects.select_related(
         'materia__programa__facultad', 'docente__usuario', 'bloque'
     ).filter(matricula__estudiante=estudiante).order_by('materia__nombre')
@@ -3176,7 +3788,8 @@ def estudiante_mis_materias(request):
 
 @estudiante_required
 def estudiante_asistencia(request):
-    """Vista del estudiante para consultar su asistencia en SISCA."""
+    """Vista del estudiante para consultar su asistencia. Modo HÍBRIDO
+    (Sprint 2, 2026-09-06): ver _resumen_asistencia_hibrido."""
     try:
         estudiante = Estudiante.objects.select_related('usuario', 'programa').get(usuario=request.user)
     except Estudiante.DoesNotExist:
@@ -3190,27 +3803,12 @@ def estudiante_asistencia(request):
         estado='PUBLICADO'
     ).order_by('materia__nombre')
 
-    resumen_asistencia = {}
-    sisca_conectado = False
-    try:
-        cliente = get_cliente()
-        if cliente.ping():
-            sisca_conectado = True
-            for h in horarios:
-                if h.id_sisca:
-                    try:
-                        data = cliente.get_asistencia(h.id_sisca)
-                        resumen_asistencia[h.id_horario] = data
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    materias_resumen, error_sisca = _resumen_asistencia_hibrido(horarios, filtrar_por_matricula=True)
 
     return render(request, 'dashboard/estudiante_asistencia.html', {
-        'estudiante':        estudiante,
-        'horarios':          horarios,
-        'resumen_asistencia': resumen_asistencia,
-        'sisca_conectado':   sisca_conectado,
+        'estudiante':      estudiante,
+        'materias_resumen': materias_resumen,
+        'error_sisca':     error_sisca,
     })
 
 
@@ -3223,7 +3821,7 @@ def estudiante_notas(request):
         messages.error(request, 'No se encontró perfil de estudiante.')
         return redirect('dashboard')
 
-    periodo_actual = Periodo.objects.filter(activo=True).first()
+    periodo_actual = get_periodo_seleccionado(request)
     matriculas = Matricula.objects.select_related(
         'periodo', 'estudiante'
     ).filter(estudiante=estudiante).order_by('-periodo__codigo')
@@ -3243,3 +3841,1430 @@ def estudiante_notas(request):
         'periodo_actual':  periodo_actual,
         'total_materias':  horarios_periodo.count(),
     })
+
+
+@estudiante_required
+def estudiante_reportes(request):
+    """Reportes del estudiante (2026-09-06): resumen de su horario,
+    materias y asistencia del periodo, con botones de descarga en PDF/Excel.
+
+    Los botones reutilizan los endpoints ya existentes
+    horarios_exportar_pdf_completo / horarios_exportar_excel_completo, que
+    YA auto-filtran por matricula__estudiante=request.user cuando
+    rol_efectivo == 'ESTUDIANTE' (ver _filtrar_horarios_categoria) -- no
+    hace falta escribir generacion de PDF/Excel nueva."""
+    try:
+        estudiante = Estudiante.objects.select_related('usuario', 'programa').get(usuario=request.user)
+    except Estudiante.DoesNotExist:
+        messages.error(request, 'No se encontró perfil de estudiante.')
+        return redirect('dashboard')
+
+    periodo_actual = get_periodo_seleccionado(request)
+    horarios = Horario.objects.select_related(
+        'materia__programa', 'docente__usuario', 'bloque'
+    ).filter(matricula__estudiante=estudiante)
+    if periodo_actual:
+        horarios = horarios.filter(matricula__periodo=periodo_actual)
+
+    total_materias = horarios.values('materia').distinct().count()
+    total_horas = horarios.count()
+
+    sisca_conectado = False
+    resumen_asistencia = {}
+    try:
+        cliente = get_cliente()
+        if cliente.ping():
+            sisca_conectado = True
+            for h in horarios.filter(estado='PUBLICADO'):
+                if h.id_sisca:
+                    try:
+                        resumen_asistencia[h.id_horario] = cliente.get_asistencia(h.id_sisca)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    return render(request, 'dashboard/estudiante_reportes.html', {
+        'estudiante':        estudiante,
+        'periodo_actual':    periodo_actual,
+        'total_materias':    total_materias,
+        'total_horas':       total_horas,
+        'sisca_conectado':   sisca_conectado,
+        'resumen_asistencia': resumen_asistencia,
+        'active':            'reportes',
+    })
+
+
+
+# ════════════════════════════════════════════════════════════════
+#  9. ADMIN — Base de datos (CRUD, backup/restore) y gestion de usuarios
+#     Fase 3 (2026-09-04). Todo bajo @admin_required: nunca staff_required
+#     (Coordinador NO debe tener acceso a esto).
+# ════════════════════════════════════════════════════════════════
+
+# Apps propias del proyecto cuyos modelos se exponen en el panel de Base de
+# Datos. Se excluyen deliberadamente las apps internas de Django (admin,
+# auth, contenttypes, sessions) -- esas se administran solas.
+APPS_PROYECTO = [
+    'autenticacion', 'academico', 'infraestructura', 'matriculas',
+    'horarios', 'personal', 'integracion_sisca', 'reportes',
+]
+
+BACKUPS_DIR = djsettings.BASE_DIR / 'backups'
+
+
+def _inventario_modelos():
+    """Recorre las apps del proyecto y arma, por cada modelo registrado,
+    su conteo de filas y la URL de Django Admin para administrarlo (CRUD
+    completo: ver, crear, modificar, eliminar) -- se reutiliza el admin de
+    Django en vez de construir un editor de SQL a mano, para no arriesgar
+    la integridad de la base de datos con un CRUD generico sin validacion."""
+    inventario = []
+    for label in APPS_PROYECTO:
+        try:
+            app_config = django_apps.get_app_config(label)
+        except LookupError:
+            continue
+        modelos = []
+        for model in app_config.get_models():
+            try:
+                total = model.objects.count()
+            except Exception:
+                total = None
+            modelos.append({
+                'nombre':      model._meta.verbose_name_plural.title(),
+                'tabla':       model._meta.db_table,
+                'total':       total,
+                'admin_url':   f'/admin/{model._meta.app_label}/{model._meta.model_name}/',
+                'registrado':  _esta_registrado_en_admin(model),
+            })
+        if modelos:
+            inventario.append({
+                'app': app_config.verbose_name,
+                'modelos': sorted(modelos, key=lambda m: m['nombre']),
+            })
+    return inventario
+
+
+def _esta_registrado_en_admin(model):
+    from django.contrib import admin as django_admin
+    return model in django_admin.site._registry
+
+
+@admin_required
+def base_datos_view(request):
+    """Panel central de Administracion de Base de Datos: inventario de
+    tablas con acceso a CRUD completo (via Django Admin), y punto de
+    entrada a Backup/Restore y a Gestion de Usuarios."""
+    backups = _listar_backups()
+    inventario = _inventario_modelos()
+    total_tablas = sum(len(grupo['modelos']) for grupo in inventario)
+    return render(request, 'dashboard/base_datos.html', {
+        'inventario': inventario,
+        'total_tablas': total_tablas,
+        'backups': backups,
+        'total_usuarios': Usuario.objects.count(),
+        'total_usuarios_activos': Usuario.objects.filter(is_active=True).count(),
+    })
+
+
+def _listar_backups():
+    if not BACKUPS_DIR.exists():
+        return []
+    archivos = sorted(BACKUPS_DIR.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+    salida = []
+    for p in archivos:
+        stat = p.stat()
+        salida.append({
+            'nombre': p.name,
+            'tamano_kb': round(stat.st_size / 1024, 1),
+            'fecha': timezone.datetime.fromtimestamp(stat.st_mtime, tz=timezone.get_current_timezone()),
+        })
+    return salida
+
+
+@admin_required
+@require_http_methods(['POST'])
+def bd_backup_ejecutar(request):
+    """Genera una copia de seguridad completa (dumpdata JSON) de todas las
+    apps del proyecto, la guarda en backend/backups/ y la entrega como
+    descarga inmediata. Usa el comando nativo de Django (dumpdata) en vez
+    de un mysqldump/pg_dump a mano: ya maneja relaciones, encoding y
+    modelos managed=False de forma segura."""
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    marca = timezone.now().strftime('%Y%m%d_%H%M%S')
+    nombre = f'siihapi_backup_{marca}.json'
+    ruta = BACKUPS_DIR / nombre
+
+    try:
+        with open(ruta, 'w', encoding='utf-8') as fh:
+            call_command(
+                'dumpdata', *APPS_PROYECTO,
+                indent=2,
+                use_natural_foreign_keys=True,
+                use_natural_primary_keys=False,
+                stdout=fh,
+            )
+    except Exception as e:
+        if ruta.exists():
+            ruta.unlink(missing_ok=True)
+        messages.error(request, f'No se pudo generar la copia de seguridad: {e}')
+        return redirect('base_datos')
+
+    messages.success(request, f'Copia de seguridad creada: {nombre}')
+    return redirect('bd_backup_descargar', filename=nombre)
+
+
+@admin_required
+def bd_backup_descargar(request, filename):
+    ruta = BACKUPS_DIR / filename
+    if '..' in filename or '/' in filename or not ruta.exists():
+        raise Http404('Copia de seguridad no encontrada.')
+    return FileResponse(open(ruta, 'rb'), as_attachment=True, filename=filename)
+
+
+@admin_required
+@require_http_methods(['POST'])
+def bd_backup_eliminar(request, filename):
+    ruta = BACKUPS_DIR / filename
+    if '..' in filename or '/' in filename:
+        raise Http404('Nombre de archivo invalido.')
+    if ruta.exists():
+        ruta.unlink()
+        messages.success(request, f'Copia de seguridad {filename} eliminada.')
+    else:
+        messages.error(request, 'Esa copia de seguridad ya no existe.')
+    return redirect('base_datos')
+
+
+@admin_required
+@require_http_methods(['POST'])
+def bd_restore_view(request):
+    """Restaura la base de datos desde un fixture JSON (generado por
+    'Crear copia de seguridad' arriba) -- ya sea subiendo un archivo nuevo
+    o eligiendo una copia ya guardada en el servidor. Exige que el
+    administrador escriba la palabra RESTAURAR como confirmacion explicita,
+    porque loaddata puede sobrescribir filas existentes (misma PK) y no es
+    reversible por si solo -- por eso conviene generar SIEMPRE una copia de
+    seguridad nueva justo antes de restaurar."""
+    confirmacion = request.POST.get('confirmacion', '').strip().upper()
+    if confirmacion != 'RESTAURAR':
+        messages.error(request, 'Debes escribir RESTAURAR en el campo de confirmación para continuar.')
+        return redirect('base_datos')
+
+    archivo_subido = request.FILES.get('archivo')
+    nombre_existente = request.POST.get('backup_existente', '').strip()
+
+    tmp_path = None
+    try:
+        if archivo_subido:
+            if not archivo_subido.name.lower().endswith('.json'):
+                messages.error(request, 'El archivo de restauración debe ser un .json generado por este mismo panel.')
+                return redirect('base_datos')
+            fd, tmp_path = tempfile.mkstemp(suffix='.json')
+            with os.fdopen(fd, 'wb') as fh:
+                for chunk in archivo_subido.chunks():
+                    fh.write(chunk)
+            ruta_fixture = tmp_path
+            origen = archivo_subido.name
+        elif nombre_existente:
+            if '..' in nombre_existente or '/' in nombre_existente:
+                raise Http404('Nombre de archivo invalido.')
+            ruta_candidata = BACKUPS_DIR / nombre_existente
+            if not ruta_candidata.exists():
+                messages.error(request, 'Esa copia de seguridad ya no existe en el servidor.')
+                return redirect('base_datos')
+            ruta_fixture = str(ruta_candidata)
+            origen = nombre_existente
+        else:
+            messages.error(request, 'Sube un archivo .json o elige una copia de seguridad existente para restaurar.')
+            return redirect('base_datos')
+
+        with transaction.atomic():
+            call_command('loaddata', ruta_fixture)
+
+        messages.success(request, f'Base de datos restaurada desde «{origen}» correctamente.')
+    except Exception as e:
+        messages.error(request, f'La restauración falló y no se aplicó ningún cambio: {e}')
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    return redirect('base_datos')
+
+
+# ── Gestion de usuarios (ver, crear, modificar, inactivar) ─────────
+
+@admin_required
+def usuarios_admin_view(request):
+    q = request.GET.get('q', '').strip()
+    rol_filtro = request.GET.get('rol', '')
+    estado_filtro = request.GET.get('estado', '')
+
+    usuarios = Usuario.objects.all()
+    if q:
+        usuarios = usuarios.filter(
+            Q(correo__icontains=q) | Q(nombre__icontains=q) |
+            Q(apellido__icontains=q) | Q(cedula__icontains=q)
+        )
+    if rol_filtro:
+        usuarios = usuarios.filter(rol=rol_filtro)
+    if estado_filtro:
+        usuarios = usuarios.filter(estado=estado_filtro)
+
+    return render(request, 'dashboard/usuarios_admin.html', {
+        'usuarios': usuarios.order_by('apellido', 'nombre')[:300],
+        'total': usuarios.count(),
+        'q': q,
+        'rol_filtro': rol_filtro,
+        'estado_filtro': estado_filtro,
+        'roles': Usuario.ROL_CHOICES,
+        'estados': Usuario._meta.get_field('estado').choices,
+    })
+
+
+@admin_required
+def usuario_crear_view(request):
+    if request.method == 'POST':
+        correo = request.POST.get('correo', '').strip().lower()
+        nombre = request.POST.get('nombre', '').strip()
+        apellido = request.POST.get('apellido', '').strip()
+        cedula = request.POST.get('cedula', '').strip() or None
+        telefono = request.POST.get('telefono', '').strip()
+        rol = request.POST.get('rol', 'ESTUDIANTE')
+        password = request.POST.get('password', '').strip()
+
+        errores = []
+        if not correo:
+            errores.append('El correo es obligatorio.')
+        elif Usuario.objects.filter(correo=correo).exists():
+            errores.append('Ya existe un usuario con ese correo.')
+        if not nombre or not apellido:
+            errores.append('Nombre y apellido son obligatorios.')
+        if cedula and Usuario.objects.filter(cedula=cedula).exists():
+            errores.append('Ya existe un usuario con esa cédula.')
+        if not password or len(password) < 8:
+            errores.append('La contraseña debe tener al menos 8 caracteres.')
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+            return render(request, 'dashboard/usuario_form.html', {
+                'modo': 'crear', 'roles': Usuario.ROL_CHOICES,
+                'valores': request.POST,
+            })
+
+        nuevo = Usuario.objects.create_user(correo=correo, password=password, rol=rol)
+        nuevo.nombre = nombre
+        nuevo.apellido = apellido
+        nuevo.cedula = cedula
+        nuevo.telefono = telefono
+        # Rol ADMINISTRADOR = "acceso total" (ver siihapi/permisos.py) -> se le
+        # da tambien acceso de superusuario a Django Admin (CRUD completo de
+        # la base de datos), no solo a las vistas propias de SIIHAPI.
+        es_admin_rol = rol in ('ADMINISTRADOR', 'ADMIN')
+        nuevo.is_staff = es_admin_rol
+        nuevo.is_superuser = es_admin_rol
+        nuevo.save()
+
+        messages.success(request, f'Usuario {nuevo.nombre} {nuevo.apellido} creado correctamente.')
+        return redirect('usuarios_admin')
+
+    return render(request, 'dashboard/usuario_form.html', {
+        'modo': 'crear', 'roles': Usuario.ROL_CHOICES, 'valores': {},
+    })
+
+
+@admin_required
+def usuario_editar_view(request, id_usuario):
+    usuario_obj = get_object_or_404(Usuario, id_usuario=id_usuario)
+
+    if request.method == 'POST':
+        correo = request.POST.get('correo', '').strip().lower()
+        nombre = request.POST.get('nombre', '').strip()
+        apellido = request.POST.get('apellido', '').strip()
+        cedula = request.POST.get('cedula', '').strip() or None
+        telefono = request.POST.get('telefono', '').strip()
+        rol = request.POST.get('rol', usuario_obj.rol)
+        password = request.POST.get('password', '').strip()
+
+        errores = []
+        if not correo:
+            errores.append('El correo es obligatorio.')
+        elif Usuario.objects.filter(correo=correo).exclude(id_usuario=usuario_obj.id_usuario).exists():
+            errores.append('Ya existe otro usuario con ese correo.')
+        if cedula and Usuario.objects.filter(cedula=cedula).exclude(id_usuario=usuario_obj.id_usuario).exists():
+            errores.append('Ya existe otro usuario con esa cédula.')
+        if password and len(password) < 8:
+            errores.append('La nueva contraseña debe tener al menos 8 caracteres.')
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+            return render(request, 'dashboard/usuario_form.html', {
+                'modo': 'editar', 'roles': Usuario.ROL_CHOICES,
+                'usuario_obj': usuario_obj, 'valores': request.POST,
+            })
+
+        usuario_obj.correo = correo
+        usuario_obj.nombre = nombre
+        usuario_obj.apellido = apellido
+        usuario_obj.cedula = cedula
+        usuario_obj.telefono = telefono
+        usuario_obj.rol = rol
+        es_admin_rol = rol in ('ADMINISTRADOR', 'ADMIN')
+        usuario_obj.is_staff = es_admin_rol
+        usuario_obj.is_superuser = es_admin_rol
+        if password:
+            usuario_obj.set_password(password)
+        usuario_obj.save()
+
+        messages.success(request, f'Usuario {usuario_obj.nombre} {usuario_obj.apellido} actualizado correctamente.')
+        return redirect('usuarios_admin')
+
+    return render(request, 'dashboard/usuario_form.html', {
+        'modo': 'editar', 'roles': Usuario.ROL_CHOICES, 'usuario_obj': usuario_obj,
+        'valores': {
+            'correo': usuario_obj.correo, 'nombre': usuario_obj.nombre,
+            'apellido': usuario_obj.apellido, 'cedula': usuario_obj.cedula or '',
+            'telefono': usuario_obj.telefono, 'rol': usuario_obj.rol,
+        },
+    })
+
+
+@admin_required
+@require_http_methods(['POST'])
+def usuario_inactivar_view(request, id_usuario):
+    """Inactivacion NO destructiva (activo/inactivo), igual que el resto
+    del sistema (Programa, Sede, etc.): nunca se borra un Usuario, solo se
+    bloquea el acceso (is_active=False, estado='I')."""
+    usuario_obj = get_object_or_404(Usuario, id_usuario=id_usuario)
+    if usuario_obj.id_usuario == request.user.id_usuario:
+        messages.error(request, 'No puedes inactivar tu propia cuenta.')
+        return redirect('usuarios_admin')
+
+    usuario_obj.is_active = False
+    usuario_obj.estado = 'I'
+    usuario_obj.save(update_fields=['is_active', 'estado'])
+    messages.success(request, f'Usuario {usuario_obj.nombre} {usuario_obj.apellido} inactivado.')
+    return redirect('usuarios_admin')
+
+
+@admin_required
+@require_http_methods(['POST'])
+def usuario_reactivar_view(request, id_usuario):
+    usuario_obj = get_object_or_404(Usuario, id_usuario=id_usuario)
+    usuario_obj.is_active = True
+    usuario_obj.estado = 'A'
+    usuario_obj.save(update_fields=['is_active', 'estado'])
+    messages.success(request, f'Usuario {usuario_obj.nombre} {usuario_obj.apellido} reactivado.')
+    return redirect('usuarios_admin')
+
+
+
+# ════════════════════════════════════════════════════════════════
+#  10. SOLICITUDES DE REPROGRAMACION + VISTAS DIARIA/MENSUAL
+#      (Sprint 1 de la Especificacion Roles+Decano, RF 1.2/1.4/1.5,
+#      2026-09-06)
+# ════════════════════════════════════════════════════════════════
+
+_DIA_CODES_POR_WEEKDAY = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', None]  # date.weekday(): 0=Lunes..6=Domingo (domingo no se programa)
+
+
+def _resolver_reprogramaciones_aprobadas(horarios_qs, fecha_desde=None, fecha_hasta=None):
+    """Trae las SolicitudReprogramacion APROBADA que caen en el rango de
+    fechas dado, para los horarios de horarios_qs. Usado por las vistas
+    diaria y mensual."""
+    qs = SolicitudReprogramacion.objects.filter(
+        horario__in=horarios_qs, estado='APROBADA'
+    ).select_related('horario__materia', 'salon_propuesto', 'docente_sustituto_propuesto__usuario')
+    if fecha_desde:
+        qs = qs.filter(fecha_afectada__gte=fecha_desde)
+    if fecha_hasta:
+        qs = qs.filter(fecha_afectada__lte=fecha_hasta)
+    return qs
+
+
+def _contexto_vista_diaria(request, horarios_qs):
+    """RF 1.5 -- misma info que la vista semanal, reagrupada a UN día
+    calendario concreto (?fecha=YYYY-MM-DD, hoy por defecto), con las
+    reprogramaciones puntuales aprobadas para esa fecha superpuestas."""
+    fecha_str = request.GET.get('fecha')
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date() if fecha_str else timezone.localdate()
+    except ValueError:
+        fecha = timezone.localdate()
+    dia_code = _DIA_CODES_POR_WEEKDAY[fecha.weekday()]
+    horarios_del_dia = list(horarios_qs.filter(dia=dia_code)) if dia_code else []
+    reprogramaciones = list(_resolver_reprogramaciones_aprobadas(horarios_qs, fecha_desde=fecha, fecha_hasta=fecha))
+    return {
+        'fecha_diaria':            fecha,
+        'dia_diaria_code':         dia_code,
+        'horarios_del_dia':        horarios_del_dia,
+        'reprogramaciones_del_dia': reprogramaciones,
+    }
+
+
+def _contexto_vista_mensual(request, horarios_qs):
+    """RF 1.5 -- misma info que la vista semanal, reagrupada en una
+    grilla de calendario mensual (?mes=YYYY-MM, mes actual por defecto),
+    con conteo de bloques por día y reprogramaciones aprobadas marcadas."""
+    mes_str = request.GET.get('mes')
+    hoy = timezone.localdate()
+    try:
+        anio, mes = (int(x) for x in mes_str.split('-')) if mes_str else (hoy.year, hoy.month)
+    except (ValueError, AttributeError):
+        anio, mes = hoy.year, hoy.month
+    primer_dia = date(anio, mes, 1)
+    ultimo_dia = date(anio, mes, calendar.monthrange(anio, mes)[1])
+
+    reprogramaciones_mes = list(_resolver_reprogramaciones_aprobadas(horarios_qs, fecha_desde=primer_dia, fecha_hasta=ultimo_dia))
+    reprog_por_fecha = {}
+    for r in reprogramaciones_mes:
+        reprog_por_fecha.setdefault(r.fecha_afectada, []).append(r)
+
+    semanas = calendar.Calendar(firstweekday=0).monthdatescalendar(anio, mes)
+    dias_mes = []
+    for semana in semanas:
+        fila = []
+        for f in semana:
+            dia_code = _DIA_CODES_POR_WEEKDAY[f.weekday()] if f.month == mes else None
+            fila.append({
+                'fecha':            f,
+                'en_mes':           f.month == mes,
+                'total_bloques':    horarios_qs.filter(dia=dia_code).count() if dia_code else 0,
+                'reprogramaciones': reprog_por_fecha.get(f, []),
+            })
+        dias_mes.append(fila)
+
+    return {
+        'mes_actual':          primer_dia,
+        'dias_mes':            dias_mes,
+        'reprogramaciones_mes': reprogramaciones_mes,
+    }
+
+
+@docente_required
+def docente_solicitudes_reprogramacion(request):
+    """RF 1.4 -- el Docente titular de un Horario solicita una
+    reprogramación puntual (cambio de aula / sustitución de docente /
+    cambio de horario para UNA fecha) -- NO modifica el Horario base,
+    que sigue siendo el horario regular del resto del ciclo."""
+    try:
+        docente = Docente.objects.select_related('usuario').get(usuario=request.user)
+    except Docente.DoesNotExist:
+        messages.error(request, 'No se encontró perfil de docente.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        try:
+            horario = Horario.objects.get(id_horario=request.POST.get('horario'), docente=docente)
+        except (Horario.DoesNotExist, ValueError, TypeError):
+            messages.error(request, 'Ese horario no existe o no te pertenece.')
+            return redirect('docente_solicitudes_reprogramacion')
+
+        tipo = request.POST.get('tipo')
+        if tipo not in dict(SolicitudReprogramacion.TIPO_CHOICES):
+            messages.error(request, 'Tipo de solicitud inválido.')
+            return redirect('docente_solicitudes_reprogramacion')
+
+        fecha_afectada = request.POST.get('fecha_afectada')
+        motivo = request.POST.get('motivo', '').strip()
+        if not fecha_afectada or not motivo:
+            messages.error(request, 'Fecha afectada y motivo son obligatorios.')
+            return redirect('docente_solicitudes_reprogramacion')
+
+        solicitud = SolicitudReprogramacion(
+            horario=horario, tipo=tipo, fecha_afectada=fecha_afectada,
+            motivo=motivo, solicitado_por=request.user,
+        )
+        if tipo == 'CAMBIO_AULA' and request.POST.get('salon_propuesto'):
+            solicitud.salon_propuesto = get_object_or_404(Salon, id_salon=request.POST['salon_propuesto'])
+        if tipo == 'SUSTITUCION_DOCENTE' and request.POST.get('docente_sustituto_propuesto'):
+            solicitud.docente_sustituto_propuesto = get_object_or_404(Docente, usuario_id=request.POST['docente_sustituto_propuesto'])
+        solicitud.save()
+        messages.success(request, 'Solicitud enviada. Quedará pendiente de aprobación de Coordinación/Secretaría/Decanatura.')
+        return redirect('docente_solicitudes_reprogramacion')
+
+    mis_horarios = Horario.objects.select_related('materia', 'bloque').filter(docente=docente).order_by('dia', 'bloque__numero')
+    mis_solicitudes = SolicitudReprogramacion.objects.select_related(
+        'horario__materia', 'salon_propuesto', 'docente_sustituto_propuesto__usuario', 'revisado_por'
+    ).filter(solicitado_por=request.user).order_by('-created_at')
+
+    return render(request, 'dashboard/solicitudes_reprogramacion.html', {
+        'docente':         docente,
+        'mis_horarios':    mis_horarios,
+        'mis_solicitudes': mis_solicitudes,
+        'salones':         Salon.objects.filter(activo=True).select_related('sede')[:300],
+        'docentes':        Docente.objects.filter(activo=True).exclude(usuario=request.user).select_related('usuario')[:300],
+    })
+
+
+@operacion_required
+def solicitudes_reprogramacion_gestionar(request):
+    """RF 1.4 -- Coordinador/Secretaría Académica/Decano/Admin aprueban o
+    rechazan solicitudes pendientes. @operacion_required == @staff_required
+    (rol_efectivo in ADMINISTRADOR/COORDINADOR) + bloqueo de solo-consulta;
+    rol_efectivo=='COORDINADOR' ya cubre a Secretaría/Decano vía
+    ROL_EQUIVALENCIAS (ver Entregable 5 de la especificación) -- no hace
+    falta un decorador nuevo para esta vista."""
+    estado_filtro = request.GET.get('estado', 'PENDIENTE')
+    qs = SolicitudReprogramacion.objects.select_related(
+        'horario__materia', 'horario__docente__usuario', 'salon_propuesto',
+        'docente_sustituto_propuesto__usuario', 'solicitado_por',
+    ).order_by('-created_at')
+    if estado_filtro:
+        qs = qs.filter(estado=estado_filtro)
+
+    return render(request, 'dashboard/solicitudes_reprogramacion_gestionar.html', {
+        'solicitudes':   qs[:300],
+        'estado_filtro': estado_filtro,
+        'estados':       SolicitudReprogramacion.ESTADO_CHOICES,
+    })
+
+
+@operacion_required
+@require_http_methods(['POST'])
+def solicitud_reprogramacion_resolver(request, id_solicitud):
+    solicitud = get_object_or_404(SolicitudReprogramacion, id_solicitud=id_solicitud)
+    accion = request.POST.get('accion')
+    if accion not in ('aprobar', 'rechazar'):
+        messages.error(request, 'Acción inválida.')
+        return redirect('solicitudes_reprogramacion_gestionar')
+
+    if solicitud.estado != 'PENDIENTE':
+        messages.warning(request, 'Esa solicitud ya fue resuelta.')
+        return redirect('solicitudes_reprogramacion_gestionar')
+
+    solicitud.estado = 'APROBADA' if accion == 'aprobar' else 'RECHAZADA'
+    solicitud.revisado_por = request.user
+    solicitud.fecha_revision = timezone.now()
+    solicitud.save(update_fields=['estado', 'revisado_por', 'fecha_revision'])
+    messages.success(request, f'Solicitud #{solicitud.id_solicitud} {solicitud.get_estado_display().lower()}.')
+    return redirect('solicitudes_reprogramacion_gestionar')
+
+
+
+# ════════════════════════════════════════════════════════════════
+#  11. ASISTENCIAS: registro local, justificaciones, alertas de riesgo,
+#      dashboard de Bienestar/Mentoría (Sprint 2 de la Especificación
+#      Roles+Decano, RF 2.1/2.2/2.3, 2026-09-06)
+# ════════════════════════════════════════════════════════════════
+
+@docente_required
+def docente_marcar_asistencia(request):
+    """RF 2.1 -- el Docente registra asistencia LOCAL de su clase para una
+    fecha concreta (origen=LOCAL_DOCENTE), y su propia AsistenciaDocente
+    para esa sesión. Complementa (no reemplaza) la lectura híbrida de
+    docente_asistencia: si SISCA reporta el mismo dato más adelante, SISCA
+    sigue teniendo prioridad de lectura (ver _resumen_asistencia_hibrido)."""
+    try:
+        docente = Docente.objects.select_related('usuario').get(usuario=request.user)
+    except Docente.DoesNotExist:
+        messages.error(request, 'No se encontró perfil de docente.')
+        return redirect('dashboard')
+
+    mis_horarios = Horario.objects.select_related('materia', 'bloque').filter(docente=docente).order_by('materia__nombre', 'dia')
+
+    horario_id = request.GET.get('horario') or request.POST.get('horario')
+    fecha = request.GET.get('fecha') or request.POST.get('fecha') or timezone.localdate().isoformat()
+    horario_sel = None
+    matriculas = []
+    asistencias_previas = {}
+
+    if horario_id:
+        try:
+            horario_sel = Horario.objects.select_related('materia', 'bloque', 'matricula__periodo').get(id_horario=horario_id, docente=docente)
+        except Horario.DoesNotExist:
+            messages.error(request, 'Ese horario no existe o no te pertenece.')
+            return redirect('docente_marcar_asistencia')
+
+        matriculas = Matricula.objects.select_related('estudiante__usuario').filter(
+            materia=horario_sel.materia, periodo=horario_sel.matricula.periodo, estado='ACTIVA'
+        ).order_by('estudiante__usuario__apellido')
+
+        if request.method == 'POST':
+            for mat in matriculas:
+                estado_val = request.POST.get(f'estado_{mat.id_matricula}')
+                if estado_val not in dict(AsistenciaEstudiante.ESTADO_CHOICES):
+                    continue
+                AsistenciaEstudiante.objects.update_or_create(
+                    matricula=mat, horario=horario_sel, fecha=fecha,
+                    defaults={
+                        'estado': estado_val, 'origen': 'LOCAL_DOCENTE',
+                        'registrado_por': request.user, 'hora_registro': timezone.localtime().time(),
+                    },
+                )
+            estado_docente = request.POST.get('estado_docente', 'DICTADA')
+            if estado_docente in dict(AsistenciaDocente.ESTADO_CHOICES):
+                AsistenciaDocente.objects.update_or_create(
+                    horario=horario_sel, fecha=fecha,
+                    defaults={'docente': docente, 'estado': estado_docente},
+                )
+            messages.success(request, f'Asistencia registrada para {horario_sel.materia.codigo} el {fecha}.')
+            return redirect(f"{reverse('docente_marcar_asistencia')}?horario={horario_id}&fecha={fecha}")
+
+        asistencias_previas = {
+            a.matricula_id: a for a in AsistenciaEstudiante.objects.filter(horario=horario_sel, fecha=fecha)
+        }
+        for mat in matriculas:
+            previa = asistencias_previas.get(mat.id_matricula)
+            mat.estado_previo = previa.estado if previa else ''
+
+    estado_docente_previo = ''
+    if horario_sel:
+        asistencia_docente_previa = AsistenciaDocente.objects.filter(horario=horario_sel, fecha=fecha).first()
+        if asistencia_docente_previa:
+            estado_docente_previo = asistencia_docente_previa.estado
+
+    return render(request, 'dashboard/docente_marcar_asistencia.html', {
+        'docente':               docente,
+        'mis_horarios':          mis_horarios,
+        'horario_sel':           horario_sel,
+        'matriculas':            matriculas,
+        'fecha':                 fecha,
+        'estados':               AsistenciaEstudiante.ESTADO_CHOICES,
+        'estados_docente':       AsistenciaDocente.ESTADO_CHOICES,
+        'estado_docente_previo': estado_docente_previo,
+    })
+
+
+@login_required
+def mis_justificaciones(request):
+    """RF 2.2 -- Docente o Estudiante sube una justificación con soporte
+    para una AsistenciaDocente/AsistenciaEstudiante propia."""
+    if es_docente(request.user):
+        asistencias_propias = AsistenciaDocente.objects.filter(docente__usuario=request.user).select_related('horario__materia').order_by('-fecha')[:100]
+        justificaciones = Justificacion.objects.filter(creado_por=request.user).select_related('asistencia_docente__horario__materia').order_by('-created_at')
+    elif es_estudiante(request.user):
+        asistencias_propias = AsistenciaEstudiante.objects.filter(matricula__estudiante__usuario=request.user).select_related('horario__materia').order_by('-fecha')[:100]
+        justificaciones = Justificacion.objects.filter(creado_por=request.user).select_related('asistencia_estudiante__horario__materia').order_by('-created_at')
+    else:
+        messages.error(request, 'Esta sección es solo para Docentes y Estudiantes.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        tipo_asistencia = request.POST.get('tipo_asistencia')
+        asistencia_id = request.POST.get('asistencia_id')
+        motivo = request.POST.get('motivo', '').strip()
+        if not motivo or not asistencia_id:
+            messages.error(request, 'Motivo y la clase afectada son obligatorios.')
+            return redirect('mis_justificaciones')
+
+        kwargs = {'motivo': motivo, 'creado_por': request.user}
+        if request.FILES.get('soporte_archivo'):
+            kwargs['soporte_archivo'] = request.FILES['soporte_archivo']
+
+        if tipo_asistencia == 'docente' and es_docente(request.user):
+            kwargs['asistencia_docente'] = get_object_or_404(AsistenciaDocente, id_asistencia=asistencia_id, docente__usuario=request.user)
+        elif tipo_asistencia == 'estudiante' and es_estudiante(request.user):
+            kwargs['asistencia_estudiante'] = get_object_or_404(AsistenciaEstudiante, id_asistencia=asistencia_id, matricula__estudiante__usuario=request.user)
+        else:
+            messages.error(request, 'Tipo de asistencia inválido.')
+            return redirect('mis_justificaciones')
+
+        Justificacion.objects.create(**kwargs)
+        messages.success(request, 'Justificación enviada. Quedará pendiente de revisión.')
+        return redirect('mis_justificaciones')
+
+    return render(request, 'dashboard/mis_justificaciones.html', {
+        'asistencias_propias': asistencias_propias,
+        'justificaciones':     justificaciones,
+        'es_docente_flag':     es_docente(request.user),
+    })
+
+
+@operacion_required
+def justificaciones_gestionar(request):
+    """RF 2.2 -- Secretaría Académica/Coordinador/Decano/Admin aprueban o
+    rechazan justificaciones pendientes (rol_efectivo=='COORDINADOR' ya
+    cubre a Secretaría/Decano vía ROL_EQUIVALENCIAS)."""
+    estado_filtro = request.GET.get('estado', 'PENDIENTE')
+    qs = Justificacion.objects.select_related(
+        'asistencia_estudiante__matricula__estudiante__usuario', 'asistencia_estudiante__horario__materia',
+        'asistencia_docente__docente__usuario', 'asistencia_docente__horario__materia', 'creado_por',
+    ).order_by('-created_at')
+    if estado_filtro:
+        qs = qs.filter(estado=estado_filtro)
+
+    return render(request, 'dashboard/justificaciones_gestionar.html', {
+        'justificaciones': qs[:300],
+        'estado_filtro':   estado_filtro,
+        'estados':         Justificacion.ESTADO_CHOICES,
+    })
+
+
+@operacion_required
+@require_http_methods(['POST'])
+def justificacion_resolver(request, id_justificacion):
+    just = get_object_or_404(Justificacion, id_justificacion=id_justificacion)
+    accion = request.POST.get('accion')
+    if accion not in ('aprobar', 'rechazar'):
+        messages.error(request, 'Acción inválida.')
+        return redirect('justificaciones_gestionar')
+    if just.estado != 'PENDIENTE':
+        messages.warning(request, 'Esa justificación ya fue resuelta.')
+        return redirect('justificaciones_gestionar')
+
+    just.estado = 'APROBADA' if accion == 'aprobar' else 'RECHAZADA'
+    just.revisado_por = request.user
+    just.fecha_revision = timezone.now()
+    just.save(update_fields=['estado', 'revisado_por', 'fecha_revision'])
+
+    if just.estado == 'APROBADA' and just.asistencia_estudiante_id:
+        just.asistencia_estudiante.estado = 'JUSTIFICADO'
+        just.asistencia_estudiante.save(update_fields=['estado'])
+
+    messages.success(request, f'Justificación #{just.id_justificacion} {just.get_estado_display().lower()}.')
+    return redirect('justificaciones_gestionar')
+
+
+def _es_bienestar_o_mentoria(user):
+    """RF 2.3 -- dashboard compartido: BIENESTAR_ACADEMICO y MENTORIAS
+    (ambos hoy en permisos.ROLES_SOLO_CONSULTA para el resto del sistema)
+    más ADMIN/ADMINISTRADOR."""
+    return user.is_authenticated and user.rol in ('BIENESTAR_ACADEMICO', 'MENTORIAS', 'ADMIN', 'ADMINISTRADOR')
+
+
+@login_required
+def bienestar_dashboard(request):
+    """RF 2.3 -- alertas de riesgo abiertas y casos de bienestar. Esta es
+    la primera función de ESCRITURA propia de Bienestar/Mentoría (el resto
+    del sistema los deja en solo-consulta a propósito, ver permisos.py)."""
+    if not _es_bienestar_o_mentoria(request.user):
+        messages.error(request, 'Acceso denegado a este módulo.')
+        return redirect('dashboard')
+
+    estado_filtro = request.GET.get('estado', 'ABIERTA')
+    alertas = AlertaRiesgo.objects.select_related('estudiante__usuario').prefetch_related('materias_afectadas').order_by('-fecha_deteccion')
+    if estado_filtro:
+        alertas = alertas.filter(estado=estado_filtro)
+
+    casos = CasoBienestar.objects.select_related('estudiante__usuario', 'asignado_a').order_by('-created_at')[:100]
+
+    return render(request, 'dashboard/bienestar_dashboard.html', {
+        'alertas':        alertas[:200],
+        'casos':          casos,
+        'estado_filtro':  estado_filtro,
+        'estados_alerta': AlertaRiesgo.ESTADO_CHOICES,
+    })
+
+
+@login_required
+@require_http_methods(['POST'])
+def alerta_riesgo_actualizar_estado(request, id_alerta):
+    if not _es_bienestar_o_mentoria(request.user):
+        messages.error(request, 'Acceso denegado a este módulo.')
+        return redirect('dashboard')
+
+    alerta = get_object_or_404(AlertaRiesgo, id_alerta=id_alerta)
+    nuevo_estado = request.POST.get('estado')
+    if nuevo_estado not in dict(AlertaRiesgo.ESTADO_CHOICES):
+        messages.error(request, 'Estado inválido.')
+        return redirect('bienestar_dashboard')
+
+    alerta.estado = nuevo_estado
+    if nuevo_estado == 'CERRADA':
+        alerta.fecha_cierre = timezone.now()
+        alerta.notas_cierre = request.POST.get('notas_cierre', '')
+        alerta.save(update_fields=['estado', 'fecha_cierre', 'notas_cierre'])
+    else:
+        alerta.save(update_fields=['estado'])
+
+    messages.success(request, f'Alerta #{alerta.id_alerta} actualizada a {alerta.get_estado_display()}.')
+    return redirect('bienestar_dashboard')
+
+
+# ════════════════════════════════════════════════════════════════
+#  10. REPORTES DEL DECANO Y CERTIFICADOS -- generador PDF genérico
+#      (Entregable 3 de la especificación Roles+Decano, 2026-09-06)
+# ════════════════════════════════════════════════════════════════
+
+def _construir_pdf_generico_politecnico(titulo, columnas, filas, titular=None, subtitulo=None, imagen_qr_bytes=None):
+    """Reutiliza el mismo membrete/estilo (logo, pie de página, colores)
+    que _construir_pdf_politecnico_siihapi, factorizado para recibir una
+    tabla genérica (columnas: list[str], filas: list[tuple]) en vez de
+    una lista de Horario -- la usan los 7 reportes del Decano (Sprint 4)
+    y los certificados de apps.eventos (Sprint 3).
+
+    titulo: encabezado principal del documento (ej. 'CONSTANCIA DE ASISTENCIA')
+    columnas: encabezados de la tabla
+    filas: list de tuplas/listas con los valores de cada fila
+    titular: dict opcional (ver _titular_desde_request_siihapi) con datos
+             de la persona a quien va dirigido el documento
+    subtitulo: texto opcional bajo el titulo (ej. periodo o nombre del evento)
+    imagen_qr_bytes: bytes PNG opcionales de un QR de verificación, se
+             imprime al pie del documento (usado por Certificado)
+    """
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+    AZUL = colors.HexColor('#1F4988')
+    AZUL_CLARO = colors.HexColor('#E8EEF7')
+    GRIS_BORDE = colors.HexColor('#9CA3AF')
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.5*cm, rightMargin=1.5*cm,
+        topMargin=1.2*cm, bottomMargin=1.2*cm,
+        title=titulo or 'Documento - Politecnico Internacional',
+    )
+    styles = getSampleStyleSheet()
+    s_title = ParagraphStyle('inst', parent=styles['Normal'], fontName='Helvetica-BoldOblique',
+                              fontSize=16, textColor=AZUL, alignment=TA_CENTER)
+    s_label = ParagraphStyle('lbl', parent=styles['Normal'], fontName='Helvetica-Bold',
+                              fontSize=8, textColor=AZUL)
+    s_val = ParagraphStyle('val', parent=styles['Normal'], fontName='Helvetica',
+                            fontSize=8, textColor=colors.black)
+    s_th = ParagraphStyle('th', parent=styles['Normal'], fontName='Helvetica-Bold',
+                           fontSize=9, textColor=AZUL)
+    s_td = ParagraphStyle('td', parent=styles['Normal'], fontName='Helvetica',
+                           fontSize=9, textColor=colors.black, leading=11)
+    s_titulo_doc = ParagraphStyle('titdoc', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                   fontSize=13, textColor=colors.black, alignment=TA_CENTER, spaceBefore=10, spaceAfter=4)
+    s_subtitulo = ParagraphStyle('subtdoc', parent=styles['Normal'], fontName='Helvetica-Oblique',
+                                  fontSize=10, textColor=colors.HexColor('#475569'), alignment=TA_CENTER, spaceAfter=10)
+    story = []
+
+    # ─── Encabezado institucional (mismo estilo que _construir_pdf_politecnico_siihapi) ───
+    encabezado = Table([[
+        Paragraph('<b>Polit&eacute;cnico</b><br/>Internacional', s_label),
+        Paragraph('<i>POLITECNICO INTERNACIONAL</i>', s_title),
+    ]], colWidths=[3.5*cm, 15.5*cm], rowHeights=[1.3*cm])
+    encabezado.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, GRIS_BORDE),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+    ]))
+    story.append(encabezado)
+    story.append(Spacer(1, 0.3*cm))
+
+    if titulo:
+        story.append(Paragraph(titulo, s_titulo_doc))
+    if subtitulo:
+        story.append(Paragraph(subtitulo, s_subtitulo))
+
+    # ─── Datos del titular (opcional) ───
+    if titular:
+        info = Table([
+            [Paragraph('<b>Nombre y apellidos</b>', s_label), Paragraph(titular.get('nombre', ''), s_val),
+             Paragraph('<b>Doc. Ident.</b>', s_label), Paragraph(titular.get('doc_ident', ''), s_val)],
+            [Paragraph('<b>Curso Académico</b>', s_label), Paragraph(titular.get('periodo', ''), s_val),
+             Paragraph('<b>Centro</b>', s_label), Paragraph(titular.get('centro', ''), s_val)],
+        ], colWidths=[3.2*cm, 5.8*cm, 2.4*cm, 7.6*cm])
+        info.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.7, GRIS_BORDE),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info)
+        story.append(Spacer(1, 0.4*cm))
+
+    # ─── Tabla genérica ───
+    data = [[Paragraph(f'<b>{c}</b>', s_th) for c in columnas]]
+    for fila in filas:
+        data.append([Paragraph(str(v) if v is not None else '—', s_td) for v in fila])
+    if len(data) == 1:
+        data.append([Paragraph('—', s_td)] * max(len(columnas), 1))
+
+    ancho_util = 18.5*cm
+    n_cols = max(len(columnas), 1)
+    col_widths = [ancho_util / n_cols] * n_cols
+    tabla = Table(data, colWidths=col_widths, repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), AZUL_CLARO),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.7, AZUL),
+        ('LINEABOVE', (0, 0), (-1, 0), 0.7, GRIS_BORDE),
+        ('GRID', (0, 1), (-1, -1), 0.4, GRIS_BORDE),
+        ('BOX', (0, 0), (-1, -1), 0.7, GRIS_BORDE),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(tabla)
+
+    if imagen_qr_bytes:
+        story.append(Spacer(1, 0.6*cm))
+        qr_buf = BytesIO(imagen_qr_bytes)
+        story.append(Paragraph('Código de verificación:', ParagraphStyle(
+            'qrlbl', parent=styles['Normal'], fontName='Helvetica', fontSize=8,
+            textColor=colors.HexColor('#475569'), alignment=TA_CENTER)))
+        story.append(Spacer(1, 0.15*cm))
+        img = Image(qr_buf, width=2.8*cm, height=2.8*cm)
+        img.hAlign = 'CENTER'
+        story.append(img)
+
+    def _pie_pagina(canvas, documento):
+        canvas.saveState()
+        canvas.setFont('Helvetica-Oblique', 9)
+        ancho, _alto = A4
+        y = 0.8*cm
+        canvas.setStrokeColor(colors.HexColor('#9CA3AF'))
+        canvas.line(documento.leftMargin, y + 0.35*cm, ancho - documento.rightMargin, y + 0.35*cm)
+        canvas.setFillColor(colors.black)
+        canvas.drawString(documento.leftMargin, y, 'Politécnico Internacional · Documento generado por SIIHAPI')
+        canvas.drawRightString(ancho - documento.rightMargin, y, f'Pag. {canvas.getPageNumber()}')
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_pie_pagina, onLaterPages=_pie_pagina)
+    buf.seek(0)
+    return buf.read()
+
+
+def _generar_qr_png(valor):
+    """PNG bytes de un QR para el `valor` dado (str/UUID). Usado tanto
+    para el QR de inscripción a eventos (token_qr) como para el QR de
+    verificación impreso en un Certificado (codigo_verificacion)."""
+    import qrcode
+    from io import BytesIO
+    img = qrcode.make(str(valor))
+    buf = BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf.read()
+
+def _construir_excel_generico_politecnico(titulo, columnas, filas):
+    """Excel institucional generico, mismo estilo (AZUL #1F4988, header en
+    blanco/negrita, bordes finos) que horarios_exportar_excel_completo --
+    factorizado para recibir una tabla generica (columnas: list[str],
+    filas: list[tuple]) en vez de una lista de Horario. Usado por los 7
+    reportes del Decano (Sprint 4, ver siihapi/decano_views.py)."""
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = (titulo or 'Reporte')[:31]
+
+    AZUL = 'FF1F4988'
+    n_cols = max(len(columnas), 1)
+    ultima_col = get_column_letter(n_cols)
+    ws.merge_cells(f'A1:{ultima_col}1')
+    c = ws['A1']
+    c.value = titulo or 'Politecnico Internacional'
+    c.font = Font(bold=True, size=14, color='FFFFFFFF')
+    c.fill = PatternFill('solid', fgColor=AZUL)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 26
+
+    ws.append(list(columnas))
+    thin = Side(style='thin', color='FFB0B0B0')
+    borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for col in range(1, n_cols + 1):
+        cell = ws.cell(row=2, column=col)
+        cell.font = Font(bold=True, color='FFFFFFFF')
+        cell.fill = PatternFill('solid', fgColor='FF2C5BA0')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = borde
+
+    for fila in filas:
+        ws.append([v if v is not None else '\u2014' for v in fila])
+
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=n_cols):
+        for cell in row:
+            cell.border = borde
+            if cell.row > 2:
+                cell.alignment = Alignment(vertical='center', wrap_text=True)
+    for i in range(1, n_cols + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 20
+    ws.freeze_panes = 'A3'
+
+    bio = BytesIO()
+    wb.save(bio)
+    return bio.getvalue()
+
+
+# ════════════════════════════════════════════════════════════════
+#  11. APPS.EVENTOS -- calendario, reservas, inscripciones QR,
+#      asistencia por escaneo, certificados (Sprint 3, 2026-09-06)
+# ════════════════════════════════════════════════════════════════
+
+def _parse_datetime_local_aware(valor):
+    """Convierte el string de un <input type=datetime-local> ('YYYY-MM-DDTHH:MM')
+    en un datetime timezone-aware (America/Bogota, ver settings.TIME_ZONE)
+    -- evita guardar datetimes naive con USE_TZ=True (apps.eventos.models
+    usa DateTimeField en Evento/ReservaRecurso/AsistenciaEvento)."""
+    if not valor:
+        return None
+    dt = datetime.fromisoformat(valor)
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt)
+    return dt
+
+
+def _hay_conflicto_reserva(salon, fecha_inicio, fecha_fin, excluir_id=None):
+    """Misma lógica de detección de cruces que ya usa horario_actualizar
+    para Horario (RF 1.2), aplicada a ReservaRecurso: dos reservas del
+    mismo salón se solapan si el intervalo [fecha_inicio, fecha_fin) de
+    una cae dentro del de la otra."""
+    qs = ReservaRecurso.objects.filter(
+        salon=salon, estado__in=['SOLICITADA', 'CONFIRMADA'],
+        fecha_inicio__lt=fecha_fin, fecha_fin__gt=fecha_inicio,
+    )
+    if excluir_id:
+        qs = qs.exclude(id_reserva=excluir_id)
+    return qs.exists()
+
+
+def _puede_gestionar_eventos(user):
+    """Admin/Coordinador/Decano/Secretaría (via rol_efectivo=='COORDINADOR'
+    u 'ADMINISTRADOR') -- Bienestar/Mentoría quedan fuera (solo consulta,
+    igual que en el resto del sistema, ver permisos.operacion_required)."""
+    return user.is_authenticated and user.rol_efectivo in ('ADMINISTRADOR', 'COORDINADOR') and not es_solo_consulta(user)
+
+
+def _puede_escanear_evento(user, evento):
+    """Quién puede operar el escáner QR de un evento concreto: el staff
+    operativo (mismo criterio que @operacion_required) o el propio
+    Docente que propuso el evento (organizador natural de su actividad)."""
+    if _puede_gestionar_eventos(user):
+        return True
+    return es_docente(user) and evento.propuesto_por_id == user.id_usuario
+
+
+@login_required
+def calendario_eventos(request):
+    """RF 3.1/3.5 -- calendario institucional, visible a todos los roles
+    (lectura). BORRADOR solo lo ve quien puede gestionar eventos o quien
+    lo propuso."""
+    qs = Evento.objects.select_related('facultad', 'programa', 'materia', 'propuesto_por').order_by('fecha_inicio')
+    if not _puede_gestionar_eventos(request.user):
+        qs = qs.exclude(estado='BORRADOR') | qs.filter(estado='BORRADOR', propuesto_por=request.user)
+        qs = qs.distinct().order_by('fecha_inicio')
+
+    tipo_filtro = request.GET.get('tipo', '')
+    if tipo_filtro:
+        qs = qs.filter(tipo=tipo_filtro)
+
+    ahora = timezone.now()
+    return render(request, 'dashboard/calendario_eventos.html', {
+        'eventos':          qs[:200],
+        'tipo_filtro':      tipo_filtro,
+        'tipos':            Evento.TIPO_CHOICES,
+        'ahora':            ahora,
+        'puede_gestionar':  _puede_gestionar_eventos(request.user),
+    })
+
+
+@login_required
+def evento_detalle(request, id_evento):
+    evento = get_object_or_404(
+        Evento.objects.select_related('facultad', 'programa', 'materia', 'propuesto_por', 'aprobado_por'),
+        id_evento=id_evento,
+    )
+    if evento.estado == 'BORRADOR' and not _puede_gestionar_eventos(request.user) and evento.propuesto_por_id != request.user.id_usuario:
+        messages.error(request, 'Este evento aún no está publicado.')
+        return redirect('calendario_eventos')
+
+    mi_inscripcion = InscripcionEvento.objects.filter(evento=evento, usuario=request.user).first()
+    reservas = evento.reservas.select_related('salon__sede').all()
+    n_inscritos = evento.inscripciones.filter(estado='INSCRITO').count()
+    cupo_lleno = bool(evento.cupo_maximo) and n_inscritos >= evento.cupo_maximo
+
+    inscritos = None
+    if _puede_gestionar_eventos(request.user) or (es_docente(request.user) and evento.propuesto_por_id == request.user.id_usuario):
+        inscritos = evento.inscripciones.select_related('usuario').order_by('usuario__apellido')
+
+    return render(request, 'dashboard/evento_detalle.html', {
+        'evento':          evento,
+        'reservas':        reservas,
+        'mi_inscripcion':  mi_inscripcion,
+        'n_inscritos':     n_inscritos,
+        'cupo_lleno':      cupo_lleno,
+        'inscritos':       inscritos,
+        'puede_gestionar': _puede_gestionar_eventos(request.user),
+        'puede_escanear':  _puede_escanear_evento(request.user, evento),
+    })
+
+
+@docente_required
+def docente_proponer_evento(request):
+    """RF 3.1 -- un Docente propone un evento para una de las materias que
+    dicta (criterio de aceptación del Sprint 3). Nace en estado BORRADOR;
+    lo publica un Coordinador/Decano/Secretaría vía eventos_gestionar."""
+    try:
+        docente = Docente.objects.get(usuario=request.user)
+    except Docente.DoesNotExist:
+        messages.error(request, 'No se encontró perfil de docente.')
+        return redirect('dashboard')
+
+    mis_materias = Materia.objects.filter(
+        id_materia__in=Horario.objects.filter(docente=docente).values_list('materia_id', flat=True).distinct()
+    ).order_by('nombre')
+
+    if request.method == 'POST':
+        materia_id = request.POST.get('materia')
+        nombre = request.POST.get('nombre', '').strip()
+        descripcion = request.POST.get('descripcion', '').strip()
+        modalidad = request.POST.get('modalidad', 'PRESENCIAL')
+        fecha_inicio_raw = request.POST.get('fecha_inicio')
+        fecha_fin_raw = request.POST.get('fecha_fin')
+        cupo_maximo = request.POST.get('cupo_maximo') or None
+
+        if not (nombre and fecha_inicio_raw and fecha_fin_raw):
+            messages.error(request, 'Nombre, fecha de inicio y fecha de fin son obligatorios.')
+            return redirect('docente_proponer_evento')
+
+        fecha_inicio = _parse_datetime_local_aware(fecha_inicio_raw)
+        fecha_fin = _parse_datetime_local_aware(fecha_fin_raw)
+        materia_obj = mis_materias.filter(id_materia=materia_id).first() if materia_id else None
+        Evento.objects.create(
+            nombre=nombre, descripcion=descripcion, tipo='ACADEMICO', modalidad=modalidad,
+            materia=materia_obj, programa=materia_obj.programa if materia_obj else None,
+            facultad=materia_obj.programa.facultad if materia_obj and materia_obj.programa else None,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, cupo_maximo=cupo_maximo,
+            estado='BORRADOR', propuesto_por=request.user,
+        )
+        messages.success(request, f'Evento "{nombre}" propuesto. Queda pendiente de aprobación.')
+        return redirect('docente_proponer_evento')
+
+    mis_eventos = Evento.objects.filter(propuesto_por=request.user).order_by('-created_at')[:50]
+    return render(request, 'dashboard/docente_proponer_evento.html', {
+        'mis_materias': mis_materias,
+        'mis_eventos':  mis_eventos,
+    })
+
+
+@operacion_required
+def eventos_gestionar(request):
+    """RF 3.1/3.2 -- Coordinador/Decano/Secretaría/Admin aprueban eventos
+    propuestos por Docentes y pueden crear eventos propios directamente,
+    con reserva de salón (choque validado con la misma lógica de horarios)."""
+    estado_filtro = request.GET.get('estado', 'BORRADOR')
+    qs = Evento.objects.select_related('materia', 'propuesto_por').order_by('-created_at')
+    if estado_filtro:
+        qs = qs.filter(estado=estado_filtro)
+
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre', '').strip()
+        tipo = request.POST.get('tipo')
+        modalidad = request.POST.get('modalidad', 'PRESENCIAL')
+        fecha_inicio_raw = request.POST.get('fecha_inicio')
+        fecha_fin_raw = request.POST.get('fecha_fin')
+        cupo_maximo = request.POST.get('cupo_maximo') or None
+        salon_id = request.POST.get('salon')
+
+        if not (nombre and tipo and fecha_inicio_raw and fecha_fin_raw):
+            messages.error(request, 'Nombre, tipo y fechas son obligatorios.')
+            return redirect('eventos_gestionar')
+
+        fecha_inicio = _parse_datetime_local_aware(fecha_inicio_raw)
+        fecha_fin = _parse_datetime_local_aware(fecha_fin_raw)
+
+        evento = Evento.objects.create(
+            nombre=nombre, tipo=tipo, modalidad=modalidad,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, cupo_maximo=cupo_maximo,
+            estado='PUBLICADO', propuesto_por=request.user, aprobado_por=request.user, fecha_aprobacion=timezone.now(),
+        )
+        if salon_id:
+            salon = get_object_or_404(Salon, id_salon=salon_id)
+            if _hay_conflicto_reserva(salon, fecha_inicio, fecha_fin):
+                messages.warning(request, f'Evento creado, pero el salón {salon.codigo} ya tiene otra reserva en ese horario -- revisa la reserva manualmente.')
+            else:
+                ReservaRecurso.objects.create(
+                    evento=evento, salon=salon, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+                    estado='CONFIRMADA', solicitado_por=request.user,
+                )
+        messages.success(request, f'Evento "{nombre}" creado y publicado.')
+        return redirect('eventos_gestionar')
+
+    return render(request, 'dashboard/eventos_gestionar.html', {
+        'eventos':       qs[:200],
+        'estado_filtro': estado_filtro,
+        'estados':       Evento.ESTADO_CHOICES,
+        'tipos':         Evento.TIPO_CHOICES,
+        'salones':       Salon.objects.filter(activo=True).select_related('sede').order_by('sede__nombre', 'codigo'),
+    })
+
+
+@operacion_required
+@require_http_methods(['POST'])
+def evento_resolver(request, id_evento):
+    evento = get_object_or_404(Evento, id_evento=id_evento)
+    accion = request.POST.get('accion')
+    if accion not in ('aprobar', 'rechazar'):
+        messages.error(request, 'Acción inválida.')
+        return redirect('eventos_gestionar')
+    if evento.estado != 'BORRADOR':
+        messages.warning(request, 'Ese evento ya fue resuelto.')
+        return redirect('eventos_gestionar')
+
+    if accion == 'aprobar':
+        evento.estado = 'PUBLICADO'
+        evento.aprobado_por = request.user
+        evento.fecha_aprobacion = timezone.now()
+        evento.save(update_fields=['estado', 'aprobado_por', 'fecha_aprobacion'])
+        messages.success(request, f'Evento "{evento.nombre}" aprobado y publicado.')
+    else:
+        evento.estado = 'CANCELADO'
+        evento.save(update_fields=['estado'])
+        messages.success(request, f'Evento "{evento.nombre}" rechazado.')
+    return redirect('eventos_gestionar')
+
+
+@login_required
+@require_http_methods(['POST'])
+def evento_inscribirse(request, id_evento):
+    evento = get_object_or_404(Evento, id_evento=id_evento)
+    if evento.estado not in ('PUBLICADO', 'EN_CURSO'):
+        messages.error(request, 'Este evento no admite inscripciones en su estado actual.')
+        return redirect('evento_detalle', id_evento=id_evento)
+
+    inscripcion, creada = InscripcionEvento.objects.get_or_create(
+        evento=evento, usuario=request.user, defaults={'estado': 'INSCRITO'},
+    )
+    if not creada and inscripcion.estado == 'CANCELADO':
+        inscripcion.estado = 'INSCRITO'
+        inscripcion.save(update_fields=['estado'])
+        creada = True
+
+    if creada:
+        n_inscritos = evento.inscripciones.filter(estado='INSCRITO').count()
+        if evento.cupo_maximo and n_inscritos > evento.cupo_maximo:
+            inscripcion.estado = 'LISTA_ESPERA'
+            inscripcion.save(update_fields=['estado'])
+            messages.warning(request, 'Cupo lleno -- quedaste en lista de espera.')
+        else:
+            messages.success(request, f'Te inscribiste a "{evento.nombre}". Tu código QR ya está disponible.')
+    else:
+        messages.info(request, 'Ya estabas inscrito a este evento.')
+    return redirect('evento_detalle', id_evento=id_evento)
+
+
+@login_required
+def mis_inscripciones_eventos(request):
+    """RF 3.3 -- listado de inscripciones propias con acceso al QR y,
+    para eventos ya finalizados con asistencia registrada, al certificado."""
+    inscripciones = InscripcionEvento.objects.filter(usuario=request.user).select_related('evento').order_by('-fecha_inscripcion')
+    for insc in inscripciones:
+        insc.asistio = insc.asistencias.filter(direccion='IN').exists()
+        insc.tiene_certificado = hasattr(insc, 'certificado')
+    return render(request, 'dashboard/mis_inscripciones_eventos.html', {'inscripciones': inscripciones})
+
+
+@login_required
+def inscripcion_qr_imagen(request, id_inscripcion):
+    """Devuelve el PNG del QR de una inscripción. Solo el propio inscrito
+    o quien pueda gestionar/escanear eventos puede verlo."""
+    inscripcion = get_object_or_404(InscripcionEvento.objects.select_related('evento'), id_inscripcion=id_inscripcion)
+    if inscripcion.usuario_id != request.user.id_usuario and not _puede_escanear_evento(request.user, inscripcion.evento):
+        raise Http404()
+    png = _generar_qr_png(inscripcion.token_qr)
+    return HttpResponse(png, content_type='image/png')
+
+
+@login_required
+def evento_escanear_qr(request, id_evento):
+    """RF 3.3 -- registro de asistencia por escaneo de QR (criterio de
+    aceptación del Sprint 3: 'un escaneo de prueba registra
+    AsistenciaEvento(direccion=IN)'). La dirección se resuelve sola: la
+    última fila por inscripción decide si el próximo escaneo es entrada o
+    salida (mismo patrón de attendance-system)."""
+    evento = get_object_or_404(Evento, id_evento=id_evento)
+    if not _puede_escanear_evento(request.user, evento):
+        messages.error(request, 'No tienes permiso para escanear asistencia de este evento.')
+        return redirect('evento_detalle', id_evento=id_evento)
+
+    ultimos_escaneos = AsistenciaEvento.objects.filter(inscripcion__evento=evento).select_related('inscripcion__usuario').order_by('-timestamp')[:20]
+
+    if request.method == 'POST':
+        token = request.POST.get('token_qr', '').strip()
+        try:
+            inscripcion = InscripcionEvento.objects.get(evento=evento, token_qr=token)
+        except (InscripcionEvento.DoesNotExist, ValueError, ValidationError):
+            messages.error(request, 'Código QR no reconocido para este evento.')
+            return redirect('evento_escanear_qr', id_evento=id_evento)
+
+        if inscripcion.estado == 'CANCELADO':
+            messages.error(request, 'Esta inscripción fue cancelada.')
+            return redirect('evento_escanear_qr', id_evento=id_evento)
+
+        ultima = inscripcion.asistencias.order_by('-timestamp').first()
+        direccion = 'OUT' if (ultima and ultima.direccion == 'IN') else 'IN'
+        AsistenciaEvento.objects.create(
+            inscripcion=inscripcion, direccion=direccion, timestamp=timezone.now(), escaneado_por=request.user,
+        )
+        messages.success(request, f'{inscripcion.usuario.nombre_completo}: {"Entrada" if direccion == "IN" else "Salida"} registrada.')
+        return redirect('evento_escanear_qr', id_evento=id_evento)
+
+    return render(request, 'dashboard/evento_escanear_qr.html', {
+        'evento':           evento,
+        'ultimos_escaneos': ultimos_escaneos,
+    })
+
+
+@operacion_required
+def evento_certificados(request, id_evento):
+    """RF 3.4 -- emisión de certificados para inscritos que sí asistieron
+    (al menos un AsistenciaEvento con direccion='IN'). El PDF se genera al
+    vuelo en certificado_descargar; aquí solo se crea el registro."""
+    evento = get_object_or_404(Evento, id_evento=id_evento)
+    inscripciones = InscripcionEvento.objects.filter(evento=evento, estado='INSCRITO').select_related('usuario').order_by('usuario__apellido')
+    for insc in inscripciones:
+        insc.asistio = insc.asistencias.filter(direccion='IN').exists()
+        insc.certificado_existente = getattr(insc, 'certificado', None)
+
+    if request.method == 'POST':
+        id_inscripcion = request.POST.get('id_inscripcion')
+        tipo = request.POST.get('tipo', 'ASISTENCIA')
+        insc = get_object_or_404(InscripcionEvento, id_inscripcion=id_inscripcion, evento=evento)
+        if not insc.asistencias.filter(direccion='IN').exists():
+            messages.error(request, f'{insc.usuario.nombre_completo} no registra asistencia (IN) a este evento -- no se puede emitir certificado.')
+            return redirect('evento_certificados', id_evento=id_evento)
+
+        Certificado.objects.update_or_create(
+            inscripcion=insc,
+            defaults={'tipo': tipo, 'pdf_generado': True, 'fecha_emision': timezone.now(), 'emitido_por': request.user},
+        )
+        messages.success(request, f'Certificado emitido para {insc.usuario.nombre_completo}.')
+        return redirect('evento_certificados', id_evento=id_evento)
+
+    return render(request, 'dashboard/evento_certificados.html', {
+        'evento':        evento,
+        'inscripciones': inscripciones,
+        'tipos':         Certificado.TIPO_CHOICES,
+    })
+
+
+@login_required
+def certificado_descargar(request, id_certificado):
+    """Genera el PDF del certificado al vuelo con
+    _construir_pdf_generico_politecnico + el QR de codigo_verificacion.
+    Solo el propio dueño de la inscripción o quien pueda gestionar
+    eventos puede descargarlo."""
+    certificado = get_object_or_404(
+        Certificado.objects.select_related('inscripcion__usuario', 'inscripcion__evento'),
+        id_certificado=id_certificado,
+    )
+    inscripcion = certificado.inscripcion
+    if inscripcion.usuario_id != request.user.id_usuario and not _puede_gestionar_eventos(request.user):
+        raise Http404()
+
+    evento = inscripcion.evento
+    titular = _titular_desde_request_siihapi(request) if inscripcion.usuario_id == request.user.id_usuario else {
+        'nombre': inscripcion.usuario.nombre_completo.upper(), 'doc_ident': '—', 'periodo': '2026-2T', 'centro': '',
+    }
+    columnas = ['Evento', 'Tipo', 'Fecha', 'Modalidad']
+    filas = [(evento.nombre, certificado.get_tipo_display(), f'{evento.fecha_inicio:%d/%m/%Y}', evento.get_modalidad_display())]
+    qr_png = _generar_qr_png(certificado.codigo_verificacion)
+
+    pdf_bytes = _construir_pdf_generico_politecnico(
+        titulo=f'CONSTANCIA DE {certificado.get_tipo_display().upper()}',
+        subtitulo=evento.nombre,
+        columnas=columnas, filas=filas, titular=titular, imagen_qr_bytes=qr_png,
+    )
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="certificado_{certificado.id_certificado}.pdf"'
+    return resp
