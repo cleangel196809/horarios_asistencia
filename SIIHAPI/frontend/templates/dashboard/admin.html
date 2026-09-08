@@ -3,35 +3,7 @@
 
 {% block body %}
 <div class="app-shell">
-  <nav class="sidebar">
-    <div class="sb-lbl">Principal</div>
-    <a class="sb-item active" href="{% url 'dashboard' %}"><span class="ico">🏠</span> Dashboard</a>
-
-    <div class="sb-lbl" style="margin-top:14px;">Académico</div>
-    <a class="sb-item" href="{% url 'sedes' %}"><span class="ico">🏛️</span> Sedes y Salones</a>
-    <a class="sb-item" href="{% url 'programas' %}"><span class="ico">📚</span> Programas y Materias</a>
-    <a class="sb-item" href="{% url 'docentes' %}"><span class="ico">👨‍🏫</span> Docentes</a>
-    <a class="sb-item" href="{% url 'estudiantes' %}"><span class="ico">🎓</span> Estudiantes</a>
-
-    <div class="sb-lbl" style="margin-top:14px;">Operación</div>
-    <a class="sb-item" href="{% url 'motor_ia' %}"><span class="ico">🤖</span> Motor IA</a>
-    <a class="sb-item" href="{% url 'horarios' %}"><span class="ico">📅</span> Horarios</a>
-    <a class="sb-item" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
-
-    <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
-    <a class="sb-item" href="{% url 'reportes_categoria' %}"><span class="ico">📊</span> Reportes</a>
-    <a class="sb-item" href="{% url 'dashboard_ejecutivo' %}"><span class="ico">📊</span> Dashboard ejecutivo</a>
-    <a class="sb-item" href="{% url 'auditoria' %}"><span class="ico">📋</span> Auditoría</a>
-
-    <div class="sb-lbl" style="margin-top:14px;">Sistema</div>
-    <a class="sb-item" href="{% url 'base_datos' %}"><span class="ico">🗄️</span> Base de Datos</a>
-
-    <div class="sb-spacer"></div>
-    <div class="sb-status">
-      <span class="pulse"></span>
-      <span style="font-size:11px;color:var(--txt2);">Sistema Activo</span>
-    </div>
-  </nav>
+  {% include 'dashboard/_sidebar.html' with active='dashboard' %}
 
   <main class="main-content">
     <div style="margin-bottom:28px;">
