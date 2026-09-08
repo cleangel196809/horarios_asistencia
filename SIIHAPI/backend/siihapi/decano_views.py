@@ -63,9 +63,35 @@ def resolver_jornada(bloque):
 #  B. PANEL DEL DECANO
 # ════════════════════════════════════════════════════════════════
 
+def _facultades_visibles(user):
+    """None => sin restriccion de facultad (ADMIN/ADMINISTRADOR y
+    cualquier otro rol que llegue aqui siguen viendo todas las facultades,
+    igual que antes de este cambio). Solo un usuario con rol CRUDO
+    'DECANO' se restringe a sus propias facultades via PerfilDecano
+    (queryset vacio si todavia no tiene perfil creado -- ver
+    apps/decano/admin.py)."""
+    if user.rol != 'DECANO':
+        return None
+    perfil = getattr(user, 'perfil_decano', None)
+    if perfil is None:
+        return Facultad.objects.none()
+    return perfil.facultades.all()
+
+
+def _matrices_visibles(user):
+    """Queryset base de MatrizPlaneacion ya filtrado por
+    _facultades_visibles(). Usar en toda esta seccion en vez de
+    MatrizPlaneacion.objects directamente."""
+    qs = MatrizPlaneacion.objects.select_related('facultad', 'periodo', 'sede', 'jornada')
+    facultades = _facultades_visibles(user)
+    if facultades is not None:
+        qs = qs.filter(facultad__in=facultades)
+    return qs
+
+
 @decano_required
 def decano_panel(request):
-    matrices = MatrizPlaneacion.objects.select_related('facultad', 'periodo', 'sede', 'jornada')
+    matrices = _matrices_visibles(request.user)
     reglas_activas = ReglaIntervencion.objects.filter(activa=True).count()
     logs_recientes = LogIntervencion.objects.select_related('regla').order_by('-fecha_disparo')[:8]
     context = {
@@ -89,15 +115,19 @@ def decano_panel(request):
 
 @decano_required
 def matriz_planeacion_lista(request):
-    matrices = MatrizPlaneacion.objects.select_related('facultad', 'periodo', 'sede', 'jornada').order_by('-created_at')
+    matrices = _matrices_visibles(request.user).order_by('-created_at')
     return render(request, 'dashboard/matriz_planeacion_lista.html', {'matrices': matrices})
 
 
 @decano_required
 def matriz_planeacion_crear(request):
+    facultades_permitidas = Facultad.objects.filter(activa=True).order_by('nombre')
+    facultades_visibles = _facultades_visibles(request.user)
+    if facultades_visibles is not None:
+        facultades_permitidas = facultades_permitidas.filter(id_facultad__in=facultades_visibles)
     if request.method == 'POST':
         try:
-            facultad = get_object_or_404(Facultad, id_facultad=request.POST.get('facultad'))
+            facultad = get_object_or_404(facultades_permitidas, id_facultad=request.POST.get('facultad'))
             periodo = get_object_or_404(Periodo, id_periodo=request.POST.get('periodo'))
             sede = get_object_or_404(Sede, id_sede=request.POST.get('sede'))
             jornada = get_object_or_404(Jornada, id_jornada=request.POST.get('jornada'))
@@ -112,7 +142,7 @@ def matriz_planeacion_crear(request):
         except Exception as exc:
             messages.error(request, f'No se pudo crear la matriz: {str(exc)[:200]}')
     return render(request, 'dashboard/matriz_planeacion_form.html', {
-        'facultades': Facultad.objects.filter(activa=True).order_by('nombre'),
+        'facultades': facultades_permitidas,
         'periodos':   Periodo.objects.all().order_by('-codigo'),
         'sedes':      Sede.objects.filter(estado='A').order_by('nombre'),
         'jornadas':   Jornada.objects.filter(activa=True).order_by('orden'),
@@ -122,7 +152,7 @@ def matriz_planeacion_crear(request):
 @decano_required
 def matriz_planeacion_detalle(request, id_matriz):
     matriz = get_object_or_404(
-        MatrizPlaneacion.objects.select_related('facultad', 'periodo', 'sede', 'jornada', 'asignacion_ia', 'aprobado_por', 'publicado_por', 'created_by'),
+        _matrices_visibles(request.user).select_related('asignacion_ia', 'aprobado_por', 'publicado_por', 'created_by'),
         id_matriz=id_matriz,
     )
     ultima_ia_disponible = AsignacionIA.objects.filter(periodo=matriz.periodo, estado='COMPLETADA').order_by('-fecha_inicio').first()
@@ -134,7 +164,7 @@ def matriz_planeacion_detalle(request, id_matriz):
 
 @decano_required
 def matriz_planeacion_vincular_ia(request, id_matriz):
-    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
     if request.method != 'POST':
         return redirect('matriz_planeacion_detalle', id_matriz)
     corrida = AsignacionIA.objects.filter(periodo=matriz.periodo, estado='COMPLETADA').order_by('-fecha_inicio').first()
@@ -158,7 +188,7 @@ def matriz_planeacion_vincular_ia(request, id_matriz):
 
 @decano_required
 def matriz_planeacion_enviar_revision(request, id_matriz):
-    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
     if request.method == 'POST' and matriz.estado == 'BORRADOR':
         matriz.estado = 'EN_REVISION'
         matriz.save(update_fields=['estado', 'updated_at'])
@@ -170,7 +200,7 @@ def matriz_planeacion_enviar_revision(request, id_matriz):
 
 @operacion_required
 def matriz_planeacion_aprobar(request, id_matriz):
-    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
     if request.method == 'POST' and matriz.estado == 'EN_REVISION':
         matriz.estado = 'APROBADO'
         matriz.aprobado_por = request.user
@@ -184,7 +214,7 @@ def matriz_planeacion_aprobar(request, id_matriz):
 
 @decano_required
 def matriz_planeacion_publicar(request, id_matriz):
-    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
     if request.method == 'POST' and matriz.estado == 'APROBADO':
         matriz.estado = 'PUBLICADO'
         matriz.publicado_por = request.user
@@ -213,7 +243,7 @@ def matriz_planeacion_continuar(request, id_matriz):
     de `matriz`, copiando facultad/sede/jornada/ciclo, y enlaza
     `continua_de` a la matriz original. No modifica ni borra la matriz
     origen."""
-    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
     if request.method != 'POST':
         return redirect('matriz_planeacion_detalle', id_matriz)
     if matriz.estado not in ('APROBADO', 'PUBLICADO'):
