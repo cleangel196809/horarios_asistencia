@@ -32,7 +32,7 @@ from apps.bienestar.models import CasoBienestar
 from apps.eventos.models import Evento, ReservaRecurso
 from apps.mentoria.models import AsignacionMentoria
 from apps.decano.models import (
-    Jornada, PerfilDecano, MatrizPlaneacion, ReglaIntervencion,
+    Jornada, PerfilDecano, MatrizPlaneacion, GrupoPlaneacion, ReglaIntervencion,
     PlantillaCorreo, LogIntervencion,
 )
 
@@ -266,8 +266,84 @@ def matriz_planeacion_continuar(request, id_matriz):
         facultad=matriz.facultad, periodo=siguiente, sede=matriz.sede, jornada=matriz.jornada,
         ciclo=matriz.ciclo, continua_de=matriz, created_by=request.user,
     )
-    messages.success(request, f'Matriz de continuación creada en Borrador para {siguiente.codigo}.')
+    grupos_copiados = 0
+    for grupo in matriz.grupos.filter(activo=True):
+        GrupoPlaneacion.objects.create(
+            matriz=continuacion, materia=grupo.materia, numero_grupo=grupo.numero_grupo,
+            es_transversal=grupo.es_transversal, docente=grupo.docente,
+            grupo_origen=grupo, created_by=request.user,
+        )
+        grupos_copiados += 1
+    if grupos_copiados:
+        messages.success(request, f'Matriz de continuación creada en Borrador para {siguiente.codigo}, con {grupos_copiados} grupo(s) activo(s) copiado(s) (docente preseleccionado del periodo anterior).')
+    else:
+        messages.success(request, f'Matriz de continuación creada en Borrador para {siguiente.codigo}.')
     return redirect('matriz_planeacion_detalle', continuacion.id_matriz)
+
+
+# ════════════════════════════════════════════════════════════════
+#  C.1 GRUPOS DE PLANEACION -- seccion/grupo individual de una Materia
+#      dentro de una MatrizPlaneacion (Sprint 4b, 2026-09-08)
+# ════════════════════════════════════════════════════════════════
+
+@decano_required
+def grupos_planeacion_lista(request, id_matriz):
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
+    grupos = matriz.grupos.select_related('materia', 'docente__usuario', 'grupo_origen__matriz__periodo')
+    docentes_facultad = Docente.objects.filter(activo=True, facultad=matriz.facultad).select_related('usuario').order_by('usuario__apellido')
+    docentes_todos = Docente.objects.filter(activo=True).select_related('usuario').order_by('usuario__apellido')
+    return render(request, 'dashboard/grupos_planeacion_lista.html', {
+        'matriz': matriz, 'grupos': grupos,
+        'docentes_facultad': docentes_facultad, 'docentes_todos': docentes_todos,
+    })
+
+
+@decano_required
+def grupo_planeacion_crear(request, id_matriz):
+    matriz = get_object_or_404(_matrices_visibles(request.user), id_matriz=id_matriz)
+    materias = Materia.objects.filter(programa__facultad=matriz.facultad, activa=True).select_related('programa').order_by('programa__nombre', 'ciclo', 'nombre')
+    docentes_facultad = Docente.objects.filter(activo=True, facultad=matriz.facultad).select_related('usuario').order_by('usuario__apellido')
+    docentes_todos = Docente.objects.filter(activo=True).select_related('usuario').order_by('usuario__apellido')
+    if request.method == 'POST':
+        try:
+            materia = get_object_or_404(materias, id_materia=request.POST.get('materia'))
+            es_transversal = request.POST.get('es_transversal') == 'on'
+            docente_id = request.POST.get('docente') or None
+            docente = get_object_or_404(Docente, usuario_id=docente_id) if docente_id else None
+            GrupoPlaneacion.objects.create(
+                matriz=matriz, materia=materia,
+                numero_grupo=request.POST.get('numero_grupo') or '01',
+                es_transversal=es_transversal, docente=docente,
+                created_by=request.user,
+            )
+            messages.success(request, 'Grupo agregado a la matriz.')
+            return redirect('grupos_planeacion_lista', matriz.id_matriz)
+        except Exception as exc:
+            messages.error(request, f'No se pudo crear el grupo: {str(exc)[:200]}')
+    return render(request, 'dashboard/grupo_planeacion_form.html', {
+        'matriz': matriz, 'materias': materias,
+        'docentes_facultad': docentes_facultad, 'docentes_todos': docentes_todos,
+    })
+
+
+@decano_required
+def grupo_planeacion_toggle_activo(request, id_grupo):
+    grupo = get_object_or_404(GrupoPlaneacion.objects.filter(matriz__in=_matrices_visibles(request.user)), id_grupo=id_grupo)
+    if request.method == 'POST':
+        grupo.activo = not grupo.activo
+        grupo.save(update_fields=['activo', 'updated_at'])
+    return redirect('grupos_planeacion_lista', grupo.matriz_id)
+
+
+@decano_required
+def grupo_planeacion_asignar_docente(request, id_grupo):
+    grupo = get_object_or_404(GrupoPlaneacion.objects.filter(matriz__in=_matrices_visibles(request.user)), id_grupo=id_grupo)
+    if request.method == 'POST':
+        docente_id = request.POST.get('docente') or None
+        grupo.docente = get_object_or_404(Docente, usuario_id=docente_id) if docente_id else None
+        grupo.save(update_fields=['docente', 'updated_at'])
+        messages.success(request, 'Docente actualizado.')
+    return redirect('grupos_planeacion_lista', grupo.matriz_id)
 
 
 # ════════════════════════════════════════════════════════════════

@@ -109,6 +109,39 @@ class MatrizPlaneacion(models.Model):
         return f'{self.nombre} [{self.estado}]'
 
 
+class GrupoPlaneacion(models.Model):
+    """Grupo (seccion) de una Materia dentro de una MatrizPlaneacion --
+    Sprint 4b (2026-09-08). Cierra el hueco de planeacion a nivel de grupo
+    individual: activo/inactivo (decide si sigue al siguiente periodo),
+    docente asignado (con preseleccion automatica desde el grupo del
+    periodo anterior via grupo_origen, igual que MatrizPlaneacion.continua_de),
+    y es_transversal (si es True, el docente se busca entre TODOS los
+    docentes de la institucion, no solo los de la facultad de la matriz --
+    ver matriz_planeacion_continuar en decano_views.py, que copia los
+    grupos activos al crear la continuacion)."""
+    id_grupo = models.AutoField(primary_key=True)
+    matriz = models.ForeignKey(MatrizPlaneacion, on_delete=models.CASCADE, related_name='grupos')
+    materia = models.ForeignKey('academico.Materia', on_delete=models.PROTECT, related_name='grupos_planeacion')
+    numero_grupo = models.CharField(max_length=10, help_text='Ej. "01"')
+    activo = models.BooleanField(default=True, help_text='Si sigue activo -- se copia al continuar al siguiente periodo')
+    es_transversal = models.BooleanField(default=False, help_text='Si es materia transversal, el docente se busca entre TODOS los docentes, no solo los de la facultad')
+    docente = models.ForeignKey('personal.Docente', null=True, blank=True, on_delete=models.SET_NULL, related_name='grupos_planeacion')
+    grupo_origen = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='continuaciones',
+        help_text='Grupo del periodo anterior del que este es continuidad -- se usa para preseleccionar el docente')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='grupos_planeacion_creados')
+
+    class Meta:
+        db_table = 'decano_grupos_planeacion'
+        unique_together = [('matriz', 'materia', 'numero_grupo')]
+        ordering = ['materia__nombre', 'numero_grupo']
+
+    def __str__(self):
+        return f'{self.materia.nombre} — Grupo {self.numero_grupo} ({self.matriz.nombre})'
+
+
 class ReglaIntervencion(models.Model):
     """Motor de reglas declarativas Decano -> acción (correo). El Decano la
     crea/edita/activa desde un panel, sin tocar código."""

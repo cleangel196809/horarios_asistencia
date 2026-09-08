@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Nuevo Grupo — {{ matriz.nombre }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+        <a href="{% url 'grupos_planeacion_lista' matriz.id_matriz %}" style="color:var(--txt3);">{{ matriz.nombre }} · Grupos</a>
+      </p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">➕ Nuevo Grupo</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Si la materia es transversal, el docente se busca entre todos los docentes de la institución; si no, solo entre los de esta facultad.</p>
+    </div>
+    <div class="card">
+      <form method="post" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        {% csrf_token %}
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Materia</label>
+          <select name="materia" required style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            {% for m in materias %}<option value="{{ m.id_materia }}">[{{ m.programa.nombre }}] {{ m.nombre }} · Ciclo {{ m.ciclo }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Número de grupo</label>
+          <input type="text" name="numero_grupo" placeholder="Ej. 01" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div style="display:flex;align-items:end;padding-bottom:8px;">
+          <label style="display:flex;gap:8px;align-items:center;color:var(--txt2);font-size:13px;">
+            <input type="checkbox" id="chk-transversal" onchange="
+              document.getElementById('doc-facultad-wrap').hidden = this.checked;
+              document.getElementById('doc-facultad-select').disabled = this.checked;
+              document.getElementById('doc-todos-wrap').hidden = !this.checked;
+              document.getElementById('doc-todos-select').disabled = !this.checked;
+              document.getElementById('es-transversal-hidden').value = this.checked ? 'on' : '';
+            ">
+            Es materia transversal (buscar docente en todos los programas)
+          </label>
+          <input type="hidden" id="es-transversal-hidden" name="es_transversal" value="">
+        </div>
+        <div style="grid-column:1 / -1;" id="doc-facultad-wrap">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Docente (de esta facultad)</label>
+          <select name="docente" id="doc-facultad-select" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">— Sin asignar todavía —</option>
+            {% for d in docentes_facultad %}<option value="{{ d.usuario_id }}">{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;" id="doc-todos-wrap" hidden>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Docente (todos los programas — materia transversal)</label>
+          <select name="docente" id="doc-todos-select" disabled style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">— Sin asignar todavía —</option>
+            {% for d in docentes_todos %}<option value="{{ d.usuario_id }}">{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <button type="submit" class="btn btn-primary">Agregar grupo</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

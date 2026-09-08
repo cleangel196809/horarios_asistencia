@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Grupos — {{ matriz.nombre }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% include 'dashboard/_sidebar.html' with active='decano_panel' %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+          <a href="{% url 'matriz_planeacion_detalle' matriz.id_matriz %}" style="color:var(--txt3);">{{ matriz.nombre }}</a> · Grupos
+        </p>
+        <h1 style="font-size:30px;font-weight:800;color:var(--white);">🧑‍🎓 Grupos de Planeación</h1>
+        <p style="color:var(--txt2);margin-top:6px;">Marca "Sigue activo" para los grupos que deben continuar al siguiente periodo. Al usar "Continuar al siguiente periodo" en la matriz, solo los grupos activos se copian (con el docente preseleccionado).</p>
+      </div>
+      <a href="{% url 'grupo_planeacion_crear' matriz.id_matriz %}" class="btn btn-primary">+ Agregar grupo</a>
+    </div>
+
+    <div class="card">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Materia</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Grupo</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Docente</th>
+          <th style="text-align:left;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">Origen</th>
+          <th style="text-align:center;padding:10px;color:var(--txt3);font-size:11px;text-transform:uppercase;">¿Sigue activo?</th>
+        </tr></thead>
+        <tbody>
+          {% for g in grupos %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:10px;color:var(--white);">
+              {{ g.materia.nombre }}
+              {% if g.es_transversal %}<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(167,139,250,0.15);color:#a78bfa;font-size:11px;">Transversal</span>{% endif %}
+            </td>
+            <td style="padding:10px;color:var(--txt2);">{{ g.numero_grupo }}</td>
+            <td style="padding:10px;">
+              <form method="post" action="{% url 'grupo_planeacion_asignar_docente' g.id_grupo %}" style="display:flex;gap:6px;align-items:center;">
+                {% csrf_token %}
+                <select name="docente" style="padding:6px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);font-size:12px;">
+                  <option value="">— Sin asignar —</option>
+                  {% if g.es_transversal %}
+                    {% for d in docentes_todos %}
+                    <option value="{{ d.usuario_id }}" {% if g.docente_id == d.usuario_id %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>
+                    {% endfor %}
+                  {% else %}
+                    {% for d in docentes_facultad %}
+                    <option value="{{ d.usuario_id }}" {% if g.docente_id == d.usuario_id %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>
+                    {% endfor %}
+                  {% endif %}
+                </select>
+                <button type="submit" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">Guardar</button>
+              </form>
+            </td>
+            <td style="padding:10px;color:var(--txt3);font-size:12px;">
+              {% if g.grupo_origen %}Continúa de {{ g.grupo_origen.matriz.periodo.codigo }}{% else %}Nuevo{% endif %}
+            </td>
+            <td style="padding:10px;text-align:center;">
+              <form method="post" action="{% url 'grupo_planeacion_toggle_activo' g.id_grupo %}">
+                {% csrf_token %}
+                <button type="submit" class="btn {% if g.activo %}btn-primary{% else %}btn-ghost{% endif %}" style="padding:4px 12px;font-size:12px;">
+                  {% if g.activo %}✅ Activo{% else %}Inactivo{% endif %}
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--txt3);">Todavía no hay grupos en esta matriz.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

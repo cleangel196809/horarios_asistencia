@@ -60,6 +60,16 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="card-title">🧑‍🎓 Grupos de esta matriz ({{ matriz.grupos.count }})</span>
+        <a href="{% url 'grupos_planeacion_lista' matriz.id_matriz %}" class="btn btn-ghost">Ver grupos</a>
+      </div>
+      <div style="padding:16px;color:var(--txt2);font-size:13px;">
+        Materias, grupos individuales, si siguen activos, y el docente asignado (con autocompletado global para materias transversales).
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-hdr"><span class="card-title">📋 Metadatos</span></div>
       <div style="padding:16px;color:var(--txt2);font-size:13px;line-height:1.9;">
