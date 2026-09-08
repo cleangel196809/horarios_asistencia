@@ -22,7 +22,11 @@
         </div>
         <div>
           <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Número de grupo</label>
-          <input type="text" name="numero_grupo" placeholder="Ej. 01" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+          <select id="grupo-continuidad-select" style="width:100%;padding:8px;margin-bottom:6px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            <option value="">— Nuevo grupo (escribir número abajo) —</option>
+          </select>
+          <input type="text" name="numero_grupo" id="numero_grupo_input" placeholder="Ej. 01" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+          <p style="font-size:11px;color:var(--txt3);margin-top:4px;">El desplegable muestra los grupos que venían activos en el periodo anterior para la materia seleccionada.</p>
         </div>
         <div style="display:flex;align-items:end;padding-bottom:8px;">
           <label style="display:flex;gap:8px;align-items:center;color:var(--txt2);font-size:13px;">
@@ -58,4 +62,45 @@
     </div>
   </main>
 </div>
+<script>
+  const gruposContinuidad = {{ grupos_continuidad_json|safe }};
+  const materiaSelect = document.querySelector('select[name="materia"]');
+  const continuidadSelect = document.getElementById('grupo-continuidad-select');
+  const numeroInput = document.getElementById('numero_grupo_input');
+  const chkTransversal = document.getElementById('chk-transversal');
+  const docFacultadSelect = document.getElementById('doc-facultad-select');
+  const docTodosSelect = document.getElementById('doc-todos-select');
+
+  function refrescarContinuidad() {
+    const opciones = gruposContinuidad[materiaSelect.value] || [];
+    continuidadSelect.innerHTML = '<option value="">— Nuevo grupo (escribir número abajo) —</option>';
+    opciones.forEach(function (g, i) {
+      const label = 'Grupo ' + g.numero_grupo + (g.docente_nombre ? ' · continúa con ' + g.docente_nombre : ' · sin docente asignado');
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = label;
+      continuidadSelect.appendChild(opt);
+    });
+    continuidadSelect.dataset.opciones = JSON.stringify(opciones);
+  }
+
+  continuidadSelect.addEventListener('change', function () {
+    if (this.value === '') { return; }
+    const opciones = JSON.parse(this.dataset.opciones || '[]');
+    const g = opciones[this.value];
+    if (!g) { return; }
+    numeroInput.value = g.numero_grupo;
+    if (g.es_transversal !== chkTransversal.checked) {
+      chkTransversal.checked = g.es_transversal;
+      chkTransversal.dispatchEvent(new Event('change'));
+    }
+    if (g.docente_id) {
+      const targetSelect = g.es_transversal ? docTodosSelect : docFacultadSelect;
+      if (targetSelect) { targetSelect.value = String(g.docente_id); }
+    }
+  });
+
+  materiaSelect.addEventListener('change', refrescarContinuidad);
+  refrescarContinuidad();
+</script>
 {% endblock %}

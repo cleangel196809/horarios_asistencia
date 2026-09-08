@@ -13,6 +13,7 @@ Estructura:
        "disparar ahora" (Entregable 2.B) + reenvio manual
     E. Los 7 reportes del Decano (Entregable 3)
 """
+import json
 from datetime import timedelta
 
 from django.contrib import messages
@@ -304,6 +305,27 @@ def grupo_planeacion_crear(request, id_matriz):
     materias = Materia.objects.filter(programa__facultad=matriz.facultad, activa=True).select_related('programa').order_by('programa__nombre', 'ciclo', 'nombre')
     docentes_facultad = Docente.objects.filter(activo=True, facultad=matriz.facultad).select_related('usuario').order_by('usuario__apellido')
     docentes_todos = Docente.objects.filter(activo=True).select_related('usuario').order_by('usuario__apellido')
+
+    # Grupos que "persisten" para este periodo -- los que venian activos en
+    # la matriz de la que esta es continuacion (matriz.continua_de), para
+    # ofrecerlos como sugerencia en el desplegable de "Numero de grupo" en
+    # vez de que el decano tenga que recordarlos/escribirlos a mano.
+    # Se excluyen los que ya se recrearon en ESTA matriz (misma materia +
+    # numero_grupo), para no chocar con el unique_together.
+    ya_creados = set(matriz.grupos.values_list('materia_id', 'numero_grupo'))
+    grupos_continuidad = {}
+    if matriz.continua_de_id:
+        origen_grupos = matriz.continua_de.grupos.filter(activo=True).select_related('materia', 'docente__usuario')
+        for g in origen_grupos:
+            if (g.materia_id, g.numero_grupo) in ya_creados:
+                continue
+            grupos_continuidad.setdefault(str(g.materia_id), []).append({
+                'numero_grupo': g.numero_grupo,
+                'docente_id': g.docente_id,
+                'docente_nombre': f'{g.docente.usuario.nombre} {g.docente.usuario.apellido}' if g.docente else '',
+                'es_transversal': g.es_transversal,
+            })
+
     if request.method == 'POST':
         try:
             materia = get_object_or_404(materias, id_materia=request.POST.get('materia'))
@@ -323,6 +345,7 @@ def grupo_planeacion_crear(request, id_matriz):
     return render(request, 'dashboard/grupo_planeacion_form.html', {
         'matriz': matriz, 'materias': materias,
         'docentes_facultad': docentes_facultad, 'docentes_todos': docentes_todos,
+        'grupos_continuidad_json': json.dumps(grupos_continuidad),
     })
 
 
