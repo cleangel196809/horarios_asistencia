@@ -39,6 +39,12 @@
         {% elif matriz.estado == 'PUBLICADO' %}
         <a href="{% url 'centro_publicacion' %}" class="btn btn-ghost">Ir al Centro de Publicación (SISCA)</a>
         {% endif %}
+        {% if matriz.estado == 'APROBADO' or matriz.estado == 'PUBLICADO' %}
+        <form method="post" action="{% url 'matriz_planeacion_continuar' matriz.id_matriz %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ghost">➡️ Continuar al siguiente periodo</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 
@@ -60,6 +66,20 @@
         <div>Creada por: {{ matriz.created_by.nombre_completo|default:"—" }} · {{ matriz.created_at|date:"d/m/Y H:i" }}</div>
         {% if matriz.aprobado_por %}<div>Aprobada por: {{ matriz.aprobado_por.nombre_completo }} · {{ matriz.fecha_aprobacion|date:"d/m/Y H:i" }}</div>{% endif %}
         {% if matriz.publicado_por %}<div>Publicada por: {{ matriz.publicado_por.nombre_completo }} · {{ matriz.fecha_publicacion|date:"d/m/Y H:i" }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🔗 Continuidad entre periodos</span></div>
+      <div style="padding:16px;color:var(--txt2);font-size:13px;line-height:1.9;">
+        {% if matriz.continua_de %}
+        <div>Continúa de: <a href="{% url 'matriz_planeacion_detalle' matriz.continua_de.id_matriz %}">{{ matriz.continua_de.nombre }}</a> ({{ matriz.continua_de.periodo.codigo }})</div>
+        {% endif %}
+        {% for c in matriz.continuaciones.all %}
+        <div>Continuación en {{ c.periodo.codigo }}: <a href="{% url 'matriz_planeacion_detalle' c.id_matriz %}">{{ c.nombre }}</a> [{{ c.get_estado_display }}]</div>
+        {% empty %}
+        {% if not matriz.continua_de %}<div style="color:var(--txt3);">Sin relación de continuidad todavía.</div>{% endif %}
+        {% endfor %}
       </div>
     </div>
   </main>

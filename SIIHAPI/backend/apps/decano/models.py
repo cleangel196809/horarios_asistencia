@@ -80,6 +80,14 @@ class MatrizPlaneacion(models.Model):
         default=dict, blank=True,
         help_text='Snapshot de los parámetros usados en la corrida "what-if" (docentes/salones candidatos, reglas activas)')
     estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='BORRADOR')
+    continua_de = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='continuaciones',
+        help_text=(
+            'Matriz del periodo anterior de la que esta es continuidad (mismo eje matriculas.Periodo, '
+            'no el campo ciclo -- ver matriz_planeacion_continuar en decano_views.py). Columna aditiva, '
+            'ninguna matriz existente se ve afectada por su ausencia.'
+        ),
+    )
     asignacion_ia = models.ForeignKey(
         'horarios.AsignacionIA', null=True, blank=True, on_delete=models.SET_NULL,
         related_name='matrices_planeacion',

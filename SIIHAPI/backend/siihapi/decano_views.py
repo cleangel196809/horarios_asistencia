@@ -196,6 +196,50 @@ def matriz_planeacion_publicar(request, id_matriz):
     return redirect('matriz_planeacion_detalle', id_matriz)
 
 
+def _siguiente_periodo(periodo):
+    """Periodo académico inmediatamente posterior a `periodo` por fecha de
+    inicio. `matriculas.Periodo` ya es un catálogo real (no texto libre,
+    a diferencia de MatrizPlaneacion.ciclo), así que "el siguiente" se
+    calcula sobre este eje y no sobre `ciclo` (que en realidad es el
+    semestre del plan de estudios de una Materia, ver academico.Materia.ciclo
+    -- no tiene "siguiente" porque no es secuencial entre facultades)."""
+    return Periodo.objects.filter(fecha_inicio__gt=periodo.fecha_inicio).order_by('fecha_inicio').first()
+
+
+@decano_required
+def matriz_planeacion_continuar(request, id_matriz):
+    """Entregable pendiente: paso explícito de continuidad entre periodos.
+    Crea una nueva MatrizPlaneacion en BORRADOR para el periodo siguiente al
+    de `matriz`, copiando facultad/sede/jornada/ciclo, y enlaza
+    `continua_de` a la matriz original. No modifica ni borra la matriz
+    origen."""
+    matriz = get_object_or_404(MatrizPlaneacion, id_matriz=id_matriz)
+    if request.method != 'POST':
+        return redirect('matriz_planeacion_detalle', id_matriz)
+    if matriz.estado not in ('APROBADO', 'PUBLICADO'):
+        messages.error(request, 'Solo una matriz Aprobada o Publicada puede continuarse al siguiente periodo.')
+        return redirect('matriz_planeacion_detalle', id_matriz)
+    siguiente = _siguiente_periodo(matriz.periodo)
+    if not siguiente:
+        messages.error(
+            request,
+            f'No existe todavía un Periodo académico posterior a {matriz.periodo.codigo} en el catálogo. '
+            'Créalo primero (Base de datos > Periodos) y vuelve a intentar.'
+        )
+        return redirect('matriz_planeacion_detalle', id_matriz)
+    ya_existe = MatrizPlaneacion.objects.filter(continua_de=matriz, periodo=siguiente).first()
+    if ya_existe:
+        messages.info(request, f'Esta matriz ya tiene una continuación en {siguiente.codigo}.')
+        return redirect('matriz_planeacion_detalle', ya_existe.id_matriz)
+    continuacion = MatrizPlaneacion.objects.create(
+        nombre=f'{matriz.nombre} · continuación {siguiente.codigo}',
+        facultad=matriz.facultad, periodo=siguiente, sede=matriz.sede, jornada=matriz.jornada,
+        ciclo=matriz.ciclo, continua_de=matriz, created_by=request.user,
+    )
+    messages.success(request, f'Matriz de continuación creada en Borrador para {siguiente.codigo}.')
+    return redirect('matriz_planeacion_detalle', continuacion.id_matriz)
+
+
 # ════════════════════════════════════════════════════════════════
 #  D. MOTOR DE REGLAS -- ReglaIntervencion / PlantillaCorreo / LogIntervencion
 #     (Entregable 2.B, Entregable 4)

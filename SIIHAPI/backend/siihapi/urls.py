@@ -103,6 +103,7 @@ urlpatterns = [
     path('dashboard/decano/matrices/<int:id_matriz>/enviar-revision/',  dv.matriz_planeacion_enviar_revision,  name='matriz_planeacion_enviar_revision'),
     path('dashboard/decano/matrices/<int:id_matriz>/aprobar/',          dv.matriz_planeacion_aprobar,          name='matriz_planeacion_aprobar'),
     path('dashboard/decano/matrices/<int:id_matriz>/publicar/',         dv.matriz_planeacion_publicar,         name='matriz_planeacion_publicar'),
+    path('dashboard/decano/matrices/<int:id_matriz>/continuar/',        dv.matriz_planeacion_continuar,        name='matriz_planeacion_continuar'),
 
     path('dashboard/decano/reglas/',                        dv.reglas_lista,                        name='reglas_lista'),
     path('dashboard/decano/reglas/crear/',                  dv.regla_crear,                         name='regla_crear'),
