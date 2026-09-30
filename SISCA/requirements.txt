@@ -10,7 +10,9 @@ Flask-SocketIO>=5.3.6
 Flask-Cors>=4.0.0
 
 # Base de Datos
-oracledb>=2.3.0
+# Portado de Oracle a PostgreSQL (2026-09-30) para desplegar en Render.
+psycopg[binary]>=3.1
+psycopg_pool>=3.2
 
 # Seguridad
 bcrypt>=4.1.3
@@ -26,7 +28,7 @@ Pillow>=10.4.0
 # Tareas programadas
 APScheduler>=3.10.0
 
-# Servidor WSGI Windows
+# Servidor WSGI (Windows en local, y tambien el de produccion en Render)
 waitress>=3.0.0
 
 # Data y Analitica

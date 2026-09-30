@@ -87,7 +87,7 @@ def panel_horarios_siihapi():
           COUNT(DISTINCT H.AULA) AS total_aulas
         FROM HORARIO H
         LEFT JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
-        WHERE NVL(H.ESTADO,'A') = 'A'
+        WHERE COALESCE(H.ESTADO,'A') = 'A'
     """) or {'total_horarios':0,'total_materias':0,'total_docentes':0,'total_aulas':0}
 
     fila_ses = execute_one(
@@ -106,70 +106,70 @@ def panel_horarios_siihapi():
     sql = """
         SELECT
           H.ID_HORARIO,
-          NVL(M.CODIGO, '—')             AS CODIGO,
-          NVL(M.NOMBRE_MATERIA, '(Sin materia)') AS NOMBRE_MATERIA,
-          NVL(H.DIA, '—')                AS DIA,
+          COALESCE(M.CODIGO, '—')             AS CODIGO,
+          COALESCE(M.NOMBRE_MATERIA, '(Sin materia)') AS NOMBRE_MATERIA,
+          COALESCE(H.DIA, '—')                AS DIA,
           TO_CHAR(H.HORA_INICIO, 'HH24:MI') AS HORA_INICIO,
           TO_CHAR(H.HORA_FIN, 'HH24:MI')    AS HORA_FIN,
-          NVL(H.AULA, '—')               AS AULA,
-          NVL(H.ESTADO, 'A')             AS ESTADO,
-          NVL(U.NOMBRE || ' ' || U.APELLIDO, 'Sin asignar') AS DOCENTE,
+          COALESCE(H.AULA, '—')               AS AULA,
+          COALESCE(H.ESTADO, 'A')             AS ESTADO,
+          COALESCE(U.NOMBRE || ' ' || U.APELLIDO, 'Sin asignar') AS DOCENTE,
           U.CORREO AS DOCENTE_EMAIL,
-          NVL(D.ESPECIALIDAD, '—')       AS ESPECIALIDAD,
-          NVL(C.NOMBRE_CARRERA, '—')     AS CARRERA
+          COALESCE(D.ESPECIALIDAD, '—')       AS ESPECIALIDAD,
+          COALESCE(C.NOMBRE_CARRERA, '—')     AS CARRERA
         FROM HORARIO H
         LEFT JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
         LEFT JOIN DOCENTE D ON D.ID_DOCENTE = M.ID_DOCENTE
         LEFT JOIN USUARIO U ON U.ID_USUARIO = D.ID_USUARIO
         LEFT JOIN CARRERA C ON C.ID_CARRERA = M.ID_CARRERA
-        WHERE NVL(H.ESTADO,'A') = 'A'
+        WHERE COALESCE(H.ESTADO,'A') = 'A'
     """
     params = {}
     if dia_filtro:
-        sql += " AND UPPER(NVL(H.DIA,'')) = :d"
+        sql += " AND UPPER(COALESCE(H.DIA,'')) = :d"
         params['d'] = dia_filtro
     if aula_filtro:
-        sql += " AND UPPER(NVL(H.AULA,'')) LIKE :a"
+        sql += " AND UPPER(COALESCE(H.AULA,'')) LIKE :a"
         params['a'] = f'%{aula_filtro}%'
     if codigo_filtro:
-        sql += " AND UPPER(NVL(M.CODIGO,'')) LIKE :c"
+        sql += " AND UPPER(COALESCE(M.CODIGO,'')) LIKE :c"
         params['c'] = f'%{codigo_filtro}%'
     if carrera_filtro:
-        sql += " AND (UPPER(NVL(C.NOMBRE_CARRERA,'')) LIKE :car OR UPPER(NVL(C.CODIGO_CARRERA,'')) LIKE :car)"
+        sql += " AND (UPPER(COALESCE(C.NOMBRE_CARRERA,'')) LIKE :car OR UPPER(COALESCE(C.CODIGO_CARRERA,'')) LIKE :car)"
         params['car'] = f'%{carrera_filtro.upper()}%'
     if semestre_filtro:
-        sql += " AND TO_CHAR(NVL(M.SEMESTRE,0)) = :sem"
+        sql += " AND CAST(COALESCE(M.SEMESTRE,0) AS TEXT) = :sem"
         params['sem'] = semestre_filtro
     if docente_filtro:
-        sql += " AND UPPER(NVL(U.NOMBRE,'')||' '||NVL(U.APELLIDO,'')) LIKE :doc"
+        sql += " AND UPPER(COALESCE(U.NOMBRE,'')||' '||COALESCE(U.APELLIDO,'')) LIKE :doc"
         params['doc'] = f'%{docente_filtro.upper()}%'
     if jornada_filtro == 'DIURNA':
-        sql += " AND H.HORA_INICIO >= TO_DATE('07:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('10:00','HH24:MI')"
+        sql += " AND H.HORA_INICIO::time >= TIME '07:00' AND H.HORA_INICIO::time < TIME '10:00'"
     elif jornada_filtro == 'ESPECIAL':
-        sql += " AND H.HORA_INICIO >= TO_DATE('10:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('13:00','HH24:MI')"
+        sql += " AND H.HORA_INICIO::time >= TIME '10:00' AND H.HORA_INICIO::time < TIME '13:00'"
     elif jornada_filtro == 'NOCTURNA':
-        sql += " AND H.HORA_INICIO >= TO_DATE('18:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('21:00','HH24:MI')"
+        sql += " AND H.HORA_INICIO::time >= TIME '18:00' AND H.HORA_INICIO::time < TIME '21:00'"
     elif jornada_filtro == 'SABADO':
-        sql += " AND UPPER(NVL(H.DIA,'')) = 'SABADO'"
+        sql += " AND UPPER(COALESCE(H.DIA,'')) = 'SABADO'"
 
-    sql += " ORDER BY DECODE(H.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,'JUEVES',4,'VIERNES',5,'SABADO',6,7), H.HORA_INICIO"
+    sql += " ORDER BY CASE H.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END, H.HORA_INICIO"
 
     horarios = (execute_query(sql, params, fetch=True) or [])[:300]
 
     # Distribución por día (para mini-chart)
     dist_dia = execute_query("""
-        SELECT NVL(DIA,'—') AS DIA, COUNT(*) AS TOTAL
+        SELECT COALESCE(DIA,'—') AS DIA, COUNT(*) AS TOTAL
         FROM HORARIO
-        WHERE NVL(ESTADO,'A') = 'A'
+        WHERE COALESCE(ESTADO,'A') = 'A'
         GROUP BY DIA
-        ORDER BY DECODE(NVL(DIA,'—'),'LUNES',1,'MARTES',2,'MIERCOLES',3,'JUEVES',4,'VIERNES',5,'SABADO',6,7)
+        ORDER BY CASE COALESCE(DIA,'—') WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END
     """, fetch=True) or []
 
     log.info(f"[SISCA] panel_horarios_siihapi -> {len(horarios)} horarios, KPIs: {kpis}")
 
     # Catalogo de carreras para el desplegable
-    carreras = execute_query("SELECT DISTINCT NVL(NOMBRE_CARRERA,'') AS NOMBRE_CARRERA FROM CARRERA WHERE NOMBRE_CARRERA IS NOT NULL ORDER BY NOMBRE_CARRERA", fetch=True) or []
-    semestres = execute_query("SELECT DISTINCT NVL(SEMESTRE,0) AS SEMESTRE FROM MATERIA WHERE SEMESTRE IS NOT NULL ORDER BY SEMESTRE", fetch=True) or []
+    carreras = execute_query("SELECT DISTINCT COALESCE(NOMBRE_CARRERA,'') AS NOMBRE_CARRERA FROM CARRERA WHERE NOMBRE_CARRERA IS NOT NULL ORDER BY NOMBRE_CARRERA", fetch=True) or []
+    semestres = execute_query("SELECT DISTINCT COALESCE(SEMESTRE,0) AS SEMESTRE FROM MATERIA WHERE SEMESTRE IS NOT NULL ORDER BY SEMESTRE", fetch=True) or []
 
     return render_template('integracion/horarios_siihapi.html',
         horarios=horarios, kpis=kpis, dist_dia=dist_dia,
@@ -191,22 +191,22 @@ def detalle_horario(id_horario):
             SELECT
               H.ID_HORARIO,
               M.ID_MATERIA,
-              NVL(M.CODIGO, '—')          AS CODIGO,
-              NVL(M.NOMBRE_MATERIA, '—')  AS NOMBRE_MATERIA,
+              COALESCE(M.CODIGO, '—')          AS CODIGO,
+              COALESCE(M.NOMBRE_MATERIA, '—')  AS NOMBRE_MATERIA,
               M.CREDITOS,
               M.SEMESTRE,
-              NVL(H.DIA, '—')             AS DIA,
+              COALESCE(H.DIA, '—')             AS DIA,
               TO_CHAR(H.HORA_INICIO, 'HH24:MI') AS HORA_INICIO,
               TO_CHAR(H.HORA_FIN, 'HH24:MI')    AS HORA_FIN,
-              NVL(H.AULA, '—')            AS AULA,
-              NVL(H.ESTADO, 'A')          AS ESTADO,
+              COALESCE(H.AULA, '—')            AS AULA,
+              COALESCE(H.ESTADO, 'A')          AS ESTADO,
               D.ID_DOCENTE,
-              NVL(D.ESPECIALIDAD, '—')    AS ESPECIALIDAD,
-              NVL(U.NOMBRE, '')           AS DOC_NOMBRE,
-              NVL(U.APELLIDO, '')         AS DOC_APELLIDO,
-              NVL(U.CORREO, '—')          AS DOC_CORREO,
-              NVL(C.NOMBRE_CARRERA, '—')  AS NOMBRE_CARRERA,
-              NVL(C.CODIGO_CARRERA, '—')  AS CODIGO_CARRERA
+              COALESCE(D.ESPECIALIDAD, '—')    AS ESPECIALIDAD,
+              COALESCE(U.NOMBRE, '')           AS DOC_NOMBRE,
+              COALESCE(U.APELLIDO, '')         AS DOC_APELLIDO,
+              COALESCE(U.CORREO, '—')          AS DOC_CORREO,
+              COALESCE(C.NOMBRE_CARRERA, '—')  AS NOMBRE_CARRERA,
+              COALESCE(C.CODIGO_CARRERA, '—')  AS CODIGO_CARRERA
             FROM HORARIO H
             JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
             LEFT JOIN DOCENTE D ON D.ID_DOCENTE = M.ID_DOCENTE
@@ -224,16 +224,16 @@ def detalle_horario(id_horario):
         if h.get('id_docente'):
             otras_doc = execute_query("""
                 SELECT * FROM (
-                    SELECT NVL(M.CODIGO,'—') AS CODIGO,
-                           NVL(M.NOMBRE_MATERIA,'—') AS NOMBRE_MATERIA,
-                           NVL(H.DIA,'—') AS DIA,
+                    SELECT COALESCE(M.CODIGO,'—') AS CODIGO,
+                           COALESCE(M.NOMBRE_MATERIA,'—') AS NOMBRE_MATERIA,
+                           COALESCE(H.DIA,'—') AS DIA,
                            TO_CHAR(H.HORA_INICIO,'HH24:MI') AS HORA_INICIO,
-                           NVL(H.AULA,'—') AS AULA
+                           COALESCE(H.AULA,'—') AS AULA
                     FROM HORARIO H
                     JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
                     WHERE M.ID_DOCENTE = :d AND H.ID_HORARIO != :h
                     ORDER BY H.DIA, H.HORA_INICIO
-                ) WHERE ROWNUM <= 10
+                ) LIMIT 10
             """, {'d': h['id_docente'], 'h': id_horario}, fetch=True) or []
 
         # Otras clases en el mismo aula
@@ -241,18 +241,18 @@ def detalle_horario(id_horario):
         if h.get('aula') and h['aula'] != '—':
             otras_aula = execute_query("""
                 SELECT * FROM (
-                    SELECT NVL(M.CODIGO,'—') AS CODIGO,
-                           NVL(M.NOMBRE_MATERIA,'—') AS NOMBRE_MATERIA,
-                           NVL(H.DIA,'—') AS DIA,
+                    SELECT COALESCE(M.CODIGO,'—') AS CODIGO,
+                           COALESCE(M.NOMBRE_MATERIA,'—') AS NOMBRE_MATERIA,
+                           COALESCE(H.DIA,'—') AS DIA,
                            TO_CHAR(H.HORA_INICIO,'HH24:MI') AS HORA_INICIO,
-                           NVL(U.NOMBRE || ' ' || U.APELLIDO, '—') AS DOCENTE
+                           COALESCE(U.NOMBRE || ' ' || U.APELLIDO, '—') AS DOCENTE
                     FROM HORARIO H
                     JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
                     LEFT JOIN DOCENTE D ON D.ID_DOCENTE = M.ID_DOCENTE
                     LEFT JOIN USUARIO U ON U.ID_USUARIO = D.ID_USUARIO
                     WHERE H.AULA = :a AND H.ID_HORARIO != :h
                     ORDER BY H.DIA, H.HORA_INICIO
-                ) WHERE ROWNUM <= 10
+                ) LIMIT 10
             """, {'a': h['aula'], 'h': id_horario}, fetch=True) or []
 
         # Sesiones de este horario
@@ -260,12 +260,12 @@ def detalle_horario(id_horario):
             SELECT * FROM (
                 SELECT ID_SESION,
                        TO_CHAR(FECHA_SESION, 'DD/MM/YYYY') AS FECHA,
-                       NVL(ESTADO_SESION, 'ACTIVA') AS ESTADO_SESION,
-                       NVL(MODO_CONEXION, 'ONLINE') AS MODO_CONEXION
+                       COALESCE(ESTADO_SESION, 'ACTIVA') AS ESTADO_SESION,
+                       COALESCE(MODO_CONEXION, 'ONLINE') AS MODO_CONEXION
                 FROM SESION_CLASE
                 WHERE ID_HORARIO = :h
                 ORDER BY FECHA_SESION DESC
-            ) WHERE ROWNUM <= 10
+            ) LIMIT 10
         """, {'h': id_horario}, fetch=True) or []
 
         return render_template('integracion/horario_detalle.html',
@@ -505,7 +505,7 @@ def _get_titular_actual():
         LEFT JOIN INSCRIPCION I ON I.ID_ESTUDIANTE = E.ID_ESTUDIANTE AND I.ESTADO = 'ACTIVA'
         LEFT JOIN MATERIA M ON M.ID_MATERIA = I.ID_MATERIA
         LEFT JOIN CARRERA C ON C.ID_CARRERA = M.ID_CARRERA
-        WHERE U.ID_USUARIO = :u AND ROWNUM = 1
+        WHERE U.ID_USUARIO = :u LIMIT 1
     """, {'u': uid}) or {}
     nombre_full = f"{(u.get('nombre') or '').upper()} {(u.get('apellido') or '').upper()}".strip() or 'USUARIO SISCA'
     plan = u.get('nombre_carrera') or 'TECNOLOGIA EN DESARROLLO DE SOFTWARE Y APLICATIVOS MOVILES SEDE CALLE 73'
@@ -530,18 +530,18 @@ def exportar_horario_pdf(id_horario):
         sql = """
             SELECT
               H.ID_HORARIO,
-              NVL(M.CODIGO, '—')         AS CODIGO,
-              NVL(M.NOMBRE_MATERIA, '—') AS NOMBRE_MATERIA,
+              COALESCE(M.CODIGO, '—')         AS CODIGO,
+              COALESCE(M.NOMBRE_MATERIA, '—') AS NOMBRE_MATERIA,
               M.CREDITOS, M.SEMESTRE,
-              NVL(H.DIA, '—')            AS DIA,
+              COALESCE(H.DIA, '—')            AS DIA,
               TO_CHAR(H.HORA_INICIO, 'HH24:MI') AS HORA_INICIO,
               TO_CHAR(H.HORA_FIN, 'HH24:MI')    AS HORA_FIN,
-              NVL(H.AULA, '—')           AS AULA,
-              NVL(H.ESTADO, 'A')         AS ESTADO,
-              NVL(U.NOMBRE, '')          AS DOC_NOMBRE,
-              NVL(U.APELLIDO, '')        AS DOC_APELLIDO,
-              NVL(C.NOMBRE_CARRERA, '—') AS NOMBRE_CARRERA,
-              NVL(C.CODIGO_CARRERA, 'GRP') AS CODIGO_CARRERA
+              COALESCE(H.AULA, '—')           AS AULA,
+              COALESCE(H.ESTADO, 'A')         AS ESTADO,
+              COALESCE(U.NOMBRE, '')          AS DOC_NOMBRE,
+              COALESCE(U.APELLIDO, '')        AS DOC_APELLIDO,
+              COALESCE(C.NOMBRE_CARRERA, '—') AS NOMBRE_CARRERA,
+              COALESCE(C.CODIGO_CARRERA, 'GRP') AS CODIGO_CARRERA
             FROM HORARIO H
             JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
             LEFT JOIN DOCENTE D ON D.ID_DOCENTE = M.ID_DOCENTE
@@ -603,17 +603,17 @@ def exportar_horarios_pdf_completo():
         sql = """
             SELECT
               H.ID_HORARIO,
-              NVL(M.CODIGO, '—')         AS CODIGO,
-              NVL(M.NOMBRE_MATERIA, '—') AS NOMBRE_MATERIA,
-              NVL(M.SEMESTRE, 1)         AS SEMESTRE,
-              NVL(H.DIA, '—')            AS DIA,
+              COALESCE(M.CODIGO, '—')         AS CODIGO,
+              COALESCE(M.NOMBRE_MATERIA, '—') AS NOMBRE_MATERIA,
+              COALESCE(M.SEMESTRE, 1)         AS SEMESTRE,
+              COALESCE(H.DIA, '—')            AS DIA,
               TO_CHAR(H.HORA_INICIO, 'HH24:MI') AS HORA_INICIO,
               TO_CHAR(H.HORA_FIN, 'HH24:MI')    AS HORA_FIN,
-              NVL(H.AULA, '—')           AS AULA,
-              NVL(U.NOMBRE, '')          AS DOC_NOMBRE,
-              NVL(U.APELLIDO, '')        AS DOC_APELLIDO,
-              NVL(C.NOMBRE_CARRERA, '—') AS NOMBRE_CARRERA,
-              NVL(C.CODIGO_CARRERA, 'GRP') AS CODIGO_CARRERA
+              COALESCE(H.AULA, '—')           AS AULA,
+              COALESCE(U.NOMBRE, '')          AS DOC_NOMBRE,
+              COALESCE(U.APELLIDO, '')        AS DOC_APELLIDO,
+              COALESCE(C.NOMBRE_CARRERA, '—') AS NOMBRE_CARRERA,
+              COALESCE(C.CODIGO_CARRERA, 'GRP') AS CODIGO_CARRERA
             FROM HORARIO H
             JOIN MATERIA M ON M.ID_MATERIA = H.ID_MATERIA
             LEFT JOIN DOCENTE D ON D.ID_DOCENTE = M.ID_DOCENTE
@@ -632,23 +632,23 @@ def exportar_horarios_pdf_completo():
             sql += " AND UPPER(M.CODIGO) LIKE :c"
             params['c'] = f'%{codigo_filtro}%'
         if carrera_filtro:
-            sql += " AND (UPPER(NVL(C.NOMBRE_CARRERA,'')) LIKE :car OR UPPER(NVL(C.CODIGO_CARRERA,'')) LIKE :car)"
+            sql += " AND (UPPER(COALESCE(C.NOMBRE_CARRERA,'')) LIKE :car OR UPPER(COALESCE(C.CODIGO_CARRERA,'')) LIKE :car)"
             params['car'] = f'%{carrera_filtro.upper()}%'
         if semestre_filtro:
-            sql += " AND TO_CHAR(NVL(M.SEMESTRE,0)) = :sem"
+            sql += " AND CAST(COALESCE(M.SEMESTRE,0) AS TEXT) = :sem"
             params['sem'] = semestre_filtro
         if docente_filtro:
-            sql += " AND UPPER(NVL(U.NOMBRE,'')||' '||NVL(U.APELLIDO,'')) LIKE :doc"
+            sql += " AND UPPER(COALESCE(U.NOMBRE,'')||' '||COALESCE(U.APELLIDO,'')) LIKE :doc"
             params['doc'] = f'%{docente_filtro.upper()}%'
         if jornada_filtro == 'DIURNA':
-            sql += " AND H.HORA_INICIO >= TO_DATE('07:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('10:00','HH24:MI')"
+            sql += " AND H.HORA_INICIO::time >= TIME '07:00' AND H.HORA_INICIO::time < TIME '10:00'"
         elif jornada_filtro == 'ESPECIAL':
-            sql += " AND H.HORA_INICIO >= TO_DATE('10:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('13:00','HH24:MI')"
+            sql += " AND H.HORA_INICIO::time >= TIME '10:00' AND H.HORA_INICIO::time < TIME '13:00'"
         elif jornada_filtro == 'NOCTURNA':
-            sql += " AND H.HORA_INICIO >= TO_DATE('18:00','HH24:MI') AND H.HORA_INICIO < TO_DATE('21:00','HH24:MI')"
+            sql += " AND H.HORA_INICIO::time >= TIME '18:00' AND H.HORA_INICIO::time < TIME '21:00'"
         elif jornada_filtro == 'SABADO':
-            sql += " AND UPPER(NVL(H.DIA,'')) = 'SABADO'"
-        sql += " ORDER BY DECODE(H.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,'JUEVES',4,'VIERNES',5,'SABADO',6,7), H.HORA_INICIO"
+            sql += " AND UPPER(COALESCE(H.DIA,'')) = 'SABADO'"
+        sql += " ORDER BY CASE H.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END, H.HORA_INICIO"
 
         filas = execute_query(sql, params, fetch=True) or []
     except Exception as exc:
@@ -706,12 +706,12 @@ def api_root():
     """Healthcheck del endpoint de integracion."""
     # execute_one() nunca propaga excepciones (las atrapa y retorna None),
     # asi que el chequeo real es si obtuvimos fila, no si hubo excepcion.
-    bd_ok = execute_one("SELECT 1 FROM DUAL") is not None
+    bd_ok = execute_one("SELECT 1") is not None
     return jsonify({
         'sistema': 'SISCA',
         'version': '1.0',
         'integracion_siihapi': 'activa',
-        'oracle_conectado': bd_ok,
+        'bd_conectada': bd_ok,
         'timestamp': datetime.utcnow().isoformat() + 'Z',
     })
 
@@ -796,7 +796,7 @@ def publicar_horarios():
                         {'d': id_docente, 'm': id_materia}
                     )
             else:
-                fila_car = execute_one("SELECT ID_CARRERA FROM CARRERA WHERE ROWNUM=1")
+                fila_car = execute_one("SELECT ID_CARRERA FROM CARRERA LIMIT 1")
                 id_carrera = fila_car['id_carrera'] if fila_car else None
                 execute_dml(
                     "INSERT INTO MATERIA(ID_CARRERA, ID_DOCENTE, NOMBRE_MATERIA, CODIGO, CREDITOS, SEMESTRE, ESTADO) "
@@ -849,7 +849,7 @@ def publicar_horarios():
             if id_horario:
                 execute_dml(
                     "INSERT INTO SESION_CLASE(ID_HORARIO, FECHA_SESION, ESTADO_SESION, MODO_CONEXION) "
-                    "VALUES(:h, SYSDATE, 'ACTIVA', 'ONLINE')",
+                    "VALUES(:h, CURRENT_DATE, 'ACTIVA', 'ONLINE')",
                     {'h': id_horario}
                 )
                 sesiones_creadas.append(f'SISCA-H{id_horario}')

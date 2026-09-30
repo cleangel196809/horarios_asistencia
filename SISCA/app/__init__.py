@@ -78,7 +78,7 @@ def create_app() -> Flask:
     app.register_blueprint(api_siihapi_bp, url_prefix="/api/v1")
     app.register_blueprint(ui_siihapi_bp,  url_prefix="/siihapi")
 
-    # ── Pool Oracle ──────────────────────────────────────────
+    # ── Pool PostgreSQL ──────────────────────────────────────
     from app.database.connection import init_pool, close_db
     init_pool(app)
     app.teardown_appcontext(close_db)

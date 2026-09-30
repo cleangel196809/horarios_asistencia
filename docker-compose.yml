@@ -1,20 +1,28 @@
+# Desarrollo local. El despliegue en Render no usa este archivo, usa
+# render.yaml (ver la raíz del repo).
+#
+# Desde 2026-09-30 la base es PostgreSQL, no Oracle XE: SISCA fue portado
+# para poder desplegar en Render, donde no hay Oracle en capa gratuita.
+# SIIHAPI ya venía en PostgreSQL desde la Fase 2.
 services:
-  oracle:
-    image: gvenzl/oracle-xe:21-slim
-    container_name: sisca-oracle-xe
+  postgres:
+    image: postgres:16-alpine
+    container_name: pinter-postgres
     restart: unless-stopped
     ports:
-      - "1521:1521"
+      - "5432:5432"
     environment:
-      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD:?falta ORACLE_SYSTEM_PASSWORD en .env}
+      POSTGRES_DB: integracion_pi
+      POSTGRES_USER: ${POSTGRES_USER:-pinter_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
     volumes:
-      - oracle_data:/opt/oracle/oradata
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "healthcheck.sh"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
-      start_period: 60s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pinter_admin} -d integracion_pi"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   sisca:
     build: ./SISCA
@@ -26,11 +34,11 @@ services:
       - ./SISCA/.env
     environment:
       # Dentro de la red de Docker, "localhost" apuntaría al propio
-      # contenedor sisca, no al de Oracle — hay que usar el nombre del
+      # contenedor sisca, no al de la base — hay que usar el nombre del
       # servicio. El resto de valores (passwords, tokens) vienen del .env.
-      ORACLE_HOST: oracle
+      POSTGRES_HOST: postgres
     depends_on:
-      oracle:
+      postgres:
         condition: service_healthy
 
   siihapi:
@@ -44,13 +52,13 @@ services:
     env_file:
       - ./SIIHAPI/backend/.env
     environment:
-      ORACLE_HOST: oracle
+      POSTGRES_HOST: postgres
       # Idem: para llamar a SISCA desde dentro del contenedor siihapi hay
       # que usar el nombre del servicio, no localhost.
       SISCA_API_URL: http://sisca:8080
     depends_on:
-      oracle:
+      postgres:
         condition: service_healthy
 
 volumes:
-  oracle_data:
+  postgres_data:

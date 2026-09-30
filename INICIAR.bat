@@ -86,8 +86,8 @@ pushd "%RAIZ%SIIHAPI\backend"
 set DJANGO_SETTINGS_MODULE=siihapi.settings
 "venv\Scripts\python.exe" manage.py migrate --noinput
 if errorlevel 1 (
-    echo   [AVISO] Las migraciones no se completaron. Suele ser porque Oracle XE
-    echo           no esta iniciado. Inicia el servicio de Oracle y reintenta.
+    echo   [AVISO] Las migraciones no se completaron. Suele ser porque PostgreSQL
+    echo           no esta iniciado. Inicia el servicio de PostgreSQL y reintenta.
     echo           La aplicacion intentara abrir de todos modos.
 ) else (
     echo   [OK] Migraciones aplicadas.
@@ -116,7 +116,7 @@ if defined REVISAR_ENV (
     echo.
     echo   [IMPORTANTE] Se crearon archivos .env de ejemplo. Si la app no se
     echo   conecta a la base de datos, edita estos archivos con las credenciales
-    echo   reales de Oracle y vuelve a ejecutar:
+    echo   reales de PostgreSQL y vuelve a ejecutar:
     echo       - SISCA\.env
     echo       - SIIHAPI\backend\.env
 )

@@ -23,7 +23,7 @@ if __name__ == '__main__':
 +------------------------------------------------------+
 |  Servidor : http://{host}:{port}
 |  Entorno  : {'Desarrollo' if debug else 'Produccion'}
-|  Oracle XE: {os.getenv('ORACLE_HOST','localhost')}:{os.getenv('ORACLE_PORT','1521')}
+|  Postgres : {os.getenv('DATABASE_URL') or (os.getenv('POSTGRES_HOST','localhost') + ':' + os.getenv('POSTGRES_PORT','5432'))}
 +------------------------------------------------------+
     """)
 

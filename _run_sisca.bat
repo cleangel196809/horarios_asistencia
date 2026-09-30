@@ -23,7 +23,7 @@ if not exist "run.py" (
 )
 
 echo [OK] Iniciando Flask con el python del entorno virtual...
-echo     (Si Oracle no esta corriendo, SISCA igual abre, pero sin datos)
+echo     (Si PostgreSQL no esta corriendo, SISCA igual abre, pero sin datos)
 echo.
 
 REM Abrir el navegador a los ~5s, en segundo plano

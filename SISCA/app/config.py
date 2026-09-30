@@ -14,17 +14,18 @@ class Config:
         minutes=int(os.getenv("SESSION_LIFETIME_MINUTES", 30))
     )
 
-    # ── Oracle XE ────────────────────────────────────────────
-    ORACLE_HOST     = os.getenv("ORACLE_HOST", "localhost")
-    ORACLE_PORT     = os.getenv("ORACLE_PORT", "1521")
-    ORACLE_SID      = os.getenv("ORACLE_SID", "XEPDB1")
-    ORACLE_USER     = os.getenv("ORACLE_USER", "sisca_admin")
-    ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
-    ORACLE_DSN      = (
-        f"{os.getenv('ORACLE_HOST', 'localhost')}"
-        f":{os.getenv('ORACLE_PORT', '1521')}"
-        f"/{os.getenv('ORACLE_SID', 'XEPDB1')}"
-    )
+    # ── PostgreSQL ───────────────────────────────────────────
+    # En Render basta con DATABASE_URL (la inyecta el servicio de base de
+    # datos); las POSTGRES_* son el camino para desarrollo local.
+    # SISCA comparte la base con SIIHAPI pero usa su propio esquema.
+    DATABASE_URL      = os.getenv("DATABASE_URL", "")
+    POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT     = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_DB       = os.getenv("POSTGRES_DB", "integracion_pi")
+    POSTGRES_USER     = os.getenv("POSTGRES_USER", "sisca_admin")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+    SISCA_DB_SCHEMA   = os.getenv("SISCA_DB_SCHEMA", "sisca")
+    SISCA_TZ          = os.getenv("SISCA_TZ", "America/Bogota")
 
     # ── Integración SIIHAPI ──────────────────────────────────
     SISCA_API_TOKEN    = os.getenv("SISCA_API_TOKEN", "")

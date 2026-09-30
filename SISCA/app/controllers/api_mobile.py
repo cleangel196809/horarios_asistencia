@@ -123,7 +123,7 @@ def api_asistencia():
         if id_sesion == 1:
             session_exists = execute_one("SELECT ID_SESION FROM SESION_CLASE WHERE ID_SESION = 1")
             if not session_exists:
-                horario_row = execute_one("SELECT ID_HORARIO FROM HORARIO WHERE ROWNUM = 1")
+                horario_row = execute_one("SELECT ID_HORARIO FROM HORARIO LIMIT 1")
                 if horario_row:
                     hid = horario_row["id_horario"]
                     try:
@@ -145,7 +145,7 @@ def api_asistencia():
             
         sql = """
             INSERT INTO ASISTENCIA (ID_SESION, ID_ESTUDIANTE, FECHA, HORA_REGISTRO, ESTADO, TIPO_REGISTRO)
-            VALUES (:id_sesion, :id_estudiante, SYSDATE, SYSTIMESTAMP, 'PRESENTE', 'QR')
+            VALUES (:id_sesion, :id_estudiante, CURRENT_DATE, NOW(), 'PRESENTE', 'QR')
         """
         
         from app.database.connection import get_db

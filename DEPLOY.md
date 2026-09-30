@@ -1,151 +1,145 @@
-# Despliegue en Oracle Cloud "Always Free"
+# Despliegue en Render
 
-Guía para correr SISCA + SIIHAPI + Oracle XE en una VM gratuita de Oracle
-Cloud, usando `docker-compose.yml` (validado localmente de punta a punta:
-build de las 2 imágenes, arranque de los 3 contenedores, migraciones,
-resolución DNS entre contenedores y respuesta HTTP real de ambas apps).
+Guía para publicar **SIIHAPI + SISCA** en Render usando el blueprint
+[`render.yaml`](render.yaml) de la raíz del repo.
 
-> **¿Por qué Oracle Cloud y no Render / Railway / Fly.io?** Ninguno de esos
-> ofrece Oracle Database en su capa gratuita. Migrar a PostgreSQL implicaría
-> reescribir el SQL crudo de SISCA (`oracledb`) y los `db_table` de los
-> modelos Django de SIIHAPI. Oracle Cloud "Always Free" da una VM gratuita
-> permanente (no un trial de 30 días) donde este `docker-compose.yml` corre
-> sin cambiar una línea de código.
->
-> Para la instalación y ejecución en Windows, ver
-> [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
+> **Nota sobre la versión anterior de este documento (2026-09-30).**
+> Hasta ahora esta guía apuntaba a una VM de Oracle Cloud "Always Free" y
+> descartaba Render con el argumento de que migrar implicaba reescribir el
+> SQL crudo de SISCA *y los `db_table` de los modelos Django de SIIHAPI*.
+> Esa segunda parte dejó de ser cierta en la Fase 2 (2026-09-03): SIIHAPI
+> ya corre sobre PostgreSQL. Y el 2026-09-30 se portó SISCA de `oracledb`
+> a `psycopg`, así que Oracle ya no es una dependencia de nada. La guía de
+> Oracle Cloud queda en el historial de git por si alguna vez hace falta.
 
-## 1) Crear la VM (consola de Oracle Cloud)
+Para la instalación y ejecución en Windows, ver
+[GUIA_EJECUCION.md](GUIA_EJECUCION.md).
 
-1. Entrá a [cloud.oracle.com](https://cloud.oracle.com) y creá una cuenta
-   "Always Free" si no tenés una.
-2. **Compute → Instances → Create Instance**.
-3. **Shape**: elegí `VM.Standard.E2.1.Micro` (AMD64, Always Free). Evitá el
-   shape ARM (Ampere A1) para este proyecto — `ortools` no siempre trae
-   wheel prebuilt para `aarch64`, y terminarías compilándolo desde cero
-   (lento y frágil).
-4. **Image**: Ubuntu 24.04 (o la LTS más reciente disponible).
-5. Generá o subí un par de llaves SSH — las vas a necesitar para conectarte.
-6. **Networking**: dejá la VCN/subnet por defecto que crea el wizard.
-7. Creá la instancia y anotá la **IP pública**.
+## Arquitectura en Render
 
-## 2) Abrir los puertos necesarios
+Tres recursos, definidos en `render.yaml`:
 
-En **Networking → Virtual Cloud Networks → (tu VCN) → Security Lists →
-Default Security List**, agregá "Ingress Rules" para:
-
-| Puerto | Origen | Para |
+| Recurso | Tipo | Qué corre |
 |---|---|---|
-| 22 | tu IP (o 0.0.0.0/0 si no tenés IP fija) | SSH |
-| 8080 | 0.0.0.0/0 | SISCA |
-| 8000 | 0.0.0.0/0 | SIIHAPI |
+| `pinter-db` | PostgreSQL | La base de datos, compartida por los dos servicios |
+| `siihapi` | Web (Docker) | Django + DRF + channels, servido con daphne |
+| `sisca` | Web (Docker) | Flask, servido con waitress |
 
-(El puerto 1521 de Oracle **no** debería exponerse a internet — dejalo
-solo accesible dentro de la VM, que es lo que hace `docker-compose.yml`
-por defecto ya que Oracle no tiene `ports:` mapeado hacia afuera... en
-realidad sí lo tiene para que puedas conectarte con un cliente SQL para
-debug. Si no lo necesitás, quitá el bloque `ports:` del servicio `oracle`
-en `docker-compose.yml` antes de desplegar.)
+**Una sola base, dos esquemas.** El plan gratuito de Render permite una
+sola base PostgreSQL activa por workspace, así que SIIHAPI y SISCA
+comparten `pinter-db`:
 
-Ubuntu además trae su propio firewall (`ufw`) — si está activo, abrí los
-mismos puertos ahí también:
+- **SIIHAPI** usa el esquema `public` — tablas `usuarios`, `materias`,
+  `docentes_perfil`, `periodos`, etc. (el esquema unificado de la Fase 2).
+- **SISCA** usa el esquema `sisca` — sus 16 tablas propias (`usuario`,
+  `materia`, `asistencia`, `codigo_qr`, ...).
+
+Los esquemas separados no son un detalle cosmético: sin ellos quedarían
+`usuario` (de SISCA) y `usuarios` (de SIIHAPI) conviviendo en la misma
+base, dos tablas de usuarios con nombres casi idénticos. La Fase 3 de la
+integración es la que unifica el modelo de verdad; esto solo evita el
+choque mientras tanto.
+
+## ⚠️ Límites del plan gratuito — leer antes de prometer nada
+
+Verificado en [render.com/docs/free](https://render.com/docs/free) el
+2026-09-30:
+
+- **La base PostgreSQL gratuita expira a los 30 días de creada.** Después
+  quedan 14 días para pasarla a un plan pago antes de que se borre.
+  Alcanza para una sustentación o una demo; no para uso institucional.
+- 1 GB de almacenamiento, sin backups ni pooling administrado.
+- Solo **una** base gratuita activa por workspace (de ahí la base
+  compartida).
+- Los servicios web gratuitos **se duermen a los 15 minutos sin tráfico** y
+  tardan cerca de un minuto en revivir. La primera carga después de un rato
+  se siente lenta: es el plan, no la aplicación.
+- El workspace tiene **750 horas-instancia al mes en total**. Dos servicios
+  encendidos todo el mes necesitarían unas 1.440, así que se agotan antes
+  de fin de mes y Render los suspende hasta el mes siguiente. Si los dos
+  deben estar siempre arriba, hay que pasar al menos uno a plan pago.
+
+## 1) Crear el blueprint
+
+1. Entrar a [dashboard.render.com](https://dashboard.render.com).
+2. **New → Blueprint**.
+3. Conectar la cuenta de GitHub y elegir el repositorio
+   `cleangel196809/horarios_asistencia`.
+4. Render lee `render.yaml` y muestra los tres recursos. Confirmar.
+
+## 2) Variables que hay que llenar a mano
+
+Casi todo lo resuelve `render.yaml` solo: la `DATABASE_URL` la inyecta el
+servicio de base de datos, y las claves marcadas con `generateValue: true`
+las genera Render. Queda una sola por llenar, en **los dos** servicios y
+con **el mismo valor**:
+
+- `SISCA_API_TOKEN` — el token compartido con el que SIIHAPI y SISCA se
+  autentican entre sí. Generarlo con:
+
+  ```bash
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+
+  y pegarlo en `siihapi` y en `sisca` (Environment → Add Environment
+  Variable). Si los dos valores no coinciden, la integración responde 401.
+
+Opcionales, si se quieren activar el correo o el motor de IA de SIIHAPI:
+`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
+`DEFAULT_FROM_EMAIL`, y `GEMINI_API_KEY` / `OPENAI_API_KEY` /
+`ANTHROPIC_API_KEY`.
+
+## 3) Qué pasa en el primer arranque
+
+Ninguno de los dos servicios necesita que nadie corra nada a mano:
+
+- **SIIHAPI** ejecuta `python manage.py migrate --noinput` en cada arranque
+  (está en el `CMD` de su Dockerfile) y crea sus tablas en `public`.
+- **SISCA** ejecuta `python setup_db.py`, que aplica
+  `SISCA/app/database/init_db.sql`: crea el esquema `sisca`, sus 16 tablas
+  y el usuario administrador inicial. El script es idempotente
+  (`CREATE ... IF NOT EXISTS` y `ON CONFLICT DO NOTHING`), así que correrlo
+  en cada despliegue no duplica ni pisa datos.
+
+El usuario administrador inicial de SISCA es
+`admin@politecnico.edu.co` con contraseña `Admin2026!`.
+**Cambiarla apenas entre la primera vez.**
+
+Para cargar datos de prueba (5 docentes, 20 estudiantes, 18 materias, 25
+horarios, 88 inscripciones), desde el Shell del servicio `sisca` en Render:
+
 ```bash
-sudo ufw allow 22,8080,8000/tcp
+python seed_data.py
 ```
 
-## 3) Conectarte e instalar Docker
+Ojo: `seed_data.py` **borra** los datos existentes antes de sembrar. No
+correrlo sobre datos reales.
+
+## 4) Zona horaria
+
+El servidor de Render corre en UTC. SISCA fija la zona en la conexión a la
+base (`SISCA_TZ`, por defecto `America/Bogota`), porque consulta "hoy" con
+`CURRENT_DATE` y filtra por franjas horarias: con UTC, después de las 7pm
+hora de Bogotá "hoy" ya sería el día siguiente y las sesiones y
+asistencias del día se contarían mal.
+
+## Desarrollo local
+
+Con Docker, `docker-compose.yml` levanta PostgreSQL 16 y los dos servicios:
 
 ```bash
-ssh -i tu_llave.pem ubuntu@<IP_PUBLICA>
-
-# Docker Engine + Compose plugin (script oficial)
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-newgrp docker   # o cerrá y volvé a abrir la sesión SSH
-```
-
-## 4) Clonar el repo y configurar los `.env`
-
-```bash
-git clone https://github.com/INGFRANCISCOVICENT/SIIHAPI-SISCA.PROYECTOINVESTIGATIVO.git
-cd SIIHAPI-SISCA.PROYECTOINVESTIGATIVO
-
 cp .env.example .env
 cp SISCA/.env.example SISCA/.env
 cp SIIHAPI/backend/.env.example SIIHAPI/backend/.env
+docker compose up --build
 ```
 
-Editá los 3 `.env` con valores reales:
-
-- **`.env`** (raíz): `ORACLE_SYSTEM_PASSWORD` — cualquier contraseña
-  Oracle-válida (mayúsculas, minúsculas, número).
-- **`SISCA/.env`**: mismo `ORACLE_SYSTEM_PASSWORD` que el de arriba,
-  `ORACLE_PASSWORD` para el usuario `sisca_admin` (elegís vos),
-  `FLASK_SECRET_KEY` — generala con
-  `python3 -c "import secrets; print(secrets.token_hex(32))"`,
-  y `FLASK_ENV=production` (importante: sin esto la app corre en modo
-  debug). `ORACLE_HOST` y `ORACLE_PORT` los pisa `docker-compose.yml`
-  automáticamente, no hace falta tocarlos.
-- **`SIIHAPI/backend/.env`**: `ORACLE_PASSWORD` (contraseña del usuario
-  `SIIHAPI`, la misma que uses en el paso 5), `DJANGO_SECRET_KEY` y
-  `JWT_SECRET_KEY` — generalas igual que arriba (≥32 bytes; si son más
-  cortas o dejás el placeholder, **la app se niega a arrancar** con
-  `DJANGO_DEBUG=False`, es intencional), `SISCA_API_TOKEN` (debe
-  coincidir exactamente con el de `SISCA/.env`), `DJANGO_DEBUG=False`,
-  `DJANGO_ALLOWED_HOSTS=<IP_PUBLICA>,localhost`.
-
-## 5) Levantar Oracle y crear los esquemas
+Sin Docker, basta un PostgreSQL local y:
 
 ```bash
-# Solo Oracle primero — tarda 2-5 min en el primer arranque
-docker compose up -d oracle
-
-# Esperar a que esté sano
-docker compose ps   # oracle debe decir "healthy"
-
-# Esquema SISCA (usa las credenciales de SISCA/.env)
-docker compose run --rm sisca python setup_oracle.py
-
-# Esquema SIIHAPI (pedirá la contraseña que definiste para SIIHAPI arriba)
-docker compose exec -T oracle sqlplus system/<ORACLE_SYSTEM_PASSWORD>@//localhost:1521/XEPDB1 \
-  < SIIHAPI/scripts/01_crear_esquema_oracle.sql
+cd SISCA
+pip install -r requirements.txt
+python setup_db.py        # crea el esquema sisca y sus tablas
+python seed_data.py       # opcional: datos de prueba
+python run.py             # http://localhost:8080
 ```
-
-Si la contraseña de SIIHAPI que puso el script SQL (`siihapi_2026` por
-defecto) no coincide con lo que pusiste en `SIIHAPI/backend/.env`, editá
-`ORACLE_PASSWORD` en `01_crear_esquema_oracle.sql` antes de correrlo, o
-simplemente usá `siihapi_2026` en el `.env` — es una password de esquema
-interno, no de usuario final.
-
-## 6) Levantar todo
-
-```bash
-docker compose up -d
-docker compose logs -f sisca siihapi   # Ctrl+C para dejar de seguir logs
-```
-
-Verificá:
-```bash
-curl -I http://localhost:8080/
-curl -I http://localhost:8000/
-```
-
-Desde tu navegador: `http://<IP_PUBLICA>:8080` y `http://<IP_PUBLICA>:8000`.
-
-## 7) Cargar datos demo (opcional)
-
-```bash
-docker compose exec -T sisca python seed_data.py
-docker compose exec siihapi python seed_siihapi.py
-```
-
-## Notas
-
-- **Reinicio de la VM**: los 3 servicios tienen `restart: unless-stopped`,
-  así que vuelven a levantar solos si la VM se reinicia.
-- **Actualizar código**: `git pull && docker compose up -d --build` —
-  reconstruye solo lo que cambió.
-- **Ver logs**: `docker compose logs -f <servicio>`.
-- **Backup de la base**: los datos de Oracle viven en el volumen Docker
-  `oracle_data` — `docker compose down` (sin `-v`) los conserva;
-  `docker compose down -v` los borra.

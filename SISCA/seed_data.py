@@ -13,15 +13,32 @@ import os, sys
 from dotenv import load_dotenv
 load_dotenv()
 
-import oracledb
+import psycopg
 import bcrypt
 
-HOST = os.getenv('ORACLE_HOST', 'localhost')
-PORT = os.getenv('ORACLE_PORT', '1521')
-SID  = os.getenv('ORACLE_SID', 'XEPDB1')
-USER = os.getenv('ORACLE_USER', 'sisca_admin')
-PWD  = os.getenv('ORACLE_PASSWORD', 'fjnv1305')
-DSN  = f"{HOST}:{PORT}/{SID}"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from app.database.connection import _dsn, _traducir_binds
+
+DSN = _dsn()
+ESQUEMA = os.getenv('SISCA_DB_SCHEMA', 'sisca')
+
+
+class _CursorCompat:
+    """Cursor que acepta los binds `:nombre` de Oracle.
+
+    Este script trae ~40 `cur.execute(sql, {...})` escritos al estilo
+    Oracle. En vez de reescribir los 380 renglones, se traducen los binds
+    en el mismo punto y con la misma funcion que usa la app.
+    """
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def execute(self, sql, params=None):
+        return self._cur.execute(_traducir_binds(sql), params or {})
+
+    def __getattr__(self, nombre):
+        return getattr(self._cur, nombre)
 
 def hp(plain): return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
@@ -31,9 +48,9 @@ print('='*55)
 print('  SISCA — Carga de Datos · Ing. de Software')
 print('='*55)
 
-conn = oracledb.connect(user=USER, password=PWD, dsn=DSN)
-cur  = conn.cursor()
-print(f'  Conectado a Oracle XE: {DSN}\n')
+conn = psycopg.connect(DSN, options=f'-c search_path={ESQUEMA},public')
+cur  = _CursorCompat(conn.cursor())
+print(f"  Conectado a PostgreSQL (esquema '{ESQUEMA}')\n")
 
 # ════════════════════════════════════════════════════════
 # 0. Limpiar datos existentes (excepto el admin original)

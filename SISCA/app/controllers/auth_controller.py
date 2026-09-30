@@ -38,7 +38,7 @@ def landing():
         'usuarios':     _c("SELECT COUNT(*) AS N FROM USUARIO WHERE ESTADO='A'"),
         'docentes':     _c("SELECT COUNT(*) AS N FROM DOCENTE"),
         'materias':     _c("SELECT COUNT(*) AS N FROM MATERIA WHERE ESTADO='A'"),
-        'sesiones_hoy': _c("SELECT COUNT(*) AS N FROM SESION_CLASE WHERE FECHA_SESION=TRUNC(SYSDATE)"),
+        'sesiones_hoy': _c("SELECT COUNT(*) AS N FROM SESION_CLASE WHERE FECHA_SESION=CURRENT_DATE"),
         'asistencias':  _c("SELECT COUNT(*) AS N FROM ASISTENCIA"),
     }
     return render_template('landing.html', stats=stats)

@@ -53,8 +53,8 @@ def dashboard():
         "docentes":        _count("DOCENTE"),
         "estudiantes":     _count("ESTUDIANTE"),
         "materias":        _count("MATERIA", "ESTADO='A'"),
-        "sesiones_hoy":    _count("SESION_CLASE", "FECHA_SESION=TRUNC(SYSDATE)"),
-        "asistencias_hoy": _count("ASISTENCIA", "FECHA=TRUNC(SYSDATE)"),
+        "sesiones_hoy":    _count("SESION_CLASE", "FECHA_SESION=CURRENT_DATE"),
+        "asistencias_hoy": _count("ASISTENCIA", "FECHA=CURRENT_DATE"),
     }
     usuarios_recientes = execute_query(
         "SELECT * FROM USUARIO ORDER BY FECHA_REGISTRO DESC FETCH FIRST 10 ROWS ONLY"
@@ -451,17 +451,17 @@ def horarios():
                   h.HORA_INICIO,
                   h.HORA_FIN,
                   h.AULA,
-                  NVL(h.ESTADO, 'A') AS ESTADO,
-                  NVL(m.NOMBRE_MATERIA, '(Sin materia)') AS NOMBRE_MATERIA
+                  COALESCE(h.ESTADO, 'A') AS ESTADO,
+                  COALESCE(m.NOMBRE_MATERIA, '(Sin materia)') AS NOMBRE_MATERIA
            FROM HORARIO h
            LEFT JOIN MATERIA m ON h.ID_MATERIA = m.ID_MATERIA
-           WHERE NVL(h.ESTADO,'A') = 'A'
+           WHERE COALESCE(h.ESTADO,'A') = 'A'
            ORDER BY
-             DECODE(h.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,'JUEVES',4,'VIERNES',5,'SABADO',6,7),
+             CASE h.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END,
              h.HORA_INICIO"""
     ) or []
     mat = execute_query(
-        "SELECT ID_MATERIA, NOMBRE_MATERIA FROM MATERIA WHERE NVL(ESTADO,'A')='A' ORDER BY NOMBRE_MATERIA"
+        "SELECT ID_MATERIA, NOMBRE_MATERIA FROM MATERIA WHERE COALESCE(ESTADO,'A')='A' ORDER BY NOMBRE_MATERIA"
     ) or []
     # Log para diagnóstico
     import logging
@@ -574,8 +574,7 @@ def dashboard():
                FROM HORARIO h
                JOIN MATERIA m ON h.ID_MATERIA = m.ID_MATERIA
                WHERE m.ID_DOCENTE = :did AND h.ESTADO = 'A'
-               ORDER BY DECODE(h.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,
-                               'JUEVES',4,'VIERNES',5,'SABADO',6,7),
+               ORDER BY CASE h.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END,
                         h.HORA_INICIO""",
             {"did": did}
         ) or []
@@ -612,7 +611,7 @@ def dashboard():
             """SELECT
                  i.ID_INSCRIPCION, i.ID_MATERIA, i.SEMESTRE, i.ESTADO,
                  m.NOMBRE_MATERIA, m.PORCENTAJE_MIN,
-                 NVL(ROUND(
+                 COALESCE(ROUND(
                    (SELECT COUNT(*) FROM ASISTENCIA a
                     JOIN SESION_CLASE sc2 ON a.ID_SESION = sc2.ID_SESION
                     JOIN HORARIO h2       ON sc2.ID_HORARIO = h2.ID_HORARIO
@@ -636,15 +635,14 @@ def dashboard():
                       TO_CHAR(h.HORA_INICIO, 'HH24:MI') AS HORA_INICIO,
                       TO_CHAR(h.HORA_FIN, 'HH24:MI') AS HORA_FIN,
                       h.AULA, m.NOMBRE_MATERIA, m.CODIGO,
-                      NVL(u.NOMBRE || ' ' || u.APELLIDO, 'N/A') AS DOCENTE_NOMBRE
+                      COALESCE(u.NOMBRE || ' ' || u.APELLIDO, 'N/A') AS DOCENTE_NOMBRE
                FROM HORARIO h
                JOIN MATERIA m ON h.ID_MATERIA = m.ID_MATERIA
                LEFT JOIN DOCENTE doc ON doc.ID_DOCENTE = m.ID_DOCENTE
                LEFT JOIN USUARIO u   ON u.ID_USUARIO  = doc.ID_USUARIO
                JOIN INSCRIPCION i ON i.ID_MATERIA = m.ID_MATERIA
                WHERE i.ID_ESTUDIANTE = :eid AND i.ESTADO = 'ACTIVA' AND h.ESTADO = 'A'
-               ORDER BY DECODE(h.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,
-                               'JUEVES',4,'VIERNES',5,'SABADO',6,7),
+               ORDER BY CASE h.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END,
                         h.HORA_INICIO""",
             {"eid": eid}
         ) or []
@@ -660,8 +658,8 @@ def dashboard():
                       (SELECT cq.CODIGO FROM CODIGO_QR cq
                        WHERE cq.ID_SESION = sc.ID_SESION
                          AND cq.USADO = 'N'
-                         AND cq.FECHA_EXPIRACION > SYSTIMESTAMP
-                         AND ROWNUM = 1) AS QR_TOKEN
+                         AND cq.FECHA_EXPIRACION > NOW()
+                         LIMIT 1) AS QR_TOKEN
                FROM SESION_CLASE sc
                JOIN HORARIO h ON sc.ID_HORARIO = h.ID_HORARIO
                JOIN MATERIA  m ON h.ID_MATERIA  = m.ID_MATERIA
@@ -694,7 +692,7 @@ def poll_sesion_activa():
         """SELECT sc.ID_SESION, m.NOMBRE_MATERIA,
                   (SELECT cq.CODIGO FROM CODIGO_QR cq
                    WHERE cq.ID_SESION = sc.ID_SESION AND cq.USADO='N'
-                     AND cq.FECHA_EXPIRACION > SYSTIMESTAMP AND ROWNUM=1) AS QR_TOKEN
+                     AND cq.FECHA_EXPIRACION > NOW() LIMIT 1) AS QR_TOKEN
            FROM SESION_CLASE sc
            JOIN HORARIO h ON sc.ID_HORARIO = h.ID_HORARIO
            JOIN MATERIA  m ON h.ID_MATERIA  = m.ID_MATERIA
@@ -750,7 +748,7 @@ def descargar_horario_pdf():
                       TO_CHAR(h.HORA_INICIO,'HH24:MI') AS HORA_INICIO,
                       TO_CHAR(h.HORA_FIN,'HH24:MI') AS HORA_FIN,
                       h.AULA,
-                      NVL(u.NOMBRE || ' ' || u.APELLIDO, '') AS DOCENTE_NOMBRE,
+                      COALESCE(u.NOMBRE || ' ' || u.APELLIDO, '') AS DOCENTE_NOMBRE,
                       h.ID_HORARIO
                FROM HORARIO h
                JOIN MATERIA m ON h.ID_MATERIA = m.ID_MATERIA
@@ -758,8 +756,7 @@ def descargar_horario_pdf():
                LEFT JOIN USUARIO u   ON u.ID_USUARIO  = doc.ID_USUARIO
                JOIN INSCRIPCION i ON i.ID_MATERIA = m.ID_MATERIA
                WHERE i.ID_ESTUDIANTE = :eid AND i.ESTADO = 'ACTIVA' AND h.ESTADO = 'A'
-               ORDER BY DECODE(h.DIA,'LUNES',1,'MARTES',2,'MIERCOLES',3,
-                               'JUEVES',4,'VIERNES',5,'SABADO',6,7),
+               ORDER BY CASE h.DIA WHEN 'LUNES' THEN 1 WHEN 'MARTES' THEN 2 WHEN 'MIERCOLES' THEN 3 WHEN 'JUEVES' THEN 4 WHEN 'VIERNES' THEN 5 WHEN 'SABADO' THEN 6 ELSE 7 END,
                         h.HORA_INICIO""",
             {"eid": eid}
         ) or []
@@ -1014,7 +1011,7 @@ def iniciar_sesion():
     modo       = request.form.get("modo", "ONLINE")
 
     horario = execute_one(
-        "SELECT ID_HORARIO FROM HORARIO WHERE ID_MATERIA=:mat AND ESTADO='A' AND ROWNUM=1",
+        "SELECT ID_HORARIO FROM HORARIO WHERE ID_MATERIA=:mat AND ESTADO='A' LIMIT 1",
         {"mat": id_materia}
     )
     if not horario:
@@ -1060,7 +1057,7 @@ def sesion_activa(id_sesion):
     ) or []
     qr = execute_one(
         """SELECT * FROM CODIGO_QR
-           WHERE ID_SESION=:sid AND USADO='N' AND FECHA_EXPIRACION>SYSTIMESTAMP""",
+           WHERE ID_SESION=:sid AND USADO='N' AND FECHA_EXPIRACION>NOW()""",
         {"sid": id_sesion},
     )
     segundos_restantes = 0
@@ -1136,7 +1133,7 @@ def generar_qr(id_sesion):
 def registrar_por_qr(token):
     qr = execute_one(
         """SELECT * FROM CODIGO_QR
-           WHERE CODIGO=:qr_codigo AND USADO='N' AND FECHA_EXPIRACION>SYSTIMESTAMP""",
+           WHERE CODIGO=:qr_codigo AND USADO='N' AND FECHA_EXPIRACION>NOW()""",
         {"qr_codigo": token},
     )
     if not qr:
