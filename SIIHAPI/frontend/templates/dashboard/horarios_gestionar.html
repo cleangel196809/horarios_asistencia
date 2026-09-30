@@ -83,10 +83,20 @@
                 {% for b in bloques %}<option value="{{ b.numero }}" {% if h.bloque.numero == b.numero %}selected{% endif %}>B{{ b.numero }} · {{ b.hora_inicio|time:"H:i" }}</option>{% endfor %}
               </select>
             </td>
-            <td style="padding:6px;">
-              <select class="edit edit-docente" data-field="docente" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;min-width:200px;">
-                {% for d in docentes %}<option value="{{ d.usuario_id }}" {% if h.docente.usuario_id == d.usuario_id %}selected{% endif %}>{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>{% endfor %}
-              </select>
+            <td style="padding:6px;position:relative;">
+              {# Autocompletar en vivo (no <select> con lista fija): las materias
+                 transversales las puede dictar cualquier docente activo de
+                 cualquier facultad, y el <select> anterior solo cargaba los
+                 primeros 200 (algunos docentes eran imposibles de asignar).
+                 Reutiliza el endpoint docentes_autocomplete (mismo que ya
+                 usa dashboard/docentes.html) en vez de crear uno nuevo. #}
+              <input type="text" class="docente-search" data-row="{{ h.id_horario }}"
+                     value="{{ h.docente.usuario.nombre }} {{ h.docente.usuario.apellido }}"
+                     placeholder="Buscar docente (cédula/nombre)..." autocomplete="off"
+                     style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;min-width:200px;">
+              <input type="hidden" class="edit edit-docente" data-field="docente" value="{{ h.docente.usuario_id }}">
+              <div class="docente-suggestions" data-row="{{ h.id_horario }}"
+                   style="display:none;position:absolute;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,.4);"></div>
             </td>
             <td style="padding:6px;">
               <select class="edit edit-salon" data-field="salon" style="background:var(--surface);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;">
@@ -136,6 +146,61 @@ function notif(tipo, mensaje) {
   setTimeout(() => { $notif.style.display = 'none'; }, 5000);
   window.scrollTo({top:0, behavior:'smooth'});
 }
+
+// ── Autocompletar docente (asignación, incluye materias transversales) ──
+// Reutiliza /dashboard/docentes/buscar/ (docentes_autocomplete), no duplica
+// lógica de búsqueda. Debounce simple para no saturar el endpoint.
+let docenteDebounce = null;
+document.querySelectorAll('.docente-search').forEach($input => {
+  const id = $input.dataset.row;
+  const $box = document.querySelector(`.docente-suggestions[data-row="${id}"]`);
+  const $hidden = document.querySelector(`#row-${id} .edit-docente`);
+
+  $input.addEventListener('input', () => {
+    clearTimeout(docenteDebounce);
+    const q = $input.value.trim();
+    if (q.length < 2) { $box.style.display = 'none'; return; }
+    docenteDebounce = setTimeout(async () => {
+      try {
+        const r = await fetch(`{% url 'docentes_autocomplete' %}?q=` + encodeURIComponent(q));
+        const d = await r.json();
+        $box.innerHTML = '';
+        if (!d.resultados || !d.resultados.length) {
+          const $vacio = document.createElement('div');
+          $vacio.style.cssText = 'padding:8px 12px;color:var(--txt3);font-size:12px;';
+          $vacio.textContent = 'Sin coincidencias';
+          $box.appendChild($vacio);
+          $box.style.display = 'block';
+          return;
+        }
+        // textContent (no innerHTML con datos del servidor) para evitar XSS
+        // via nombre/apellido, mismo criterio que dashboard/docentes.html.
+        d.resultados.forEach(doc => {
+          const $opt = document.createElement('div');
+          $opt.className = 'docente-opt';
+          $opt.dataset.id = doc.usuario_id;
+          $opt.dataset.nombre = `${doc.nombre} ${doc.apellido}`;
+          $opt.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:12px;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.04);';
+          $opt.textContent = `${doc.nombre} ${doc.apellido}` + (doc.cedula ? ` · ${doc.cedula}` : '');
+          $box.appendChild($opt);
+        });
+        $box.style.display = 'block';
+      } catch (e) { $box.style.display = 'none'; }
+    }, 250);
+  });
+
+  $box.addEventListener('click', (ev) => {
+    const $opt = ev.target.closest('.docente-opt');
+    if (!$opt) return;
+    $input.value = $opt.dataset.nombre;
+    $hidden.value = $opt.dataset.id;
+    $box.style.display = 'none';
+  });
+
+  document.addEventListener('click', (ev) => {
+    if (ev.target !== $input && !$box.contains(ev.target)) $box.style.display = 'none';
+  });
+});
 
 async function guardar(id) {
   const $row = document.getElementById('row-' + id);

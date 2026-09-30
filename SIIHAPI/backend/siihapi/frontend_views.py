@@ -503,6 +503,7 @@ def docentes_autocomplete(request):
         Q(usuario__apellido__icontains=q)
     ).order_by('usuario__apellido', 'usuario__nombre')[:8]
     resultados = [{
+        'usuario_id': d.usuario_id,
         'cedula': d.usuario.cedula or '',
         'nombre': d.usuario.nombre,
         'apellido': d.usuario.apellido,
