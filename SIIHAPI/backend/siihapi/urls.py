@@ -47,6 +47,9 @@ urlpatterns = [
     path('dashboard/asistencias/justificaciones/<int:id_justificacion>/resolver/', fv.justificacion_resolver, name='justificacion_resolver'),
     path('dashboard/bienestar/', fv.bienestar_dashboard, name='bienestar_dashboard'),
     path('dashboard/bienestar/alertas/<int:id_alerta>/estado/', fv.alerta_riesgo_actualizar_estado, name='alerta_riesgo_actualizar_estado'),
+    # ── Portal unico: Asistencia (SISCA) via SSO (2026-09-30) ──
+    path('dashboard/asistencia/', fv.abrir_asistencia, name='abrir_asistencia'),
+
     # ── Eventos (Sprint 3, 2026-09-06) ──
     path('dashboard/eventos/',                          fv.calendario_eventos,       name='calendario_eventos'),
     path('dashboard/eventos/proponer/',                 fv.docente_proponer_evento,  name='docente_proponer_evento'),

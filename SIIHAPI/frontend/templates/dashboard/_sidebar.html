@@ -25,6 +25,8 @@
   <a class="sb-item {% if active == 'sisca' %}active{% endif %}" href="{% url 'integracion_sisca' %}"><span class="ico">🔗</span> Integración SISCA</a>
   {% endif %}
 
+  <a class="sb-item {% if active == 'asistencia_sisca' %}active{% endif %}" href="{% url 'abrir_asistencia' %}"><span class="ico">🕒</span> Asistencia</a>
+
   <div class="sb-lbl" style="margin-top:14px;">Eventos</div>
   <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'calendario_eventos' %}"><span class="ico">📅</span> Calendario de eventos</a>
   {% if not es_solo_consulta %}

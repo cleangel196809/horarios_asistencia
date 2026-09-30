@@ -5265,3 +5265,38 @@ def certificado_descargar(request, id_certificado):
     resp = HttpResponse(pdf_bytes, content_type='application/pdf')
     resp['Content-Disposition'] = f'inline; filename="certificado_{certificado.id_certificado}.pdf"'
     return resp
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Portal único — abrir Asistencia (SISCA) sin volver a pedir clave
+#  (2026-09-30)
+# ══════════════════════════════════════════════════════════════════
+@login_required
+def abrir_asistencia(request):
+    """Manda al usuario a SISCA con la sesión ya iniciada allá.
+
+    INTEGRA-PI es el único lugar donde alguien escribe una contraseña: acá
+    se le firma un ticket de 60 segundos y de un solo uso que SISCA canjea
+    por su propia sesión, creando el usuario espejo si es la primera vez.
+    El detalle del formato está en apps/integracion_sisca/sso.py.
+
+    Los roles de SOLO CONSULTA (Bienestar Académico, Mentorías) no entran:
+    SISCA no tiene modo lectura y darles el rol más bajo que existe allá
+    igual les permitiría marcar asistencia. Se les corta acá para no
+    mandarlos a una pantalla de error del otro lado.
+    """
+    from apps.integracion_sisca.sso import url_entrada_sisca
+
+    if request.user.rol in ('BIENESTAR_ACADEMICO', 'MENTORIAS'):
+        messages.error(
+            request,
+            'Tu rol es de solo consulta y Asistencia todavía no tiene ese modo.')
+        return redirect('dashboard')
+
+    try:
+        destino = url_entrada_sisca(request.user)
+    except RuntimeError as exc:
+        messages.error(request, str(exc))
+        return redirect('dashboard')
+
+    return redirect(destino)

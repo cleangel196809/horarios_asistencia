@@ -211,6 +211,23 @@ CREATE TABLE IF NOT EXISTS ALERTA_INASISTENCIA (
 );
 
 -- ═══════════════════════════════════════════
+-- MÓDULO 5 — ENTRADA DESDE INTEGRA-PI (SSO)
+-- ═══════════════════════════════════════════
+-- Tickets de entrada ya canjeados. SIIHAPI firma un ticket de 60 segundos
+-- cuando el usuario entra a Asistencia desde el portal; acá se guarda su
+-- jti para que no se pueda canjear dos veces (la URL queda en el historial
+-- del navegador y en los logs del proxy, así que reusarla es fácil).
+-- La PK hace el trabajo: el segundo INSERT del mismo jti falla.
+CREATE TABLE IF NOT EXISTS SSO_TICKET_USADO (
+  JTI        VARCHAR(64) PRIMARY KEY,
+  FECHA_USO  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Los tickets viven 60 segundos: pasada esa ventana la fila ya no sirve
+-- de nada. Este índice es para poder barrer las viejas sin escanear todo.
+CREATE INDEX IF NOT EXISTS IDX_SSO_TICKET_FECHA ON SSO_TICKET_USADO(FECHA_USO);
+
+-- ═══════════════════════════════════════════
 -- ÍNDICES DE RENDIMIENTO (RNF-32)
 -- ═══════════════════════════════════════════
 CREATE INDEX IF NOT EXISTS IDX_ASIST_ESTUDIANTE ON ASISTENCIA(ID_ESTUDIANTE);

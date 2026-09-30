@@ -83,6 +83,11 @@ def create_app() -> Flask:
     from app.controllers.api_mobile import api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
 
+    # Entrada desde INTEGRA-PI (SIIHAPI): el portal firma un ticket y SISCA
+    # lo canjea por sesión, sin pedir contraseña. Ver app/controllers/sso.py.
+    from app.controllers.sso import sso_bp
+    app.register_blueprint(sso_bp, url_prefix="/sso")
+
     # Documentacion Swagger / OpenAPI
     from app.controllers.swagger_bp import swagger_bp
     app.register_blueprint(swagger_bp, url_prefix="/api")
