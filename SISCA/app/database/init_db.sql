@@ -226,11 +226,14 @@ CREATE INDEX IF NOT EXISTS IDX_USUARIO_CORREO   ON USUARIO(CORREO);
 -- DATOS INICIALES — Usuario Administrador
 -- ═══════════════════════════════════════════
 -- Contraseña por defecto: Admin2026!  (bcrypt) — CAMBIAR EN PRODUCCIÓN.
+-- Nota: el hash que traía la versión Oracle de este script NO correspondía
+-- a 'Admin2026!' (comprobado con bcrypt.checkpw), así que esa cuenta era
+-- inutilizable. Este hash sí corresponde a la contraseña documentada.
 -- ON CONFLICT hace que re-ejecutar el script no duplique ni pise nada.
 INSERT INTO USUARIO (ESTADO, NOMBRE, APELLIDO, CORREO, CONTRASENA, ROL, ACEPTA_TERMINOS)
 VALUES ('A', 'Ricardo', 'Administrador',
         'admin@politecnico.edu.co',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMqJqhCanFq5B7UMhQDT3e6P1e',
+        '$2b$12$Wc0dRYFIOiXdPZZ8LDxTsOnzYOIK9jivNJgG/a.GtEQ0u4sH5KQ9u',
         'ADMINISTRADOR', 'S')
 ON CONFLICT (CORREO) DO NOTHING;
 
