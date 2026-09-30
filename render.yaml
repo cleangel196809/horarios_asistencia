@@ -1,88 +1,49 @@
 # ════════════════════════════════════════════════════════════════
-# Blueprint de Render — SIIHAPI + SISCA sobre una sola PostgreSQL
-# Politécnico Internacional · 2026-09-30
+# Configuración de Render — SIIHAPI + SISCA
+# Politécnico Internacional · actualizado 2026-09-30
 #
-# Este archivo va en la RAÍZ del repo. En Render:
-#   Dashboard → New → Blueprint → elegir este repositorio.
+# ⚠️ LEER ANTES DE APLICAR ESTE BLUEPRINT
 #
-# ── Por qué una sola base ───────────────────────────────────────
-# El plan gratuito de Render permite UNA sola base PostgreSQL activa
-# por workspace, así que SIIHAPI y SISCA comparten `pinter-db`, pero
-# en esquemas distintos: SIIHAPI en `public` (usuarios, materias,
-# docentes_perfil, ...) y SISCA en `sisca` (usuario, materia, ...).
-# Sin esa separación quedarían `usuario` y `usuarios` conviviendo en
-# la misma base. La Fase 3 de la integración es la que unifica el
-# modelo de verdad; esto solo evita el choque mientras tanto.
+# SIIHAPI **ya está desplegado** en Render desde 2026-09-07, como un
+# servicio creado a mano (no desde un blueprint):
 #
-# ── Límites del plan gratuito (leer antes de prometer nada) ─────
-#   · La base gratuita EXPIRA A LOS 30 DÍAS de creada. Después hay
-#     14 días para pasarla a un plan pago antes de que se borre.
-#     Para la sustentación alcanza; para uso institucional no.
-#   · 1 GB de almacenamiento, sin backups.
-#   · Los servicios web gratuitos se duermen tras 15 min sin tráfico
-#     y tardan ~1 min en revivir: la primera carga después de un rato
-#     se siente lenta, y no es un bug de la app.
-#   · El workspace tiene 750 horas-instancia al mes EN TOTAL. Dos
-#     servicios corriendo todo el mes necesitarían ~1.440, así que
-#     con ambos encendidos se agotan antes de fin de mes y Render
-#     los suspende. Si hace falta que los dos estén siempre arriba,
-#     hay que pasar al menos uno a plan pago.
+#   servicio : horarios_asistencia  (srv-daff0v8n74is739o2peg)
+#   proyecto : integra-pi
+#   URL      : https://horarios-asistencia.onrender.com
+#   build    : dockerContext SIIHAPI/ · dockerfilePath SIIHAPI/backend/Dockerfile
+#   deploy   : automático en cada commit a main
+#
+# Su base de datos **no es una Postgres de Render**: el servicio tiene una
+# DATABASE_URL apuntando a una base externa, y el workspace de Render no
+# tiene ninguna base creada. Por eso este archivo NO declara ni el servicio
+# siihapi ni un recurso `databases:` — declararlos crearía un SIIHAPI
+# duplicado y una base que nadie necesita.
+#
+# Consecuencia buena: como la base es externa, NO aplica el límite de "una
+# sola Postgres gratuita por workspace" ni el vencimiento a los 30 días.
+# SISCA comparte esa misma base, en su propio esquema.
+#
+# Este archivo queda como documentación de cómo está configurado el
+# servicio de SISCA. Si se aplica como blueprint en un workspace que ya
+# tiene el servicio `sisca`, Render crearía uno nuevo en paralelo.
+#
+# ── Base compartida, esquemas separados ─────────────────────────
+# SIIHAPI usa el esquema `public` (usuarios, materias, docentes_perfil,
+# periodos…) y SISCA el esquema `sisca` (usuario, materia, asistencia…).
+# Sin esa separación quedarían `usuario` y `usuarios` conviviendo en la
+# misma base. La Fase 3 de la integración es la que unifica el modelo de
+# verdad; esto solo evita el choque mientras tanto.
+#
+# ── Límites del plan gratuito que SÍ siguen aplicando ───────────
+# Los servicios web gratuitos se duermen a los 15 minutos sin tráfico y
+# tardan cerca de un minuto en revivir (comprobado: SIIHAPI tardó ~1 min
+# en despertar). El workspace tiene 750 horas-instancia al mes EN TOTAL,
+# y dos servicios encendidos todo el mes necesitarían unas 1.440, así que
+# se agotan antes de fin de mes y Render los suspende. Si los dos deben
+# estar siempre arriba, hay que pasar al menos uno a plan pago.
 # ════════════════════════════════════════════════════════════════
 
-databases:
-  - name: pinter-db
-    databaseName: integracion_pi
-    user: pinter_admin
-    plan: free
-    region: oregon
-
 services:
-  # ── SIIHAPI (Django + DRF + channels) ─────────────────────────
-  - type: web
-    name: siihapi
-    runtime: docker
-    plan: free
-    region: oregon
-    # El contexto es SIIHAPI/ y no SIIHAPI/backend/ a propósito:
-    # settings.py resuelve templates y estáticos en BASE_DIR.parent/frontend/,
-    # así que backend/ y frontend/ tienen que viajar juntos en la imagen.
-    dockerContext: ./SIIHAPI
-    dockerfilePath: ./SIIHAPI/backend/Dockerfile
-    healthCheckPath: /
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: pinter-db
-          property: connectionString
-      - key: DJANGO_DEBUG
-        value: "False"
-      - key: DJANGO_ALLOWED_HOSTS
-        # Render expone el host real en RENDER_EXTERNAL_HOSTNAME.
-        fromService:
-          type: web
-          name: siihapi
-          envVarKey: RENDER_EXTERNAL_HOSTNAME
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
-      - key: JWT_SECRET_KEY
-        generateValue: true
-      - key: SECURE_SSL_REDIRECT
-        value: "True"
-      # Sin Redis en el plan gratuito: settings.py cae a cache/sesiones
-      # en base de datos cuando USE_REDIS es False.
-      - key: USE_REDIS
-        value: "False"
-      - key: SISCA_API_URL
-        fromService:
-          type: web
-          name: sisca
-          property: host
-      # Token compartido entre las dos apps: se genera una vez aquí y
-      # se copia tal cual en el servicio sisca (sync: false hace que
-      # Render lo pida en el dashboard en vez de guardarlo en el repo).
-      - key: SISCA_API_TOKEN
-        sync: false
-
   # ── SISCA (Flask + waitress) ──────────────────────────────────
   - type: web
     name: sisca
@@ -93,21 +54,25 @@ services:
     dockerfilePath: ./SISCA/Dockerfile
     healthCheckPath: /
     envVars:
+      # La MISMA base que usa SIIHAPI. No se declara con `fromDatabase`
+      # porque la base es externa a Render: el valor se copia a mano
+      # desde el servicio horarios_asistencia. sync:false hace que Render
+      # lo pida en el dashboard en vez de guardarlo en el repo.
       - key: DATABASE_URL
-        fromDatabase:
-          name: pinter-db
-          property: connectionString
+        sync: false
       # Esquema propio dentro de la base compartida (ver arriba).
       - key: SISCA_DB_SCHEMA
         value: sisca
       # El servidor de Render corre en UTC. Sin esto, "hoy"
-      # (CURRENT_DATE) cambiaría a las 7pm hora de Bogotá y las
-      # sesiones del día se contarían mal.
+      # (CURRENT_DATE) cambiaría a las 7pm hora de Bogotá y las sesiones
+      # y asistencias del día se contarían mal.
       - key: SISCA_TZ
         value: America/Bogota
       - key: FLASK_ENV
         value: production
       - key: FLASK_SECRET_KEY
         generateValue: true
+      # Token compartido con SIIHAPI para autenticar la integración entre
+      # las dos apps. Tiene que ser EL MISMO valor en los dos servicios.
       - key: SISCA_API_TOKEN
         sync: false

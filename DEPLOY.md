@@ -1,56 +1,133 @@
 # Despliegue en Render
 
-Guía para publicar **SIIHAPI + SISCA** en Render usando el blueprint
-[`render.yaml`](render.yaml) de la raíz del repo.
+Estado real a 2026-09-30. **SIIHAPI y SISCA están desplegados en Render**,
+cada uno como su propio servicio web, compartiendo una sola base PostgreSQL
+alojada en Neon.
 
-> **Nota sobre la versión anterior de este documento (2026-09-30).**
-> Hasta ahora esta guía apuntaba a una VM de Oracle Cloud "Always Free" y
-> descartaba Render con el argumento de que migrar implicaba reescribir el
-> SQL crudo de SISCA *y los `db_table` de los modelos Django de SIIHAPI*.
-> Esa segunda parte dejó de ser cierta en la Fase 2 (2026-09-03): SIIHAPI
-> ya corre sobre PostgreSQL. Y el 2026-09-30 se portó SISCA de `oracledb`
-> a `psycopg`, así que Oracle ya no es una dependencia de nada. La guía de
-> Oracle Cloud queda en el historial de git por si alguna vez hace falta.
+> **Nota sobre versiones anteriores de este documento.** Hasta hace poco
+> esta guía apuntaba a una VM de Oracle Cloud "Always Free" y descartaba
+> Render alegando que migrar obligaba a reescribir el SQL crudo de SISCA
+> *y los `db_table` de los modelos Django de SIIHAPI*. La segunda mitad
+> dejó de ser cierta en la Fase 2 (2026-09-03), cuando SIIHAPI pasó a
+> PostgreSQL; la primera, el 2026-09-30, cuando se portó SISCA de
+> `oracledb` a `psycopg`. Oracle ya no es dependencia de nada.
 
 Para la instalación y ejecución en Windows, ver
 [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
 
-## Arquitectura en Render
+## Lo que hay montado
 
-Tres recursos, definidos en `render.yaml`:
-
-| Recurso | Tipo | Qué corre |
+| Recurso | Qué es | Dónde |
 |---|---|---|
-| `pinter-db` | PostgreSQL | La base de datos, compartida por los dos servicios |
-| `siihapi` | Web (Docker) | Django + DRF + channels, servido con daphne |
-| `sisca` | Web (Docker) | Flask, servido con waitress |
+| `horarios_asistencia` | SIIHAPI — Django + DRF + channels, servido con daphne | https://horarios-asistencia.onrender.com |
+| `sisca` | SISCA — Flask, servido con waitress | servicio `sisca` del proyecto `integra-pi` |
+| base de datos | PostgreSQL en **Neon** (no es una base de Render) | `DATABASE_URL` en ambos servicios |
 
-**Una sola base, dos esquemas.** El plan gratuito de Render permite una
-sola base PostgreSQL activa por workspace, así que SIIHAPI y SISCA
-comparten `pinter-db`:
+Los dos servicios viven en el proyecto `integra-pi`, región Oregon, plan
+gratuito, y se redespliegan solos en cada commit a `main`.
 
-- **SIIHAPI** usa el esquema `public` — tablas `usuarios`, `materias`,
-  `docentes_perfil`, `periodos`, etc. (el esquema unificado de la Fase 2).
+**Build de cada uno:**
+
+- SIIHAPI: `dockerContext` `SIIHAPI/`, `dockerfilePath`
+  `SIIHAPI/backend/Dockerfile`. El contexto es `SIIHAPI/` y no
+  `SIIHAPI/backend/` a propósito: `settings.py` resuelve templates y
+  estáticos en `BASE_DIR.parent/frontend/`, así que `backend/` y
+  `frontend/` tienen que viajar juntos en la imagen.
+- SISCA: **Root Directory `SISCA`**. Render corre todo desde ahí y el
+  `./Dockerfile` por defecto resuelve a `SISCA/Dockerfile`. De paso, los
+  commits que solo tocan `SIIHAPI/` no disparan un redespliegue de SISCA.
+
+## Una sola base, dos esquemas
+
+- **SIIHAPI** usa el esquema `public` — `usuarios`, `materias`,
+  `docentes_perfil`, `periodos`… (el esquema unificado de la Fase 2).
 - **SISCA** usa el esquema `sisca` — sus 16 tablas propias (`usuario`,
-  `materia`, `asistencia`, `codigo_qr`, ...).
+  `materia`, `asistencia`, `codigo_qr`…).
 
-Los esquemas separados no son un detalle cosmético: sin ellos quedarían
-`usuario` (de SISCA) y `usuarios` (de SIIHAPI) conviviendo en la misma
-base, dos tablas de usuarios con nombres casi idénticos. La Fase 3 de la
-integración es la que unifica el modelo de verdad; esto solo evita el
-choque mientras tanto.
+Los esquemas separados no son cosmética: sin ellos quedarían `usuario`
+(de SISCA) y `usuarios` (de SIIHAPI) conviviendo en la misma base, dos
+tablas de usuarios con nombres casi idénticos. La Fase 3 de la integración
+es la que unifica el modelo de verdad; esto evita el choque mientras tanto.
 
-## ⚠️ Límites del plan gratuito — leer antes de prometer nada
+### ⚠️ SISCA usa el endpoint DIRECTO de Neon, no el agrupado
+
+La `DATABASE_URL` configurada apunta al endpoint agrupado de Neon, el del
+sufijo `-pooler`, que es PgBouncer en modo transaccional. Ese endpoint
+**rechaza el parámetro `options` en el paquete de arranque**, que es justo
+donde viaja el `search_path` que SISCA necesita para ver su esquema:
+
+```
+ERROR: unsupported startup parameter in options: search_path.
+Please use unpooled connection or remove this parameter from the startup package.
+```
+
+Y aunque se fijara el `search_path` con un `SET` posterior, en modo
+transaccional la conexión del servidor se reparte entre clientes, así que
+ese estado de sesión no sería confiable.
+
+Por eso `app/database/connection.py` le quita el `-pooler` al host y se
+conecta al endpoint directo. Son como mucho 10 conexiones (el `max_size`
+del pool), muy por debajo del límite de Neon. **SIIHAPI no se toca**:
+sigue usando la misma `DATABASE_URL` agrupada, que es la que le conviene a
+Django. Si algún día la base deja de ser Neon, `SISCA_DB_POOLED=true`
+desactiva esa reescritura.
+
+## Variables de entorno de `sisca`
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | la misma que `horarios_asistencia` (copiada tal cual) |
+| `SISCA_DB_SCHEMA` | `sisca` |
+| `SISCA_TZ` | `America/Bogota` |
+| `FLASK_ENV` | `production` |
+| `FLASK_SECRET_KEY` | generada por Render |
+| `SISCA_API_TOKEN` | token compartido — **el mismo valor** en los dos servicios |
+
+Si `SISCA_API_TOKEN` no coincide entre ambos, la integración responde 401.
+Generar uno nuevo con:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Zona horaria
+
+El servidor de Render corre en UTC. SISCA fija la zona en la conexión a la
+base (`SISCA_TZ`), porque consulta "hoy" con `CURRENT_DATE` y filtra por
+franjas horarias: con UTC, después de las 7pm hora de Bogotá "hoy" ya sería
+el día siguiente y las sesiones y asistencias del día se contarían mal.
+
+## Qué pasa en cada arranque
+
+Ninguno de los dos servicios necesita que nadie corra nada a mano:
+
+- **SIIHAPI** ejecuta `python manage.py migrate --noinput` y crea o
+  actualiza sus tablas en `public`.
+- **SISCA** ejecuta `python setup_db.py`, que aplica
+  `SISCA/app/database/init_db.sql`: crea el esquema `sisca`, sus 16 tablas
+  y el usuario administrador inicial. Es idempotente (`CREATE ... IF NOT
+  EXISTS` y `ON CONFLICT DO NOTHING`), así que correrlo en cada despliegue
+  no duplica ni pisa datos.
+
+El administrador inicial de SISCA es `admin@politecnico.edu.co` con
+contraseña `Admin2026!`. **Cambiarla en el primer ingreso.**
+
+Para cargar datos de prueba (5 docentes, 20 estudiantes, 18 materias, 25
+horarios, 88 inscripciones), desde el Shell del servicio en Render:
+
+```bash
+python seed_data.py
+```
+
+Ojo: `seed_data.py` **borra** los datos existentes del esquema `sisca`
+antes de sembrar. No correrlo sobre datos reales.
+
+## ⚠️ Límites del plan gratuito
 
 Verificado en [render.com/docs/free](https://render.com/docs/free) el
-2026-09-30:
+2026-09-30. Como la base es de Neon y no de Render, **no aplica** el
+vencimiento a los 30 días de las bases gratuitas de Render. Sí aplican:
 
-- **La base PostgreSQL gratuita expira a los 30 días de creada.** Después
-  quedan 14 días para pasarla a un plan pago antes de que se borre.
-  Alcanza para una sustentación o una demo; no para uso institucional.
-- 1 GB de almacenamiento, sin backups ni pooling administrado.
-- Solo **una** base gratuita activa por workspace (de ahí la base
-  compartida).
 - Los servicios web gratuitos **se duermen a los 15 minutos sin tráfico** y
   tardan cerca de un minuto en revivir. La primera carga después de un rato
   se siente lenta: es el plan, no la aplicación.
@@ -58,70 +135,8 @@ Verificado en [render.com/docs/free](https://render.com/docs/free) el
   encendidos todo el mes necesitarían unas 1.440, así que se agotan antes
   de fin de mes y Render los suspende hasta el mes siguiente. Si los dos
   deben estar siempre arriba, hay que pasar al menos uno a plan pago.
-
-## 1) Crear el blueprint
-
-1. Entrar a [dashboard.render.com](https://dashboard.render.com).
-2. **New → Blueprint**.
-3. Conectar la cuenta de GitHub y elegir el repositorio
-   `cleangel196809/horarios_asistencia`.
-4. Render lee `render.yaml` y muestra los tres recursos. Confirmar.
-
-## 2) Variables que hay que llenar a mano
-
-Casi todo lo resuelve `render.yaml` solo: la `DATABASE_URL` la inyecta el
-servicio de base de datos, y las claves marcadas con `generateValue: true`
-las genera Render. Queda una sola por llenar, en **los dos** servicios y
-con **el mismo valor**:
-
-- `SISCA_API_TOKEN` — el token compartido con el que SIIHAPI y SISCA se
-  autentican entre sí. Generarlo con:
-
-  ```bash
-  python -c "import secrets; print(secrets.token_hex(32))"
-  ```
-
-  y pegarlo en `siihapi` y en `sisca` (Environment → Add Environment
-  Variable). Si los dos valores no coinciden, la integración responde 401.
-
-Opcionales, si se quieren activar el correo o el motor de IA de SIIHAPI:
-`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
-`DEFAULT_FROM_EMAIL`, y `GEMINI_API_KEY` / `OPENAI_API_KEY` /
-`ANTHROPIC_API_KEY`.
-
-## 3) Qué pasa en el primer arranque
-
-Ninguno de los dos servicios necesita que nadie corra nada a mano:
-
-- **SIIHAPI** ejecuta `python manage.py migrate --noinput` en cada arranque
-  (está en el `CMD` de su Dockerfile) y crea sus tablas en `public`.
-- **SISCA** ejecuta `python setup_db.py`, que aplica
-  `SISCA/app/database/init_db.sql`: crea el esquema `sisca`, sus 16 tablas
-  y el usuario administrador inicial. El script es idempotente
-  (`CREATE ... IF NOT EXISTS` y `ON CONFLICT DO NOTHING`), así que correrlo
-  en cada despliegue no duplica ni pisa datos.
-
-El usuario administrador inicial de SISCA es
-`admin@politecnico.edu.co` con contraseña `Admin2026!`.
-**Cambiarla apenas entre la primera vez.**
-
-Para cargar datos de prueba (5 docentes, 20 estudiantes, 18 materias, 25
-horarios, 88 inscripciones), desde el Shell del servicio `sisca` en Render:
-
-```bash
-python seed_data.py
-```
-
-Ojo: `seed_data.py` **borra** los datos existentes antes de sembrar. No
-correrlo sobre datos reales.
-
-## 4) Zona horaria
-
-El servidor de Render corre en UTC. SISCA fija la zona en la conexión a la
-base (`SISCA_TZ`, por defecto `America/Bogota`), porque consulta "hoy" con
-`CURRENT_DATE` y filtra por franjas horarias: con UTC, después de las 7pm
-hora de Bogotá "hoy" ya sería el día siguiente y las sesiones y
-asistencias del día se contarían mal.
+- 0.1 CPU y 512 MB por servicio: cualquier trabajo pesado por petición
+  (hashes, importaciones masivas) va a ser bastante más lento que en local.
 
 ## Desarrollo local
 

@@ -76,6 +76,38 @@ def _traducir_binds(sql: str) -> str:
     return ''.join(salida)
 
 
+def _sin_pooler(url: str) -> str:
+    """Devuelve el endpoint DIRECTO de Neon a partir del agrupado.
+
+    La base la comparte SISCA con SIIHAPI, y la DATABASE_URL que hay
+    configurada apunta al endpoint agrupado de Neon (el del sufijo
+    `-pooler`), que es PgBouncer en modo transaccion. Ese endpoint:
+
+      1. Rechaza el parametro `options` en el paquete de arranque, que es
+         justo donde va el `search_path` que SISCA necesita para ver su
+         propio esquema. El error es literal:
+         "unsupported startup parameter in options: search_path.
+          Please use unpooled connection or remove this parameter".
+      2. Aunque se fijara el search_path con un `SET` despues de conectar,
+         en modo transaccion la conexion del servidor se reparte entre
+         clientes, asi que ese estado de sesion no es confiable.
+
+    SISCA depende del search_path para no tener que calificar con
+    `sisca.` los ~250 SQL repartidos por los controllers, asi que usa el
+    endpoint directo. Son como mucho 10 conexiones (max_size del pool),
+    muy por debajo del limite de Neon.
+
+    SIIHAPI no se toca: sigue usando la misma DATABASE_URL agrupada, que
+    es la que le conviene a Django.
+
+    Poner SISCA_DB_POOLED=true desactiva esta reescritura, por si algun
+    dia la base deja de ser Neon o el pooler empieza a aceptar `options`.
+    """
+    if os.getenv('SISCA_DB_POOLED', '').lower() in ('1', 'true', 'yes'):
+        return url
+    return url.replace('-pooler.', '.', 1)
+
+
 def _dsn(app=None) -> str:
     """URL de conexion. DATABASE_URL manda (es lo que inyecta Render);
     si no esta, se arma con las POSTGRES_* del entorno local."""
@@ -85,7 +117,7 @@ def _dsn(app=None) -> str:
         # no acepta; `postgresql://` es el mismo DSN con el nombre bueno.
         if url.startswith('postgres://'):
             url = 'postgresql://' + url[len('postgres://'):]
-        return url
+        return _sin_pooler(url)
     cfg = (app.config if app is not None else {})
     def _v(clave, defecto):
         return os.getenv(clave) or cfg.get(clave) or defecto
