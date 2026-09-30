@@ -34,6 +34,20 @@ def create_app() -> Flask:
                 "y colócala en SISCA/.env"
             )
 
+    # ── Detrás del proxy de Render ───────────────────────────
+    # Render termina el TLS en su proxy y habla HTTP con el contenedor,
+    # así que sin esto Flask cree que el request llegó por http:// y
+    # construye TODOS sus redirects con ese esquema. El efecto en
+    # producción: pedir /api/v1 (sin barra final) devuelve un 308 hacia
+    # http://…/api/v1/, el proxy lo vuelve a https, y el navegador queda
+    # en un bucle de redirects. Peor aún, con SESSION_COOKIE_SECURE=True
+    # en producción, un salto por http descarta la cookie de sesión y el
+    # login no persiste. ProxyFix hace que Flask respete las cabeceras
+    # X-Forwarded-* del proxy. Local no se ve afectado: sin esas
+    # cabeceras, ProxyFix no cambia nada.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     # Habilitar CORS para permitir llamadas de la App Móvil
     from flask_cors import CORS
     CORS(app)
