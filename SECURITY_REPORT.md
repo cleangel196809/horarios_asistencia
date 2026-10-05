@@ -12,7 +12,7 @@
 | Severidad | Nº | Estado |
 |---|---|---|
 | 🔴 **Crítica** | 1 | **Abierta — requiere acción del propietario** |
-| 🟠 Media | 3 | Abiertas |
+| 🟠 Media | 2 | Abiertas (1 de 3 ya resuelta, §3) |
 | 🟡 Baja | 3 | Abiertas |
 | ✅ Verificado sin hallazgos | 6 controles | — |
 
@@ -118,7 +118,7 @@ para integrar.
 
 ---
 
-## 3. 🟠 MEDIA — `CORS_ALLOWED_ORIGINS` está escrito a mano y sólo contiene `localhost`
+## 3. ✅ RESUELTO (2026-10-05) — `CORS_ALLOWED_ORIGINS` ahora viene del entorno
 
 **Dónde:** `siihapi/settings.py`
 
@@ -140,14 +140,21 @@ producción, el reflejo natural es "poner `CORS_ALLOW_ALL_ORIGINS = True`
 para que funcione" — y con `CORS_ALLOW_CREDENTIALS = True` eso es una fuga
 de sesión servida en bandeja.
 
-**Remediación:** moverla a variable de entorno, como el resto de la
-configuración de despliegue.
+**Aplicado.** Se movió a variable de entorno, como el resto de la
+configuración de despliegue:
 
 ```python
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000', 'http://localhost:8000', 'http://localhost:8080',
 ])
 ```
+
+Verificado en los dos sentidos: sin configurar nada, la lista queda idéntica
+a la de antes (no cambia el comportamiento actual); con
+`CORS_ALLOWED_ORIGINS=https://...,https://...` la sobreescribe. Para añadir
+los dominios de Render basta definir esa variable en el dashboard — ya no
+hay que tocar el código, que era el camino por el que alguien habría
+terminado abriendo el comodín.
 
 ---
 

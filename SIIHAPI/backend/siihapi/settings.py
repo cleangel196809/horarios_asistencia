@@ -253,11 +253,23 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ── CORS ──
-CORS_ALLOWED_ORIGINS = [
+# Lista blanca explicita, NUNCA un comodin: con CORS_ALLOW_CREDENTIALS=True,
+# un '*' (o CORS_ALLOW_ALL_ORIGINS) permitiria a cualquier sitio leer
+# respuestas autenticadas con la sesion del usuario.
+#
+# Viene de variable de entorno (SECURITY_REPORT.md §3, 2026-10-05) para que
+# agregar un dominio de produccion NO obligue a tocar el codigo. Antes estaba
+# fija aqui con solo localhost, y el atajo natural el dia que algo llamara a
+# la API desde el navegador en produccion habria sido abrir el comodin.
+# Los valores por defecto son los mismos de antes: sin configurar nada, el
+# comportamiento no cambia.
+#
+#   CORS_ALLOWED_ORIGINS=https://horarios-asistencia.onrender.com,https://sisca-7jot.onrender.com
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://localhost:8000',
     'http://localhost:8080',  # SISCA
-]
+])
 CORS_ALLOW_CREDENTIALS = True
 
 # ════════════════════════════════════════════════════════════
