@@ -1,11 +1,16 @@
 """
 SISCA - Configuración de pytest.
 
-Crea la app Flask en modo TESTING con Oracle completamente mockeado
-para que todos los tests puedan correr sin una instancia de Oracle XE
-activa.  Los mocks de execute_query / execute_one se inyectan a nivel
-de módulo para que cualquier controller que los importe los vea
-sustituidos.
+Crea la app Flask en modo TESTING sin tocar ninguna base de datos real.
+Los mocks de execute_query / execute_one se inyectan a nivel de módulo
+para que cualquier controller que los importe los vea sustituidos.
+
+⚠️ 2026-10-05: este archivo parcheaba `app.database.connection.oracledb`,
+un atributo que dejó de existir el 2026-09-30 con el port a psycopg 3.
+`patch()` falla con AttributeError si el atributo no existe, así que la
+fixture `app` reventaba y con ella TODA la suite: 80 errores y 2 fallos,
+pruebas de seguridad incluidas, durante más de un mes. Ahora se parchea
+`ConnectionPool`, que es lo que `init_pool()` usa de verdad.
 """
 import os
 import pytest
@@ -23,18 +28,19 @@ def app():
     """
     Crea la aplicación Flask en modo TESTING.
 
-    Se parchea `init_pool` antes de que create_app() lo llame, de modo
-    que nunca se intenta conectar a Oracle XE real.  Las funciones
-    `execute_query` y `execute_one` se reemplazan por stubs que
-    retornan valores vacíos seguros.
+    Se parchea `ConnectionPool` antes de que create_app() llame a
+    `init_pool()`, de modo que nunca se abre una conexión a PostgreSQL.
+    `init_pool()` ya captura la excepción y deja `_pool = None`, que es
+    exactamente el estado que quieren las pruebas: la app arranca y cada
+    acceso a datos pasa por los stubs de `mock_db`.
     """
     # Parche a nivel de módulo de conexión ANTES de importar create_app
-    with patch("app.database.connection.oracledb") as mock_oracle, \
+    with patch("app.database.connection.ConnectionPool") as mock_pool, \
          patch("app.database.connection._pool", None):
 
-        # init_pool intentará crear un pool; hacemos que falle silenciosamente
-        mock_oracle.create_pool.side_effect = Exception("Oracle no disponible en tests")
-        mock_oracle.defaults = MagicMock()
+        # Abrir el pool debe fallar: init_pool() lo atrapa y sigue sin base.
+        mock_pool.side_effect = Exception("PostgreSQL no disponible en tests")
+        mock_pool.check_connection = MagicMock()
 
         # Importar create_app DENTRO del parche para que el módulo vea el mock
         from app import create_app
@@ -45,10 +51,10 @@ def app():
             "WTF_CSRF_ENABLED": False,
             "SECRET_KEY": "test-secret-key-sisca-2026",
             "SISCA_API_TOKEN": VALID_TOKEN,
-            # Deshabilitar ORACLE completamente
-            "ORACLE_USER": "sisca_test",
-            "ORACLE_PASSWORD": "test",
-            "ORACLE_DSN": "localhost:1521/TEST",
+            # Sin base real: el DSN apunta a un host inexistente a
+            # propósito, para que un olvido de mock falle rápido y
+            # visiblemente en vez de alcanzar una base de verdad.
+            "DATABASE_URL": "postgresql://sisca_test:test@127.0.0.1:1/sisca_test",
         })
 
     yield flask_app

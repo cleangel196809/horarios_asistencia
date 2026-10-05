@@ -278,3 +278,41 @@ convención del proyecto es `.form-group` envolviendo `label` + campo, y
 No hay UI para **recursos del canal** (`RecursoCanal`) ni para **cerrar**
 una sesión desde la lista; ambas cosas siguen sólo en la API REST y en el
 admin de Django.
+
+## 2026-10-05 (4) · Claude — la suite de SISCA vuelve a ejecutarse
+
+`SECURITY_REPORT.md` §5.4 queda resuelto. **Nada de `app/` cambió**: el
+fallo estaba entero en `tests/`.
+
+### Qué estaba roto
+
+`tests/conftest.py` parcheaba `app.database.connection.oracledb`. Ese
+atributo desapareció el 2026-09-30 con el port a psycopg 3, y
+`unittest.mock.patch()` levanta `AttributeError` si el atributo no
+existe. La fixture `app` moría ahí, y con ella **las 82 pruebas**:
+*2 fallos + 80 errores*. El job `sisca-tests` llevaba más de un mes en
+rojo y **ninguna prueba de seguridad se ejecutaba de verdad**.
+
+### Qué se cambió (sólo archivos de prueba y el comentario del workflow)
+
+| Archivo | Cambio |
+|---|---|
+| `tests/conftest.py` | Parchea `ConnectionPool` en vez de `oracledb`. `init_pool()` ya atrapa la excepción y deja `_pool = None`, que es justo el estado que quieren las pruebas. La config `ORACLE_*` pasa a un `DATABASE_URL` apuntando al puerto 1 a propósito. |
+| `tests/test_caja_blanca.py` | `pool.acquire` → `pool.getconn`; `TestInitPool` parchea `ConnectionPool`. El test de timeout ahora verifica el **contrato** (devuelve `None`, no bloquea, y pasa el timeout configurado a `getconn`) en vez del hilo que ya no existe. |
+| `tests/test_caja_gris.py` | `oracle_conectado` → `bd_conectada` (la clave que `api_root` devuelve hoy); `fake_pool.acquire` → `getconn`. |
+| `tests/test_seguridad.py` | Quedaban 10 caracteres del token filtrado dentro de `TOKENS_INVALIDOS`. Reemplazados: lo que se prueba es el **esquema** equivocado (`Basic`), no ese valor. |
+| `.github/workflows/tests.yml` | Sólo el comentario del job, que seguía diciendo «mockean Oracle». |
+
+**Resultado: 82 pasan, 0 fallan.**
+
+### Se verificó que no pasan en vacío
+
+Rompí a propósito el guardia de token (`_token_requerido` → `if False`) y
+volví a correr la suite: **11 fallos**, los 8 de `TestTokenManipulado`
+entre ellos. Luego restauré el archivo (`git diff` limpio). Las pruebas
+de seguridad detectan de verdad un guardia roto.
+
+⚠️ Si tocas `app/database/connection.py`, mira primero
+`tests/test_caja_blanca.py`: parchea `ConnectionPool` y `_pool` por
+nombre, así que renombrar cualquiera de los dos rompe la suite entera de
+golpe — exactamente como pasó con `oracledb`.
