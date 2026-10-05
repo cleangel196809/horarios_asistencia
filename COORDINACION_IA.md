@@ -316,3 +316,39 @@ de seguridad detectan de verdad un guardia roto.
 `tests/test_caja_blanca.py`: parchea `ConnectionPool` y `_pool` por
 nombre, así que renombrar cualquiera de los dos rompe la suite entera de
 golpe — exactamente como pasó con `oracledb`.
+
+## 2026-10-05 (5) · Claude — pruebas de las páginas del dashboard
+
+`tests/test_modularizacion.py` sube de 63 a **75 pruebas**; la suite de
+SIIHAPI, de 135 a **147**. Sólo se anexó una clase,
+`TestPaginasDashboard`; nada de lo que ya estaba se tocó.
+
+### El hueco que tapan
+
+Las 63 pruebas originales eran **todas de la API REST**. Por eso el fallo
+del menú pasó entero: un `{% url %}` mal escrito, un `active` que no
+coincide o una variable de contexto que no se manda no rompen ni una sola
+prueba de API, pero dejan la página en 500 o sin el enlace. Las 12 nuevas
+entran por `/dashboard/...` con el cliente de Django y una sesión real.
+
+Cubren: que las tres páginas rendericen (docente, estudiante y estudiante
+sin canales); que el sidebar del docente enlace ambos módulos; que el del
+estudiante **no** ofrezca «Notas por voz»; crear canal desde el
+formulario; que un estudiante no pueda crearlo; que un GET a `/crear/`
+dé 405; que la hora de `datetime-local` quede en zona local y no en UTC;
+que un docente ajeno no programe clase en un canal que no es suyo; que
+una duración absurda se acote a 600 en vez de reventar; y que una fecha
+inválida no cree sesión.
+
+### Se verificó que no pasan en vacío
+
+Dos mutaciones, cada una revertida después:
+
+1. Quitar el bloque «Aula Virtual» del sidebar del docente → falla
+   `test_sidebar_del_docente_enlaza_aula_virtual_y_notas_voz`.
+2. Cambiar `make_aware(..., get_current_timezone())` por UTC → falla
+   `test_docente_programa_clase_con_hora_local_no_utc` (hora 3 en vez de 8).
+
+⚠️ **Si añades páginas HTML en `apps/mantenimiento`, pruébalas por su
+URL del dashboard, no sólo por la API.** Una plantilla que compila no es
+una plantilla que renderiza.

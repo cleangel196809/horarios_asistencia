@@ -37,7 +37,7 @@ jobs:
         run: pytest tests/ -v
 
   siihapi-tests:
-    name: SIIHAPI (Django) — 135 tests
+    name: SIIHAPI (Django) — 147 tests
     runs-on: ubuntu-latest
     defaults:
       run:
