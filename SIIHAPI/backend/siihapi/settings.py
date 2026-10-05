@@ -61,6 +61,10 @@ INSTALLED_APPS = [
     'apps.eventos',
     'apps.decano',
     'apps.mentoria',
+    # Modularizacion (2026-10-05): cada una con su PROPIO esquema de
+    # Postgres, no en `public` -- ver siihapi/esquemas.py.
+    'apps.aula_virtual',
+    'apps.evaluacion_docente',
 ]
 
 # ── Middleware ──
@@ -192,6 +196,25 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 25,
+    # Rate limiting por endpoint (modularizacion, 2026-10-05). La lista de
+    # throttles por defecto queda VACIA a proposito: asi no cambia el
+    # comportamiento de los endpoints ya entregados. Solo las vistas que
+    # declaran su propia clase de throttle quedan limitadas (ver
+    # apps/eventos/throttling.py y apps/evaluacion_docente/throttling.py).
+    #
+    #   eventos_escaneo  -> el escaner QR dispara muchas peticiones
+    #                       seguidas y ademas vacia colas offline, por eso
+    #                       el tope es alto; lo que corta es el abuso
+    #                       (fuerza bruta de tokens), no el uso normal.
+    #   voz_transcripcion-> transcribir audio cuesta CPU en el mismo
+    #                       proceso (faster-whisper local): sin tope, un
+    #                       solo usuario puede tumbar el servicio.
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {
+        'eventos_escaneo': env('THROTTLE_EVENTOS_ESCANEO', default='120/min'),
+        'voz_transcripcion': env('THROTTLE_VOZ_TRANSCRIPCION', default='20/hour'),
+        'login': env('THROTTLE_LOGIN', default='10/min'),
+    },
 }
 
 from datetime import timedelta
@@ -230,11 +253,23 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ── CORS ──
-CORS_ALLOWED_ORIGINS = [
+# Lista blanca explicita, NUNCA un comodin: con CORS_ALLOW_CREDENTIALS=True,
+# un '*' (o CORS_ALLOW_ALL_ORIGINS) permitiria a cualquier sitio leer
+# respuestas autenticadas con la sesion del usuario.
+#
+# Viene de variable de entorno (SECURITY_REPORT.md §3, 2026-10-05) para que
+# agregar un dominio de produccion NO obligue a tocar el codigo. Antes estaba
+# fija aqui con solo localhost, y el atajo natural el dia que algo llamara a
+# la API desde el navegador en produccion habria sido abrir el comodin.
+# Los valores por defecto son los mismos de antes: sin configurar nada, el
+# comportamiento no cambia.
+#
+#   CORS_ALLOWED_ORIGINS=https://horarios-asistencia.onrender.com,https://sisca-7jot.onrender.com
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://localhost:8000',
     'http://localhost:8080',  # SISCA
-]
+])
 CORS_ALLOW_CREDENTIALS = True
 
 # ════════════════════════════════════════════════════════════
@@ -378,6 +413,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ════════════════════════════════════════════════════════════
 #  Integracion SISCA + Motor IA (consumido por cliente.py y motor_ia/llm.py)
 # ════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+#  Modulos nuevos (modularizacion, 2026-10-05)
+# ════════════════════════════════════════════════════════════
+# Aula Virtual: servidor de Jitsi Meet donde se abren las salas. Por
+# defecto la instancia publica (sin licencias ni cuentas, decision cerrada
+# del alcance). Si el Politecnico monta su propio Jitsi, basta cambiar esta
+# variable de entorno -- el UUID de la sala no cambia.
+AULA_VIRTUAL_JITSI_BASE_URL = env('AULA_VIRTUAL_JITSI_BASE_URL', default='https://meet.jit.si')
+
+# Evaluacion docente / notas por voz: modelo de faster-whisper usado SOLO
+# como respaldo cuando el navegador no soporta Web Speech API. 'base' corre
+# en CPU sin GPU ni claves de API, coherente con el resto del proyecto.
+# Si faster-whisper no esta instalado, el endpoint responde 503 y el flujo
+# sigue funcionando por Web Speech API (ver apps/evaluacion_docente/transcripcion.py).
+EVALUACION_WHISPER_MODELO = env('EVALUACION_WHISPER_MODELO', default='base')
+EVALUACION_WHISPER_DEVICE = env('EVALUACION_WHISPER_DEVICE', default='cpu')
+# Tope del audio aceptado por el endpoint de transcripcion (bytes). Sin
+# tope, una subida grande bloquea un worker entero transcribiendo.
+EVALUACION_AUDIO_MAX_BYTES = env.int('EVALUACION_AUDIO_MAX_BYTES', default=10 * 1024 * 1024)
+
 SIIHAPI = {
     'SISCA_API_URL':     env('SISCA_API_URL', default='http://localhost:8080'),
     'SISCA_API_TOKEN':   env('SISCA_API_TOKEN', default=''),

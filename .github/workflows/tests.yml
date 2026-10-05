@@ -31,38 +31,25 @@ jobs:
         run: pytest tests/ -v
 
   siihapi-tests:
-    name: SIIHAPI (Django) — 72 tests
+    name: SIIHAPI (Django) — 135 tests
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: SIIHAPI/backend
 
-    services:
-      oracle:
-        image: gvenzl/oracle-xe:21-slim
-        ports:
-          - 1521:1521
-        env:
-          ORACLE_PASSWORD: ${{ secrets.CI_ORACLE_SYSTEM_PASSWORD }}
-        options: >-
-          --health-cmd healthcheck.sh
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 30
-          --health-start-period 60s
+    # Sin bloque `services`: la suite corre sobre SQLite en memoria
+    # (siihapi.settings_test_sqlite) y no necesita ninguna base real.
+    #
+    # Antes este job levantaba un contenedor de Oracle XE y ejecutaba
+    # scripts/ci_setup_test_db.py, que hace `import oracledb`. Ese paquete
+    # dejó de estar en requirements.txt con el port a PostgreSQL
+    # (2026-09-30), así que desde entonces el job moría ahí y cada push a
+    # main fallaba en silencio. El contenedor de Oracle y los secretos
+    # CI_ORACLE_SYSTEM_PASSWORD / CI_SIIHAPI_DB_PASSWORD ya no hacen falta.
 
     env:
-      ORACLE_HOST: localhost
-      ORACLE_PORT: 1521
-      ORACLE_SYSTEM_PASSWORD: ${{ secrets.CI_ORACLE_SYSTEM_PASSWORD }}
-      SIIHAPI_DB_PASSWORD: ${{ secrets.CI_SIIHAPI_DB_PASSWORD }}
-      ORACLE_SERVICE: XEPDB1
-      ORACLE_USER: SIIHAPI
-      ORACLE_PASSWORD: ${{ secrets.CI_SIIHAPI_DB_PASSWORD }}
       DJANGO_SECRET_KEY: ci-django-secret-key-not-for-prod
       JWT_SECRET_KEY: ci-jwt-secret-key-not-for-production-use-only
-      SISCA_API_URL: http://localhost:8080
-      SISCA_API_TOKEN: ci-shared-token-not-for-prod
       DJANGO_DEBUG: "True"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
       USE_REDIS: "False"
@@ -81,13 +68,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest-django
 
-      - name: Crear esquema SIIHAPI en Oracle (+ rol DBA para test-db de Django)
-        run: python ../scripts/ci_setup_test_db.py
-
       # Las migraciones están en .gitignore (**/migrations/0*.py) por diseño
-      # de este repo, así que hay que generarlas antes de correr los tests.
+      # de este repo, así que hay que generarlas antes de correr los tests,
+      # y con las MISMAS settings con las que se van a correr: apps.aula_virtual
+      # y apps.evaluacion_docente declaran sus tablas con esquema de Postgres
+      # ("aula_virtual"."canales") y con nombre plano en cualquier otro motor
+      # (aula_virtual_canales) -- ver siihapi/esquemas.py.
       - name: Generar migraciones
-        run: python manage.py makemigrations
+        run: python manage.py makemigrations --settings=siihapi.settings_test_sqlite
 
       - name: Ejecutar tests
-        run: pytest tests/ -v
+        run: pytest tests/ -v --ds=siihapi.settings_test_sqlite

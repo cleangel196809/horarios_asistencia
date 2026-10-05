@@ -1,0 +1,59 @@
+# ════════════════════════════════════════════════════════════════
+# SIIHAPI · Imagen de los servicios por módulo (modularización, 2026-10-05)
+#
+# Contexto de build: SIIHAPI/ (igual que backend/Dockerfile) — settings.py
+# resuelve templates y estáticos en BASE_DIR.parent/frontend/.
+#
+# ── Por qué UN Dockerfile y no uno por servicio ──────────────────
+# `siihapi-eventos`, `siihapi-aula-virtual` y `siihapi-evaluacion-docente`
+# son el MISMO proyecto Django: comparten settings, modelos, urls y
+# dependencias. Tres Dockerfiles idénticos darían tres builds iguales
+# (triple tiempo de build, y la garantía de que con el tiempo se
+# desincronizan). Lo único que cambia entre servicios es la variable
+# SIIHAPI_MODULO y el healthCheckPath, y eso va en render.yaml, no en la
+# imagen.
+#
+# ── Diferencia clave con backend/Dockerfile ──────────────────────
+# Este NO corre `migrate` al arrancar. El servicio principal
+# (horarios_asistencia) es el único que migra; si tres servicios corrieran
+# `migrate` a la vez contra la MISMA base, competirían por django_migrations
+# y por el lock de DDL. Aquí el arranque es sólo daphne.
+# ════════════════════════════════════════════════════════════════
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+COPY backend/ backend/
+COPY frontend/ frontend/
+
+WORKDIR /app/backend
+
+# Mismo criterio que backend/Dockerfile: las migraciones están en
+# .gitignore por diseño de este repo y se generan en build time (no
+# necesitan conexión a la base). DJANGO_DEBUG=True sólo evita el guard de
+# SIGNING_KEY durante el build.
+ENV DJANGO_DEBUG=True
+RUN python manage.py makemigrations
+
+RUN DJANGO_DEBUG=False JWT_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))") \
+    python manage.py collectstatic --noinput
+
+# Etiqueta del módulo que atiende este contenedor. Render la sobreescribe
+# por servicio (ver render.yaml); sirve para logs y para el healthcheck.
+ENV SIIHAPI_MODULO=core
+
+# Correr como usuario sin privilegios: un contenedor que sirve HTTP no
+# tiene por qué ser root.
+RUN useradd --create-home --shell /usr/sbin/nologin siihapi \
+    && chown -R siihapi:siihapi /app
+USER siihapi
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "daphne -b 0.0.0.0 -p 8000 siihapi.asgi:application"]

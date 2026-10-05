@@ -5,6 +5,7 @@ Validan la lógica interna de los módulos: ramas de código, manejo de
 estado interno, flujo de control y comportamiento de funciones
 auxiliares.  Se usan mocks granulares para aislar cada unidad.
 """
+import os
 import threading
 import time
 import pytest
@@ -21,7 +22,7 @@ def _make_minimal_app():
     app = Flask(__name__, template_folder=None)
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-wb"
-    app.config["SISCA_API_TOKEN"] = "d8a07e54e0a229f9dd2931abb7e3d12b597a2f9d0b268e34c34d5c7369ff9d09"
+    app.config["SISCA_API_TOKEN"] = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
     app.config["ORACLE_USER"] = "test_user"
     app.config["ORACLE_PASSWORD"] = "test_pass"
     app.config["ORACLE_DSN"] = "localhost:1521/XEPDB1"
@@ -154,7 +155,7 @@ class TestExecuteQueryConnNone:
 # 4. _verificar_token()
 # ════════════════════════════════════════════════════════════════════════════
 
-VALID_TOKEN = "d8a07e54e0a229f9dd2931abb7e3d12b597a2f9d0b268e34c34d5c7369ff9d09"
+VALID_TOKEN = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
 
 
 class TestVerificarToken:

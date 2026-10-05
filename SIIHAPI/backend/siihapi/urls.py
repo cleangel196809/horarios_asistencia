@@ -11,6 +11,12 @@ from . import frontend_views as fv
 from . import decano_views as dv
 from . import mentoria_views as mv
 
+# Modularizacion (2026-10-05): las paginas HTML de los modulos nuevos viven
+# en sus propias apps (no en frontend_views, que ya tiene 5.300 lineas).
+from apps.aula_virtual import frontend as av
+from apps.evaluacion_docente import frontend as ed
+from apps.evaluacion_docente import views as ed_api
+
 
 urlpatterns = [
     # ── Publicas ──
@@ -139,6 +145,13 @@ urlpatterns = [
     path('dashboard/mentoria/sesiones/<int:id_sesion>/estado/',    mv.sesion_mentoria_actualizar_estado, name='sesion_mentoria_actualizar_estado'),
     path('dashboard/mentoria/sesiones/<int:id_sesion>/bitacora/',  mv.bitacora_mentoria_crear,      name='bitacora_mentoria_crear'),
 
+    # -- Aula Virtual (modularizacion, 2026-10-05) --
+    path('dashboard/aula-virtual/',                        av.mis_canales,   name='aula_virtual_canales'),
+    path('dashboard/aula-virtual/sesion/<int:id_sesion>/', av.sala_sesion,   name='aula_virtual_sala'),
+
+    # -- Evaluacion docente: notas por voz (modularizacion, 2026-10-05) --
+    path('dashboard/evaluacion/notas-voz/',                ed.notas_por_voz, name='evaluacion_notas_voz'),
+
     path('dashboard/base-datos/',                          fv.base_datos_view,        name='base_datos'),
     path('dashboard/base-datos/backup/',                   fv.bd_backup_ejecutar,     name='bd_backup_ejecutar'),
     path('dashboard/base-datos/backups/<str:filename>/descargar/', fv.bd_backup_descargar, name='bd_backup_descargar'),
@@ -187,6 +200,15 @@ urlpatterns = [
     path('api/horarios/',        include('apps.horarios.urls')),
     path('api/reportes/',        include('apps.reportes.urls')),
     path('api/sisca/',           include('apps.integracion_sisca.urls')),
+
+    # -- API de los modulos nuevos (modularizacion, 2026-10-05) --
+    path('api/eventos/',            include('apps.eventos.urls')),
+    path('api/aula-virtual/',       include('apps.aula_virtual.urls')),
+    path('api/evaluacion-docente/', include('apps.evaluacion_docente.urls')),
+    # Ruta fija pedida por la especificacion del modulo de notas por voz.
+    # Es la MISMA vista que /api/evaluacion-docente/ expone; se monta aqui
+    # tambien para que el frontend use la ruta corta documentada.
+    path('api/notas/transcribir-audio', ed_api.transcribir_audio, name='transcribir_audio'),
 
     # ── Docs API ──
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
