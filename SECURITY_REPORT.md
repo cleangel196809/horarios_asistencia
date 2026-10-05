@@ -11,9 +11,10 @@
 
 | Severidad | Nº | Estado |
 |---|---|---|
-| 🔴 **Crítica** | 1 | **Abierta — requiere acción del propietario** |
-| 🟠 Media | 2 | Abiertas (1 de 3 ya resuelta, §3) |
-| 🟡 Baja | 3 | Abiertas |
+| 🔴 Crítica | 0 | — |
+| 🟠 Mitigada | 1 | Token rotado y fuera del código; queda el historial de git (§1) |
+| 🟠 Media | 2 | Abiertas (§2 y §4; §3 ya resuelta) |
+| 🟡 Baja | 4 | Abiertas (incluye §5.4, nuevo) |
 | ✅ Verificado sin hallazgos | 6 controles | — |
 
 El código de los módulos nuevos (`apps/eventos`, `apps/aula_virtual`,
@@ -23,7 +24,13 @@ dos de los medios son **preexistentes**, no introducidos por este trabajo.
 
 ---
 
-## 1. 🔴 CRÍTICA — Token de integración SIIHAPI↔SISCA expuesto en un repositorio público
+## 1. 🟠 MITIGADA (2026-10-05) — Token de integración SIIHAPI↔SISCA expuesto en un repositorio público
+
+> **Estado:** el token fue **rotado en Render** en los dos servicios del
+> proyecto `integra-pi`, y el literal **ya no está en el árbol de trabajo**
+> (ver "Remediación" abajo). Lo que queda abierto es el **historial de
+> git**: el valor viejo sigue ahí y hay que decidir si se purga. Como ya no
+> sirve para autenticar, baja de crítica a media.
 
 **Dónde**
 
@@ -65,21 +72,32 @@ VALID_TOKEN = "d8a07e54…………9d09"     # 64 hex · REDACTADO en este infor
 1. **Rotar el token.** `python -c "import secrets; print(secrets.token_hex(32))"`
 2. Actualizarlo en Render en **los dos** servicios (`horarios_asistencia` y
    `sisca`). Tiene que ser el mismo valor en ambos o la integración se cae.
-3. Sacar el literal de los 5 archivos de test. Lo correcto es leerlo del
-   entorno con un valor de prueba obvio por defecto:
+3. ~~Sacar el literal de los 5 archivos de test.~~ **Hecho (2026-10-05).**
+   Los 6 usos en los 5 archivos de `SISCA/tests/` ahora leen del entorno con
+   un valor de prueba evidente por defecto:
 
    ```python
    import os
-   VALID_TOKEN = os.environ.get("SISCA_API_TOKEN_TEST", "token-de-prueba-no-real")
+   VALID_TOKEN = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
    ```
+
+   Incluye `test_caja_blanca.py:24`, donde el literal se asignaba
+   directamente a `app.config["SISCA_API_TOKEN"]`. Las dos referencias
+   resuelven al mismo valor, así que las comparaciones de los tests siguen
+   siendo coherentes.
 
 4. Purgar el historial (`git filter-repo --replace-text`) o, si el repo no
    necesita ser público, pasarlo a privado. El paso 1 es el que de verdad
    cierra el riesgo; éste evita que el valor viejo siga circulando.
 
-**No se tocó desde este trabajo**: rotar el token tumba la integración en
-producción en el momento en que se aplica, y eso es una decisión del
-propietario, no de un agente.
+**Rotado por el propietario el 2026-10-05**, en los dos servicios a la vez
+y con despliegue manual, para que la ventana de desajuste fuera mínima.
+
+**Queda pendiente el paso 4**: el valor viejo sigue en el historial de git
+de un repositorio público. Ya no autentica nada, pero cualquiera que lo lea
+sabe que ese proyecto guardaba secretos en los tests. Purgar el historial
+(`git filter-repo --replace-text`) o pasar el repo a privado son las dos
+salidas.
 
 ---
 
@@ -231,6 +249,30 @@ compartida, porque el repo es público y el patrón es adivinable.
 -- revisar a mano
 SELECT correo, rol, estado FROM usuarios WHERE correo LIKE '%prueba%' OR correo LIKE '%demo%';
 ```
+
+### 5.4 La suite de pruebas de SISCA está rota desde el port a PostgreSQL
+
+Detectado al intentar verificar el cambio de §1 paso 3. `pytest tests/` en
+`SISCA/` da **80 errores y 2 fallos**, y ninguno tiene que ver con ese
+cambio — la suite ya estaba así:
+
+```
+AttributeError: module 'app.database.connection' does not have the attribute 'oracledb'
+```
+
+`SISCA/tests/conftest.py` parchea `app.database.connection.oracledb` para
+simular Oracle, pero ese módulo se portó a `psycopg` el 2026-09-30 y el
+atributo ya no existe. Todo el `conftest` falla en el *setup*, así que
+**ninguna prueba de SISCA se ha ejecutado de verdad desde el port**.
+
+No es una vulnerabilidad, pero sí deja a SISCA sin red de seguridad
+automatizada — incluidas sus propias pruebas de seguridad
+(`test_seguridad.py`: token manipulado, path traversal, SQL injection), que
+hoy no verifican nada.
+
+**Remediación:** actualizar el `conftest` para parchear `psycopg` en vez de
+`oracledb`. Queda fuera del alcance de este trabajo porque toca el núcleo
+de SISCA, pero conviene resolverlo antes de confiar en esa suite.
 
 ---
 

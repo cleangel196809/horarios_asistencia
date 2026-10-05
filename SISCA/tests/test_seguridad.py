@@ -7,12 +7,13 @@ Path Traversal y manipulación de tokens API.
 
 Todos los tests son independientes y no requieren Oracle real.
 """
+import os
 import json
 import re
 import pytest
 from unittest.mock import patch, MagicMock
 
-VALID_TOKEN = "d8a07e54e0a229f9dd2931abb7e3d12b597a2f9d0b268e34c34d5c7369ff9d09"
+VALID_TOKEN = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
 
 
 # ════════════════════════════════════════════════════════════════════════════

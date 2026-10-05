@@ -197,3 +197,30 @@ la integración en producción): es decisión del propietario. Si vas a tocar
    `02_crear_esquema_evaluacion_docente.sql`.
 
 ---
+
+## 2026-10-05 (2) · Claude — limpieza del token y CORS
+
+Dos cambios pequeños, ninguno en `apps/`:
+
+1. **`SISCA/tests/` (5 archivos).** El `SISCA_API_TOKEN` real estaba escrito
+   en claro en 6 sitios. Ahora los 6 leen
+   `os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")`.
+   El token de producción **ya fue rotado** en Render; el literal viejo
+   sigue en el historial de git y eso queda pendiente de decidir.
+   ⚠️ Si tocas `SISCA/tests/`, **no vuelvas a escribir un token literal**.
+
+2. **`siihapi/settings.py`.** `CORS_ALLOWED_ORIGINS` pasa a `env.list()` con
+   los mismos valores por defecto. Para añadir un dominio ya no se toca
+   código: se define la variable en Render.
+
+### Hallazgo que afecta a quien trabaje en SISCA
+
+`pytest tests/` en `SISCA/` da **80 errores y 2 fallos**, y ya estaba así
+antes de estos cambios: `conftest.py` parchea
+`app.database.connection.oracledb`, atributo que desapareció en el port a
+`psycopg` del 2026-09-30. **Ninguna prueba de SISCA se ejecuta de verdad
+desde entonces**, incluidas las de seguridad. Detalle en
+`SECURITY_REPORT.md` §5.4. No se arregló aquí porque toca el núcleo de
+SISCA.
+
+---

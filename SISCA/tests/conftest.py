@@ -7,11 +7,13 @@ activa.  Los mocks de execute_query / execute_one se inyectan a nivel
 de módulo para que cualquier controller que los importe los vea
 sustituidos.
 """
+import os
 import pytest
 from unittest.mock import patch, MagicMock
 
-# Token real usado en el proyecto
-VALID_TOKEN = "d8a07e54e0a229f9dd2931abb7e3d12b597a2f9d0b268e34c34d5c7369ff9d09"
+# Token SOLO de pruebas. El valor real nunca va en el repo:
+# se define en SISCA_API_TEST_TOKEN si hace falta otro.
+VALID_TOKEN = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
 
 
 # ── Fixture: app Flask con Oracle mockeado ────────────────────────────────────
