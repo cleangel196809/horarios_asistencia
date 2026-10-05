@@ -148,6 +148,10 @@ urlpatterns = [
     # -- Aula Virtual (modularizacion, 2026-10-05) --
     path('dashboard/aula-virtual/',                        av.mis_canales,   name='aula_virtual_canales'),
     path('dashboard/aula-virtual/sesion/<int:id_sesion>/', av.sala_sesion,   name='aula_virtual_sala'),
+    path('dashboard/aula-virtual/crear/',                  av.crear_canal_form,
+         name='aula_virtual_crear_canal'),
+    path('dashboard/aula-virtual/<int:id_canal>/clase/',   av.crear_sesion_form,
+         name='aula_virtual_crear_sesion'),
 
     # -- Evaluacion docente: notas por voz (modularizacion, 2026-10-05) --
     path('dashboard/evaluacion/notas-voz/',                ed.notas_por_voz, name='evaluacion_notas_voz'),

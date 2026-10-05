@@ -224,3 +224,57 @@ desde entonces**, incluidas las de seguridad. Detalle en
 SISCA.
 
 ---
+
+## 2026-10-05 (3) · Claude — menú lateral y creación de aulas desde el dashboard
+
+Dos huecos que quedaron tras el despliegue: las rutas nuevas existían pero
+**no había cómo llegar a ellas haciendo clic**, y **no había forma de crear
+un canal** salvo por el admin de Django o por la API REST.
+
+1. **`frontend/templates/dashboard/_sidebar.html`,
+   `_sidebar_docente.html`, `_sidebar_estudiante.html`** — se añadió un
+   bloque «Aula Virtual». Son inserciones aditivas; ninguna entrada
+   existente se movió ni se renombró.
+   - Admin/Coordinador: *Clases en línea* + *Notas por voz* (esta última
+     dentro de `{% if not es_solo_consulta %}`, igual que el resto de
+     Operación).
+   - Docente: *Mis clases en línea* + *Notas por voz*.
+   - Estudiante: sólo *Mis clases en línea* (las notas son del docente).
+   ⚠️ Si añades tu módulo al menú, **inserta un bloque nuevo**; no
+   reordenes los que ya están.
+
+2. **`apps/aula_virtual/frontend.py`** — dos vistas `require_POST`
+   nuevas, `crear_canal_form` y `crear_sesion_form`, y `mis_canales`
+   ahora manda al contexto `puede_crear`, `materias`, `periodos`,
+   `docentes` y marca `canal.puede_gestionar` por canal.
+   **No duplican reglas de permisos**: reutilizan `_es_staff` y
+   `_puede_gestionar_canal` de `views.py`, que siguen siendo la fuente de
+   verdad. La API REST no se tocó.
+
+3. **`siihapi/urls.py`** — dos rutas nuevas:
+   `dashboard/aula-virtual/crear/` (`aula_virtual_crear_canal`) y
+   `dashboard/aula-virtual/<id_canal>/clase/`
+   (`aula_virtual_crear_sesion`). Ninguna ruta existente se movió.
+
+4. **`frontend/templates/dashboard/aula_virtual_canales.html`** — se
+   añadió el formulario de «Crear un canal» (sólo si `puede_crear`) y,
+   dentro de cada tarjeta, el de «Programar clase» (sólo si
+   `canal.puede_gestionar`). Usa `.form-group` y las variables de
+   `static/css/siihapi.css`; **no inventa clases nuevas**.
+
+### Detalle que conviene no repetir
+
+`<input type="datetime-local">` entrega `YYYY-MM-DDTHH:MM` **sin zona**.
+`crear_sesion_form` hace `timezone.make_aware(...)` con la zona del
+proyecto: si se guarda tal cual, Django lo interpreta como UTC y la clase
+aparece corrida varias horas en el listado.
+
+Tampoco existen `.input` ni `var(--bd)` en la hoja de estilos — la
+convención del proyecto es `.form-group` envolviendo `label` + campo, y
+`var(--border)`.
+
+### Qué sigue sin existir
+
+No hay UI para **recursos del canal** (`RecursoCanal`) ni para **cerrar**
+una sesión desde la lista; ambas cosas siguen sólo en la API REST y en el
+admin de Django.
