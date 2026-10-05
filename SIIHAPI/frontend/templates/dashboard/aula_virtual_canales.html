@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Aula Virtual{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if request.user.rol == 'DOCENTE' %}
+    {% include 'dashboard/_sidebar_docente.html' with active='aula_virtual' %}
+  {% elif request.user.rol == 'ESTUDIANTE' %}
+    {% include 'dashboard/_sidebar_estudiante.html' with active='aula_virtual' %}
+  {% else %}
+    {% include 'dashboard/_sidebar.html' with active='aula_virtual' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Aula Virtual</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎥 Mis clases en línea</h1>
+      <p style="color:var(--txt2);margin-top:6px;">Canales de las materias en las que estás matriculado o que dictas.</p>
+    </div>
+
+    {% for canal in canales %}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-hdr">
+        <span class="card-title">{{ canal.materia.codigo }} — {{ canal.nombre }}</span>
+      </div>
+      <div style="padding:16px;">
+        <p style="color:var(--txt2);margin-bottom:10px;">{{ canal.descripcion|default:'Sin descripción.' }}</p>
+        <p style="font-size:12px;color:var(--txt3);">Docente: {{ canal.docente.usuario.nombre_completo }}{% if canal.periodo %} · Ciclo {{ canal.periodo.codigo }}{% endif %}</p>
+
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+          {% for s in canal.sesiones.all|slice:":5" %}
+            {% if s.estado == 'PROGRAMADA' or s.estado == 'EN_CURSO' %}
+            <div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:var(--bg-2);">
+              <span style="flex:1;color:var(--white);">{{ s.titulo }}</span>
+              <span style="font-size:12px;color:var(--txt3);">{{ s.fecha_inicio|date:"d/m/Y H:i" }} · {{ s.duracion_minutos }} min</span>
+              <a href="{% url 'aula_virtual_sala' s.id_sesion %}" class="btn btn-primary" style="text-decoration:none;">Entrar</a>
+            </div>
+            {% endif %}
+          {% empty %}
+            <p style="font-size:12px;color:var(--txt3);">Sin clases programadas.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="card"><div style="padding:24px;color:var(--txt2);">
+      No tienes canales virtuales todavía.
+    </div></div>
+    {% endfor %}
+  </main>
+</div>
+{% endblock %}

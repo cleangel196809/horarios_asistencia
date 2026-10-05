@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}{{ sesion.titulo }}{% endblock %}
+{% block body %}
+<div class="app-shell">
+  <main class="main-content" style="max-width:none;">
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;">
+        <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">
+          {{ canal.materia.codigo }} · Aula Virtual
+        </p>
+        <h1 style="font-size:26px;font-weight:800;color:var(--white);">{{ sesion.titulo }}</h1>
+        <p style="color:var(--txt2);margin-top:4px;">
+          {{ sesion.fecha_inicio|date:"d/m/Y H:i" }} · {{ sesion.duracion_minutos }} minutos ·
+          Docente: {{ canal.docente.usuario.nombre_completo }}
+        </p>
+      </div>
+      <a href="{% url 'aula_virtual_canales' %}" class="btn" style="text-decoration:none;">← Volver</a>
+    </div>
+
+    {# Jitsi Meet público: no requiere licencia ni cuenta. La sala es el
+       UUID del canal (no adivinable). `allow` habilita cámara/micrófono y
+       compartir pantalla dentro del iframe. #}
+    <div class="card" style="padding:0;overflow:hidden;">
+      <iframe
+        src="{{ url_jitsi }}#config.prejoinPageEnabled=true&userInfo.displayName=%22{{ request.user.nombre_completo|urlencode }}%22"
+        title="Clase virtual: {{ sesion.titulo }}"
+        allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+        style="width:100%;height:72vh;border:0;display:block;background:#000;"></iframe>
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="btn" id="btnSalir">Marcar salida</button>
+      {% if puede_cerrar %}
+      <button type="button" class="btn btn-primary" id="btnCerrar">Cerrar clase y enviar asistencia a SISCA</button>
+      {% endif %}
+      <span id="avMsg" style="color:var(--txt2);align-self:center;"></span>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const msg = document.getElementById('avMsg');
+  const sesionId = {{ sesion.id_sesion }};
+
+  function csrf() {
+    const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  async function post(url, okTexto) {
+    msg.textContent = 'Enviando…';
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+        credentials: 'same-origin',
+        body: '{}'
+      });
+      const j = await r.json().catch(() => ({}));
+      msg.textContent = r.ok ? okTexto : (j.error || 'No se pudo completar la operación.');
+    } catch (e) {
+      msg.textContent = 'Sin conexión con el servidor.';
+    }
+  }
+
+  document.getElementById('btnSalir').addEventListener('click', function () {
+    post('/api/aula-virtual/sesiones/' + sesionId + '/salir/', 'Salida registrada.');
+  });
+
+  const cerrar = document.getElementById('btnCerrar');
+  if (cerrar) {
+    cerrar.addEventListener('click', function () {
+      post('/api/aula-virtual/sesiones/' + sesionId + '/cerrar/',
+           'Clase cerrada. Asistencia consolidada.');
+    });
+  }
+})();
+</script>
+{% endblock %}

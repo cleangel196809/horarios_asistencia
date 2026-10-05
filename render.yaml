@@ -76,3 +76,172 @@ services:
       # las dos apps. Tiene que ser EL MISMO valor en los dos servicios.
       - key: SISCA_API_TOKEN
         sync: false
+
+  # ════════════════════════════════════════════════════════════════
+  # SERVICIOS POR MÓDULO (modularización, 2026-10-05)
+  #
+  # ⚠️ LEER ANTES DE APLICAR
+  #
+  # Los tres servicios de abajo son el MISMO proyecto Django que
+  # `horarios_asistencia`, apuntando a la MISMA base. No son aplicaciones
+  # independientes: comparten settings, modelos y urls. Separarlos en
+  # servicios de Render sólo tiene sentido si se quiere aislar la carga de
+  # un módulo (por ejemplo, que transcribir audio no afecte al resto) o
+  # escalarlos por separado. Si no se busca eso, lo barato y lo correcto es
+  # NO desplegarlos y dejar que `horarios_asistencia` siga sirviendo todo.
+  # Ver la nota de costos al final de este archivo.
+  #
+  # Reglas que hacen que convivir con `horarios_asistencia` sea seguro:
+  #
+  #   · Ninguno corre `migrate`. El único que migra es
+  #     `horarios_asistencia` (ver SIIHAPI/backend/Dockerfile). Tres
+  #     servicios migrando a la vez contra la misma base compiten por
+  #     django_migrations y por el lock de DDL.
+  #   · Todos usan la misma imagen (Dockerfile.modulo) y se distinguen por
+  #     SIIHAPI_MODULO y por su healthCheckPath.
+  #   · DATABASE_URL y JWT_SECRET_KEY van con `sync: false`: Render los pide
+  #     en el dashboard en vez de guardarlos en el repo. JWT_SECRET_KEY
+  #     tiene que ser EL MISMO valor en todos los servicios, o un token
+  #     emitido por uno no valdrá en los otros.
+  # ════════════════════════════════════════════════════════════════
+
+  # ── Eventos (API REST de eventos, QR y certificados) ────────────
+  - type: web
+    name: siihapi-eventos
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: ./SIIHAPI
+    dockerfilePath: ./SIIHAPI/backend/Dockerfile.modulo
+    healthCheckPath: /api/eventos/ping/
+    envVars:
+      - key: SIIHAPI_MODULO
+        value: eventos
+      # Misma base externa que SIIHAPI y SISCA. Esquema `public`: los
+      # modelos de eventos ya viven ahí y no se mueven.
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      # Debe coincidir con el de horarios_asistencia (ver nota arriba).
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: siihapi-eventos.onrender.com
+      - key: SISCA_API_TOKEN
+        sync: false
+
+  # ── Aula Virtual (clases en línea sobre Jitsi) ──────────────────
+  - type: web
+    name: siihapi-aula-virtual
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: ./SIIHAPI
+    dockerfilePath: ./SIIHAPI/backend/Dockerfile.modulo
+    healthCheckPath: /api/aula-virtual/ping/
+    envVars:
+      - key: SIIHAPI_MODULO
+        value: aula_virtual
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: siihapi-aula-virtual.onrender.com
+      # Servidor de Jitsi. La instancia pública no cuesta ni pide cuenta;
+      # si el Politécnico monta el suyo, se cambia sólo esta variable.
+      - key: AULA_VIRTUAL_JITSI_BASE_URL
+        value: https://meet.jit.si
+      # Este módulo envía la asistencia de cada clase a SISCA: necesita el
+      # mismo token compartido.
+      - key: SISCA_API_URL
+        sync: false
+      - key: SISCA_API_TOKEN
+        sync: false
+
+  # ── Evaluación docente (notas por voz, rúbricas, syllabus) ──────
+  - type: web
+    name: siihapi-evaluacion-docente
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: ./SIIHAPI
+    dockerfilePath: ./SIIHAPI/backend/Dockerfile.modulo
+    healthCheckPath: /api/evaluacion-docente/ping/
+    envVars:
+      - key: SIIHAPI_MODULO
+        value: evaluacion_docente
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: siihapi-evaluacion-docente.onrender.com
+      # Transcripción de respaldo. `faster-whisper` NO está en
+      # requirements.txt (es opcional) y en el plan free, con 512 MB de
+      # RAM, el modelo no cabe: en Render este servicio responde 503 en
+      # /api/notas/transcribir-audio y el frontend sigue transcribiendo en
+      # el navegador con Web Speech API, que es el camino principal.
+      # Para habilitarlo de verdad hay que pasar a plan pago e instalar la
+      # dependencia.
+      - key: EVALUACION_WHISPER_MODELO
+        value: base
+      - key: THROTTLE_VOZ_TRANSCRIPCION
+        value: 20/hour
+
+  # ── Mantenimiento de aulas (inventario) ─────────────────────────
+  # TODO: lo completa el otro agente.
+  # Bloque reservado a propósito: `apps/mantenimiento` y su esquema
+  # `mantenimiento` son territorio del otro agente. No rellenar desde aquí.
+  #
+  # - type: web
+  #   name: siihapi-mantenimiento
+  #   runtime: docker
+  #   plan: free
+  #   region: oregon
+  #   dockerContext: ./SIIHAPI
+  #   dockerfilePath: ./SIIHAPI/backend/Dockerfile.modulo
+  #   healthCheckPath: /api/mantenimiento/ping/
+  #   envVars:
+  #     - key: SIIHAPI_MODULO
+  #       value: mantenimiento
+  #     - key: DATABASE_URL
+  #       sync: false
+
+# ════════════════════════════════════════════════════════════════
+# COSTO: por qué esto NO cabe en el plan gratuito
+#
+# El workspace tiene 750 horas-instancia al mes EN TOTAL, compartidas por
+# todos los servicios free. Un servicio encendido el mes entero consume
+# unas 720 h. Hoy ya hay dos (horarios_asistencia y sisca): ~1.440 h, que
+# ya pasan del tope. Con los tres módulos de arriba serían SEIS servicios,
+# unas 4.320 h — casi seis veces el cupo. Render los suspende cuando se
+# agota, y no avisa por servicio: se caen todos.
+#
+# Los servicios free además se duermen a los 15 minutos sin tráfico y
+# tardan cerca de un minuto en despertar. Para un docente que entra a
+# calificar, eso es un minuto mirando una pantalla en blanco.
+#
+# Recomendación concreta, en orden:
+#
+#   1. NO desplegar los tres módulos como servicios separados. El
+#      monolito `horarios_asistencia` ya sirve todas estas rutas; estos
+#      bloques quedan listos para cuando haga falta aislar carga.
+#   2. Si hay que separar alguno, que sea `siihapi-evaluacion-docente`,
+#      que es el único con trabajo pesado de CPU (transcripción). Pasarlo
+#      a Starter (plan pago, sin dormirse) y dejar el resto en el
+#      monolito.
+#   3. Dejar en free sólo lo que tolere dormirse. `sisca` y el módulo de
+#      eventos lo toleran; el de aula virtual, en mitad de una clase, no.
+# ════════════════════════════════════════════════════════════════

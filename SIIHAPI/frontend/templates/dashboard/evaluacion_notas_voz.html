@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% block title %}Notas por voz{% endblock %}
+{% block body %}
+<div class="app-shell">
+  {% if request.user.rol == 'DOCENTE' %}
+    {% include 'dashboard/_sidebar_docente.html' with active='notas_voz' %}
+  {% else %}
+    {% include 'dashboard/_sidebar.html' with active='notas_voz' %}
+  {% endif %}
+  <main class="main-content">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:13px;color:var(--txt3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;">Evaluación docente</p>
+      <h1 style="font-size:30px;font-weight:800;color:var(--white);">🎙️ Notas por voz</h1>
+      <p style="color:var(--txt2);margin-top:6px;">
+        Dicta la calificación, revísala y confírmala. <strong>Nada se guarda como nota
+        definitiva sin que tú lo confirmes.</strong>
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-hdr"><span class="card-title">Dictar</span></div>
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Materia</label>
+          <select id="materia" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+            {% for m in materias %}
+            <option value="{{ m.id_materia }}">{{ m.codigo }} — {{ m.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Código del estudiante</label>
+          <input type="text" id="estudiante" placeholder="Ej. 20231234" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Actividad evaluada</label>
+          <input type="text" id="descripcion" placeholder="Ej. Taller 3 — estructuras de datos" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Nota (0.0 – 5.0)</label>
+          <input type="number" id="nota" step="0.1" min="0" max="5" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);">
+        </div>
+
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;font-size:12px;color:var(--txt3);margin-bottom:4px;">Transcripción (revísala antes de guardar)</label>
+          <textarea id="transcripcion" rows="4" style="width:100%;padding:8px;border-radius:8px;background:var(--bg-2);color:var(--white);border:1px solid var(--border);"></textarea>
+        </div>
+
+        <div style="grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn btn-primary" id="btnDictar">🎙️ Dictar</button>
+          <button type="button" class="btn" id="btnParar" disabled>⏹️ Parar</button>
+          <button type="button" class="btn" id="btnGuardar">Guardar como borrador</button>
+          <span id="edMsg" style="color:var(--txt2);"></span>
+        </div>
+
+        <p style="grid-column:1 / -1;font-size:12px;color:var(--txt3);margin:0;" id="motorVoz"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Borradores pendientes de confirmar</span></div>
+      <div style="padding:16px;">
+        {% for b in borradores %}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:var(--bg-2);margin-bottom:8px;">
+          <span style="flex:1;color:var(--white);">
+            {{ b.estudiante.codigo }} — {{ b.descripcion }}
+            <span style="font-size:11px;color:var(--txt3);">({{ b.materia.codigo }} · {{ b.get_origen_display }})</span>
+          </span>
+          <strong style="color:var(--white);">{{ b.nota }}</strong>
+          <button type="button" class="btn btn-primary" data-confirmar="{{ b.id_calificacion }}">Confirmar</button>
+          <button type="button" class="btn" data-descartar="{{ b.id_calificacion }}">Descartar</button>
+        </div>
+        {% empty %}
+        <p style="color:var(--txt3);">No hay borradores pendientes.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const msg = document.getElementById('edMsg');
+  const motorInfo = document.getElementById('motorVoz');
+  const area = document.getElementById('transcripcion');
+
+  function csrf() {
+    const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  async function postJSON(url, cuerpo) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+      credentials: 'same-origin',
+      body: JSON.stringify(cuerpo || {})
+    });
+    return {ok: r.ok, body: await r.json().catch(() => ({}))};
+  }
+
+  // ── Camino principal: Web Speech API, transcribe en el navegador ──
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, grabadora = null, trozos = [];
+
+  const btnDictar = document.getElementById('btnDictar');
+  const btnParar = document.getElementById('btnParar');
+
+  if (SR) {
+    motorInfo.textContent = 'Transcripción en el navegador (Web Speech API). El audio no sale de tu equipo.';
+    rec = new SR();
+    rec.lang = 'es-CO';
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = function (e) {
+      let texto = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) texto += e.results[i][0].transcript;
+      area.value = (area.value + ' ' + texto).trim();
+    };
+    rec.onerror = function (e) { msg.textContent = 'Error de dictado: ' + e.error; };
+    rec.onend = function () { btnDictar.disabled = false; btnParar.disabled = true; };
+  } else {
+    motorInfo.textContent = 'Tu navegador no soporta dictado en vivo: se grabará el audio y lo transcribirá el servidor.';
+  }
+
+  btnDictar.addEventListener('click', async function () {
+    msg.textContent = '';
+    btnDictar.disabled = true;
+    btnParar.disabled = false;
+    if (rec) { rec.start(); return; }
+
+    // ── Respaldo: grabar y mandar al servidor ──
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      trozos = [];
+      grabadora = new MediaRecorder(stream);
+      grabadora.ondataavailable = (e) => { if (e.data.size) trozos.push(e.data); };
+      grabadora.onstop = async function () {
+        stream.getTracks().forEach(t => t.stop());
+        msg.textContent = 'Transcribiendo en el servidor…';
+        const fd = new FormData();
+        fd.append('audio', new Blob(trozos, {type: 'audio/webm'}), 'nota.webm');
+        fd.append('idioma', 'es');
+        try {
+          const r = await fetch('/api/notas/transcribir-audio', {
+            method: 'POST', headers: {'X-CSRFToken': csrf()},
+            credentials: 'same-origin', body: fd
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok && j.data) {
+            area.value = (area.value + ' ' + (j.data.texto || '')).trim();
+            msg.textContent = 'Transcripción lista. Revísala antes de guardar.';
+          } else {
+            msg.textContent = j.error || 'No se pudo transcribir.';
+          }
+        } catch (e) { msg.textContent = 'Sin conexión con el servidor.'; }
+      };
+      grabadora.start();
+    } catch (e) {
+      msg.textContent = 'No se pudo acceder al micrófono.';
+      btnDictar.disabled = false; btnParar.disabled = true;
+    }
+  });
+
+  btnParar.addEventListener('click', function () {
+    btnParar.disabled = true; btnDictar.disabled = false;
+    if (rec) { rec.stop(); return; }
+    if (grabadora && grabadora.state !== 'inactive') grabadora.stop();
+  });
+
+  // ── Guardar SIEMPRE como borrador ──
+  document.getElementById('btnGuardar').addEventListener('click', async function () {
+    const codigo = document.getElementById('estudiante').value.trim();
+    if (!codigo) { msg.textContent = 'Falta el código del estudiante.'; return; }
+    msg.textContent = 'Guardando borrador…';
+    const r = await postJSON('/api/evaluacion-docente/calificaciones/crear/', {
+      materia: document.getElementById('materia').value,
+      estudiante_codigo: codigo,
+      descripcion: document.getElementById('descripcion').value.trim(),
+      nota: document.getElementById('nota').value,
+      origen: area.value.trim() ? 'VOZ' : 'MANUAL',
+      texto_transcrito: area.value.trim()
+    });
+    msg.textContent = r.ok
+      ? 'Borrador guardado. Recarga para verlo en la lista y confirmarlo.'
+      : (r.body.error || JSON.stringify(r.body.errors || {}));
+  });
+
+  // ── Confirmar / descartar borradores ──
+  document.querySelectorAll('[data-confirmar]').forEach(function (b) {
+    b.addEventListener('click', async function () {
+      const r = await postJSON('/api/evaluacion-docente/calificaciones/' + b.dataset.confirmar + '/confirmar/');
+      msg.textContent = r.ok ? 'Calificación confirmada.' : (r.body.error || 'No se pudo confirmar.');
+      if (r.ok) b.closest('div').style.opacity = '.4';
+    });
+  });
+  document.querySelectorAll('[data-descartar]').forEach(function (b) {
+    b.addEventListener('click', async function () {
+      const r = await postJSON('/api/evaluacion-docente/calificaciones/' + b.dataset.descartar + '/descartar/');
+      msg.textContent = r.ok ? 'Borrador descartado.' : (r.body.error || 'No se pudo descartar.');
+      if (r.ok) b.closest('div').remove();
+    });
+  });
+})();
+</script>
+{% endblock %}
