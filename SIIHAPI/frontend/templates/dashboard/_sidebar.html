@@ -33,6 +33,12 @@
   <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'eventos_gestionar' %}"><span class="ico">⚙️</span> Gestionar eventos</a>
   {% endif %}
 
+  <div class="sb-lbl" style="margin-top:14px;">Aula Virtual</div>
+  <a class="sb-item {% if active == 'aula_virtual' %}active{% endif %}" href="{% url 'aula_virtual_canales' %}"><span class="ico">🎥</span> Clases en línea</a>
+  {% if not es_solo_consulta %}
+  <a class="sb-item {% if active == 'notas_voz' %}active{% endif %}" href="{% url 'evaluacion_notas_voz' %}"><span class="ico">🎙️</span> Notas por voz</a>
+  {% endif %}
+
   {% if rol == 'DECANO' or rol == 'ADMIN' or rol == 'ADMINISTRADOR' %}
   <div class="sb-lbl" style="margin-top:14px;">Decano</div>
   <a class="sb-item {% if active == 'decano_panel' %}active{% endif %}" href="{% url 'decano_panel' %}"><span class="ico">🎓</span> Panel del Decano</a>

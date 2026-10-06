@@ -320,7 +320,7 @@ class TestTokenManipulado:
         "",
         "Bearer ",
         "Bearer invalid_token_123",
-        "Basic d8a07e54e0",
+        "Basic dG9rZW4tZGUtcHJ1ZWJh",  # esquema equivocado (Basic, no Bearer)
         f"Bearer {VALID_TOKEN[:-1]}X",  # 1 carácter cambiado al final
         f"Bearer X{VALID_TOKEN[1:]}",   # 1 carácter cambiado al inicio
         "Bearer " + "A" * 64,

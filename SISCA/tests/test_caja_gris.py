@@ -280,17 +280,20 @@ class TestAppSinOracle:
             assert isinstance(data.get("total_estudiantes", 0), int)
             assert isinstance(data.get("presentes", 0), int)
 
-    def test_api_root_sin_oracle_retorna_json_con_oracle_false(self, client):
+    def test_api_root_sin_bd_retorna_json_con_bd_false(self, client):
         """
-        CAJA GRIS: GET /api/v1/ debe retornar JSON indicando que Oracle
-        no está conectado, pero sin crashear.
+        CAJA GRIS: GET /api/v1/ debe retornar JSON indicando que la base
+        no está conectada, pero sin crashear.
+
+        La clave se llamaba `oracle_conectado`; con el port a psycopg
+        (2026-09-30) pasó a `bd_conectada`.
         """
         with patch("app.database.connection._pool", None):
             response = client.get("/api/v1/")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data.get("oracle_conectado") is False
+        assert data.get("bd_conectada") is False
         assert data.get("sistema") == "SISCA"
 
 
@@ -334,7 +337,7 @@ class TestCircuitBreakerSISCA:
 
     def test_execute_query_falla_silenciosamente_retorna_lista_vacia(self, client, auth_headers):
         """
-        CAJA GRIS: cuando el cursor Oracle falla internamente (excepción),
+        CAJA GRIS: cuando el cursor falla internamente (excepción),
         execute_query (implementación real) debe retornar [] en lugar de
         propagar la excepción al caller.
         """
@@ -342,10 +345,10 @@ class TestCircuitBreakerSISCA:
 
         fake_conn = MagicMock()
         fake_conn.cursor.return_value.__enter__.side_effect = Exception(
-            "ORA-01017: invalid username/password"
+            'password authentication failed for user "sisca"'
         )
         fake_pool = MagicMock()
-        fake_pool.acquire.return_value = fake_conn
+        fake_pool.getconn.return_value = fake_conn
 
         with patch("app.database.connection._pool", fake_pool):
             try:

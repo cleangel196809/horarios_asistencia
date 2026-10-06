@@ -16,6 +16,69 @@
       <p style="color:var(--txt2);margin-top:6px;">Canales de las materias en las que estás matriculado o que dictas.</p>
     </div>
 
+    {% if messages %}
+      {% for m in messages %}
+      <div class="card" style="margin-bottom:12px;border-left:3px solid var(--primary);">
+        <div style="padding:12px 16px;color:var(--white);font-size:14px;">{{ m }}</div>
+      </div>
+      {% endfor %}
+    {% endif %}
+
+    {% if puede_crear %}
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-hdr"><span class="card-title">➕ Crear un canal</span></div>
+      <form method="post" action="{% url 'aula_virtual_crear_canal' %}" style="padding:16px;display:grid;gap:12px;">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Materia *</label>
+            <select name="materia" required>
+              <option value="">— Elige la materia —</option>
+              {% for mat in materias %}
+              <option value="{{ mat.id_materia }}">{{ mat.codigo }} — {{ mat.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {% if es_staff %}
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Docente responsable *</label>
+            <select name="docente" required>
+              <option value="">— Elige el docente —</option>
+              {% for d in docentes %}
+              <option value="{{ d.pk }}">{{ d.usuario.nombre }} {{ d.usuario.apellido }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Ciclo (opcional)</label>
+            <select name="periodo">
+              <option value="">— Sin ciclo —</option>
+              {% for p in periodos %}
+              <option value="{{ p.id_periodo }}">{{ p.codigo }} — {{ p.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Nombre del canal *</label>
+            <input type="text" name="nombre" required maxlength="150"
+                   placeholder="Ej: Cálculo I — Grupo A">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Descripción (opcional)</label>
+          <textarea name="descripcion" rows="2" placeholder="De qué trata el canal"></textarea>
+        </div>
+
+        <div><button type="submit" class="btn btn-primary">Crear canal</button></div>
+      </form>
+    </div>
+    {% endif %}
+
     {% for canal in canales %}
     <div class="card" style="margin-bottom:16px;">
       <div class="card-hdr">
@@ -38,11 +101,36 @@
             <p style="font-size:12px;color:var(--txt3);">Sin clases programadas.</p>
           {% endfor %}
         </div>
+
+        {% if canal.puede_gestionar %}
+        <form method="post" action="{% url 'aula_virtual_crear_sesion' canal.id_canal %}"
+              style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;align-items:end;">
+          {% csrf_token %}
+          <div class="form-group" style="margin-bottom:0;flex:2;min-width:200px;">
+            <label>Título de la clase *</label>
+            <input type="text" name="titulo" required maxlength="200"
+                   placeholder="Ej: Clase 1 — Introducción">
+          </div>
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:190px;">
+            <label>Inicio *</label>
+            <input type="datetime-local" name="fecha_inicio" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0;width:110px;">
+            <label>Minutos</label>
+            <input type="number" name="duracion_minutos" value="60" min="5" max="600">
+          </div>
+          <button type="submit" class="btn btn-primary">Programar clase</button>
+        </form>
+        {% endif %}
       </div>
     </div>
     {% empty %}
     <div class="card"><div style="padding:24px;color:var(--txt2);">
-      No tienes canales virtuales todavía.
+      {% if puede_crear %}
+        Todavía no hay canales. Crea el primero con el formulario de arriba.
+      {% else %}
+        No tienes canales virtuales todavía. Tu docente debe crear el canal de la materia.
+      {% endif %}
     </div></div>
     {% endfor %}
   </main>

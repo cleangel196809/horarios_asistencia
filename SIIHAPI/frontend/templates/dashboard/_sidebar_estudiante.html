@@ -17,6 +17,9 @@
   <a class="sb-item {% if active == 'eventos' %}active{% endif %}" href="{% url 'calendario_eventos' %}"><span class="ico">📅</span> Calendario de eventos</a>
   <a class="sb-item {% if active == 'mis_inscripciones_eventos' %}active{% endif %}" href="{% url 'mis_inscripciones_eventos' %}"><span class="ico">🎟️</span> Mis inscripciones</a>
 
+  <div class="sb-lbl" style="margin-top:14px;">Aula Virtual</div>
+  <a class="sb-item {% if active == 'aula_virtual' %}active{% endif %}" href="{% url 'aula_virtual_canales' %}"><span class="ico">🎥</span> Mis clases en línea</a>
+
   <div class="sb-lbl" style="margin-top:14px;">Reportes</div>
   <a class="sb-item {% if active == 'reportes' %}active{% endif %}" href="{% url 'estudiante_reportes' %}"><span class="ico">📊</span> Reportes</a>
 

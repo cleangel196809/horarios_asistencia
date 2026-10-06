@@ -746,3 +746,113 @@ class TestSeguridadModulos:
     def test_cors_no_permite_cualquier_origen(self, settings):
         assert getattr(settings, 'CORS_ALLOW_ALL_ORIGINS', False) is False
         assert '*' not in settings.CORS_ALLOWED_ORIGINS
+
+
+# ════════════════════════════════════════════════════════════
+#  Páginas del dashboard (HTML)
+#
+#  Las pruebas de arriba son todas de la API REST. Estas cubren el
+#  hueco que dejó eso: una plantilla con un `{% url %}` mal escrito, un
+#  `active` que no coincide o una variable de contexto que no se manda
+#  no rompe ni un solo test de API, pero deja la página en error 500 o
+#  sin el enlace en el menú. Es exactamente lo que pasó con el sidebar.
+# ════════════════════════════════════════════════════════════
+class TestPaginasDashboard:
+
+    def _login(self, client, usuario):
+        client.force_login(usuario)
+        return client
+
+    def _canal(self, docente, materia, periodo):
+        return CanalVirtual.objects.create(
+            materia=materia, docente=docente, periodo=periodo, nombre='Canal PRG1')
+
+    # ── La página se renderiza de verdad ──────────────────────────
+    def test_canales_renderiza_para_docente(self, client, docente, materia, periodo):
+        self._canal(docente, materia, periodo)
+        r = self._login(client, docente.usuario).get('/dashboard/aula-virtual/')
+        assert r.status_code == 200
+        assert 'Canal PRG1' in r.content.decode()
+
+    def test_canales_renderiza_para_estudiante_sin_canales(self, client, estudiante):
+        r = self._login(client, estudiante.usuario).get('/dashboard/aula-virtual/')
+        assert r.status_code == 200
+
+    def test_notas_por_voz_renderiza_para_docente(self, client, docente):
+        r = self._login(client, docente.usuario).get('/dashboard/evaluacion/notas-voz/')
+        assert r.status_code == 200
+
+    # ── El menú lateral enlaza a los módulos nuevos ───────────────
+    def test_sidebar_del_docente_enlaza_aula_virtual_y_notas_voz(self, client, docente):
+        html = self._login(client, docente.usuario).get('/dashboard/aula-virtual/').content.decode()
+        assert '/dashboard/aula-virtual/' in html
+        assert '/dashboard/evaluacion/notas-voz/' in html
+
+    def test_sidebar_del_estudiante_no_ofrece_notas_por_voz(self, client, estudiante):
+        """Calificar es del docente: el enlace no debe aparecerle al alumno."""
+        html = self._login(client, estudiante.usuario).get('/dashboard/aula-virtual/').content.decode()
+        assert '/dashboard/aula-virtual/' in html
+        assert '/dashboard/evaluacion/notas-voz/' not in html
+
+    # ── Crear canal desde el formulario ───────────────────────────
+    def test_docente_crea_canal_desde_el_formulario(self, client, docente, materia, periodo):
+        r = self._login(client, docente.usuario).post('/dashboard/aula-virtual/crear/', {
+            'materia': materia.pk, 'periodo': periodo.pk, 'nombre': 'Grupo A',
+            'descripcion': 'Clases de los martes',
+        })
+        assert r.status_code == 302
+        canal = CanalVirtual.objects.get(nombre='Grupo A')
+        assert canal.docente_id == docente.pk
+        assert canal.materia_id == materia.pk
+
+    def test_estudiante_no_puede_crear_canal(self, client, estudiante, materia):
+        self._login(client, estudiante.usuario).post('/dashboard/aula-virtual/crear/', {
+            'materia': materia.pk, 'nombre': 'Mi propio canal'})
+        assert not CanalVirtual.objects.filter(nombre='Mi propio canal').exists()
+
+    def test_crear_canal_rechaza_get(self, client, docente):
+        """El formulario es POST: un GET no debe crear nada ni dar 200."""
+        r = self._login(client, docente.usuario).get('/dashboard/aula-virtual/crear/')
+        assert r.status_code == 405
+
+    # ── Programar clase desde el formulario ───────────────────────
+    def test_docente_programa_clase_con_hora_local_no_utc(
+            self, client, docente, materia, periodo, settings):
+        """`datetime-local` llega sin zona. Debe interpretarse en la zona
+        del proyecto; si se guardara como UTC la clase aparecería corrida."""
+        canal = self._canal(docente, materia, periodo)
+        r = self._login(client, docente.usuario).post(
+            f'/dashboard/aula-virtual/{canal.pk}/clase/',
+            {'titulo': 'Clase 1', 'fecha_inicio': '2026-11-10T08:30', 'duracion_minutos': '90'})
+        assert r.status_code == 302
+        sesion = SesionVirtual.objects.get(titulo='Clase 1')
+        assert sesion.duracion_minutos == 90
+        local = timezone.localtime(sesion.fecha_inicio)
+        assert (local.hour, local.minute) == (8, 30)
+
+    def test_otro_docente_no_programa_clase_en_canal_ajeno(
+            self, client, docente, materia, periodo, facultad):
+        canal = self._canal(docente, materia, periodo)
+        intruso_user = _usuario('intruso@pi.edu.co', 'DOCENTE', 'Otro', 'Docente')
+        Docente.objects.create(usuario=intruso_user, facultad=facultad, tipo_contrato='MT')
+        self._login(client, intruso_user).post(
+            f'/dashboard/aula-virtual/{canal.pk}/clase/',
+            {'titulo': 'Clase intrusa', 'fecha_inicio': '2026-11-10T08:30'})
+        assert not SesionVirtual.objects.filter(titulo='Clase intrusa').exists()
+
+    def test_duracion_fuera_de_rango_se_acota_en_vez_de_reventar(
+            self, client, docente, materia, periodo):
+        canal = self._canal(docente, materia, periodo)
+        self._login(client, docente.usuario).post(
+            f'/dashboard/aula-virtual/{canal.pk}/clase/',
+            {'titulo': 'Maratón', 'fecha_inicio': '2026-11-10T08:30',
+             'duracion_minutos': '99999'})
+        assert SesionVirtual.objects.get(titulo='Maratón').duracion_minutos == 600
+
+    def test_fecha_invalida_no_crea_sesion(self, client, docente, materia, periodo):
+        canal = self._canal(docente, materia, periodo)
+        r = self._login(client, docente.usuario).post(
+            f'/dashboard/aula-virtual/{canal.pk}/clase/',
+            {'titulo': 'Sin fecha', 'fecha_inicio': 'no-es-una-fecha'})
+        assert r.status_code == 302
+        assert not SesionVirtual.objects.filter(titulo='Sin fecha').exists()

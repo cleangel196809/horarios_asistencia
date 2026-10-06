@@ -23,9 +23,9 @@ def _make_minimal_app():
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-wb"
     app.config["SISCA_API_TOKEN"] = os.environ.get("SISCA_API_TEST_TOKEN", "token-de-prueba-no-real")
-    app.config["ORACLE_USER"] = "test_user"
-    app.config["ORACLE_PASSWORD"] = "test_pass"
-    app.config["ORACLE_DSN"] = "localhost:1521/XEPDB1"
+    # Puerto 1 a propósito: si un mock se olvida, el fallo es inmediato
+    # y evidente en vez de alcanzar una base real.
+    app.config["DATABASE_URL"] = "postgresql://test_user:test_pass@127.0.0.1:1/sisca_test"
     return app
 
 
@@ -58,27 +58,32 @@ class TestGetDbPoolNone:
             from app.database import connection as conn_mod
             with app.test_request_context("/"):
                 conn_mod.get_db()
-            mock_pool.acquire.assert_not_called()
+            mock_pool.getconn.assert_not_called()
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# 2. get_db() cuando el hilo hace timeout
+# 2. get_db() cuando el pool no entrega conexion a tiempo
 # ════════════════════════════════════════════════════════════════════════════
 
 class TestGetDbTimeout:
-    """Verifica que get_db() no se cuelga cuando acquire() tarda más del timeout."""
+    """Verifica que get_db() no se cuelga cuando el pool no responde.
+
+    Con Oracle, get_db() lanzaba un hilo y lo abandonaba al vencer
+    _ACQUIRE_TIMEOUT_S. psycopg_pool ya trae el timeout adentro
+    (`getconn(timeout=...)`), asi que ahora lo que se verifica es el
+    contrato que importa, no el mecanismo: el caller recibe None sin
+    quedarse bloqueado, y el timeout configurado SI se le pasa al pool.
+    """
 
     def test_get_db_returns_none_on_timeout(self, app):
         """
-        CAJA BLANCA: si el hilo interno no retorna dentro de _ACQUIRE_TIMEOUT_S,
-        get_db() retorna None sin bloquear el caller.
-        Se simula un acquire() que duerme más tiempo del timeout.
+        CAJA BLANCA: si el pool agota su timeout, get_db() retorna None
+        sin bloquear al caller y sin propagar la excepcion.
         """
-        def _slow_acquire(*args, **kwargs):
-            time.sleep(10)  # mucho más que _ACQUIRE_TIMEOUT_S=4
+        from psycopg_pool import PoolTimeout
 
         mock_pool = MagicMock()
-        mock_pool.acquire.side_effect = _slow_acquire
+        mock_pool.getconn.side_effect = PoolTimeout("no hay conexiones libres")
 
         with patch("app.database.connection._pool", mock_pool), \
              patch("app.database.connection._ACQUIRE_TIMEOUT_S", 0.05):
@@ -89,16 +94,18 @@ class TestGetDbTimeout:
                 elapsed = time.monotonic() - t0
 
         assert result is None, "Debe retornar None en timeout"
-        # El test no debe tardar más de 2 segundos (timeout es 0.05s)
         assert elapsed < 2.0, f"get_db() tardó demasiado: {elapsed:.2f}s"
+        # El timeout no se deja al valor por defecto de psycopg_pool:
+        # se le pasa explicitamente el del modulo.
+        assert mock_pool.getconn.call_args.kwargs.get("timeout") == 0.05
 
     def test_get_db_returns_none_when_acquire_raises(self, app):
         """
-        CAJA BLANCA: si acquire() lanza excepción, get_db() retorna None
-        (rama `_error[0] = e` seguida del check `if _result[0] is None`).
+        CAJA BLANCA: si getconn() lanza cualquier excepcion, get_db()
+        retorna None en vez de propagarla.
         """
         mock_pool = MagicMock()
-        mock_pool.acquire.side_effect = Exception("DB connection refused")
+        mock_pool.getconn.side_effect = Exception("DB connection refused")
 
         with patch("app.database.connection._pool", mock_pool):
             from app.database import connection as conn_mod
@@ -254,7 +261,7 @@ class TestRedirectByRol:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# 6. init_pool() cuando Oracle no está disponible
+# 6. init_pool() cuando PostgreSQL no está disponible
 # ════════════════════════════════════════════════════════════════════════════
 
 class TestInitPool:
@@ -262,35 +269,35 @@ class TestInitPool:
 
     def test_init_pool_sets_pool_to_none_on_failure(self):
         """
-        CAJA BLANCA: si oracledb.create_pool() lanza excepción,
+        CAJA BLANCA: si abrir el ConnectionPool lanza excepción,
         _pool debe quedar en None y la app no debe crashear.
         """
         import app.database.connection as conn_mod
 
         mini_app = _make_minimal_app()
 
-        with patch("app.database.connection.oracledb") as mock_oracle:
-            mock_oracle.create_pool.side_effect = Exception("TNS: sin listener")
-            mock_oracle.defaults = MagicMock()
+        with patch("app.database.connection.ConnectionPool") as mock_cls:
+            mock_cls.side_effect = Exception("could not connect to server")
+            mock_cls.check_connection = MagicMock()
             original_pool = conn_mod._pool
             conn_mod.init_pool(mini_app)
-            assert conn_mod._pool is None, "_pool debe ser None si Oracle falla"
+            assert conn_mod._pool is None, "_pool debe ser None si la base falla"
             # Restaurar para no contaminar otros tests
             conn_mod._pool = original_pool
 
     def test_init_pool_success_sets_pool(self):
         """
-        CAJA BLANCA: si oracledb.create_pool() tiene éxito, _pool queda
-        con el objeto pool retornado.
+        CAJA BLANCA: si el ConnectionPool se abre bien, _pool queda con
+        el objeto pool retornado.
         """
         import app.database.connection as conn_mod
 
         mini_app = _make_minimal_app()
         fake_pool = MagicMock(name="FakePool")
 
-        with patch("app.database.connection.oracledb") as mock_oracle:
-            mock_oracle.create_pool.return_value = fake_pool
-            mock_oracle.defaults = MagicMock()
+        with patch("app.database.connection.ConnectionPool") as mock_cls:
+            mock_cls.return_value = fake_pool
+            mock_cls.check_connection = MagicMock()
             original_pool = conn_mod._pool
             conn_mod.init_pool(mini_app)
             assert conn_mod._pool is fake_pool

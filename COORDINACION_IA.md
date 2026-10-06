@@ -224,3 +224,131 @@ desde entonces**, incluidas las de seguridad. Detalle en
 SISCA.
 
 ---
+
+## 2026-10-05 (3) · Claude — menú lateral y creación de aulas desde el dashboard
+
+Dos huecos que quedaron tras el despliegue: las rutas nuevas existían pero
+**no había cómo llegar a ellas haciendo clic**, y **no había forma de crear
+un canal** salvo por el admin de Django o por la API REST.
+
+1. **`frontend/templates/dashboard/_sidebar.html`,
+   `_sidebar_docente.html`, `_sidebar_estudiante.html`** — se añadió un
+   bloque «Aula Virtual». Son inserciones aditivas; ninguna entrada
+   existente se movió ni se renombró.
+   - Admin/Coordinador: *Clases en línea* + *Notas por voz* (esta última
+     dentro de `{% if not es_solo_consulta %}`, igual que el resto de
+     Operación).
+   - Docente: *Mis clases en línea* + *Notas por voz*.
+   - Estudiante: sólo *Mis clases en línea* (las notas son del docente).
+   ⚠️ Si añades tu módulo al menú, **inserta un bloque nuevo**; no
+   reordenes los que ya están.
+
+2. **`apps/aula_virtual/frontend.py`** — dos vistas `require_POST`
+   nuevas, `crear_canal_form` y `crear_sesion_form`, y `mis_canales`
+   ahora manda al contexto `puede_crear`, `materias`, `periodos`,
+   `docentes` y marca `canal.puede_gestionar` por canal.
+   **No duplican reglas de permisos**: reutilizan `_es_staff` y
+   `_puede_gestionar_canal` de `views.py`, que siguen siendo la fuente de
+   verdad. La API REST no se tocó.
+
+3. **`siihapi/urls.py`** — dos rutas nuevas:
+   `dashboard/aula-virtual/crear/` (`aula_virtual_crear_canal`) y
+   `dashboard/aula-virtual/<id_canal>/clase/`
+   (`aula_virtual_crear_sesion`). Ninguna ruta existente se movió.
+
+4. **`frontend/templates/dashboard/aula_virtual_canales.html`** — se
+   añadió el formulario de «Crear un canal» (sólo si `puede_crear`) y,
+   dentro de cada tarjeta, el de «Programar clase» (sólo si
+   `canal.puede_gestionar`). Usa `.form-group` y las variables de
+   `static/css/siihapi.css`; **no inventa clases nuevas**.
+
+### Detalle que conviene no repetir
+
+`<input type="datetime-local">` entrega `YYYY-MM-DDTHH:MM` **sin zona**.
+`crear_sesion_form` hace `timezone.make_aware(...)` con la zona del
+proyecto: si se guarda tal cual, Django lo interpreta como UTC y la clase
+aparece corrida varias horas en el listado.
+
+Tampoco existen `.input` ni `var(--bd)` en la hoja de estilos — la
+convención del proyecto es `.form-group` envolviendo `label` + campo, y
+`var(--border)`.
+
+### Qué sigue sin existir
+
+No hay UI para **recursos del canal** (`RecursoCanal`) ni para **cerrar**
+una sesión desde la lista; ambas cosas siguen sólo en la API REST y en el
+admin de Django.
+
+## 2026-10-05 (4) · Claude — la suite de SISCA vuelve a ejecutarse
+
+`SECURITY_REPORT.md` §5.4 queda resuelto. **Nada de `app/` cambió**: el
+fallo estaba entero en `tests/`.
+
+### Qué estaba roto
+
+`tests/conftest.py` parcheaba `app.database.connection.oracledb`. Ese
+atributo desapareció el 2026-09-30 con el port a psycopg 3, y
+`unittest.mock.patch()` levanta `AttributeError` si el atributo no
+existe. La fixture `app` moría ahí, y con ella **las 82 pruebas**:
+*2 fallos + 80 errores*. El job `sisca-tests` llevaba más de un mes en
+rojo y **ninguna prueba de seguridad se ejecutaba de verdad**.
+
+### Qué se cambió (sólo archivos de prueba y el comentario del workflow)
+
+| Archivo | Cambio |
+|---|---|
+| `tests/conftest.py` | Parchea `ConnectionPool` en vez de `oracledb`. `init_pool()` ya atrapa la excepción y deja `_pool = None`, que es justo el estado que quieren las pruebas. La config `ORACLE_*` pasa a un `DATABASE_URL` apuntando al puerto 1 a propósito. |
+| `tests/test_caja_blanca.py` | `pool.acquire` → `pool.getconn`; `TestInitPool` parchea `ConnectionPool`. El test de timeout ahora verifica el **contrato** (devuelve `None`, no bloquea, y pasa el timeout configurado a `getconn`) en vez del hilo que ya no existe. |
+| `tests/test_caja_gris.py` | `oracle_conectado` → `bd_conectada` (la clave que `api_root` devuelve hoy); `fake_pool.acquire` → `getconn`. |
+| `tests/test_seguridad.py` | Quedaban 10 caracteres del token filtrado dentro de `TOKENS_INVALIDOS`. Reemplazados: lo que se prueba es el **esquema** equivocado (`Basic`), no ese valor. |
+| `.github/workflows/tests.yml` | Sólo el comentario del job, que seguía diciendo «mockean Oracle». |
+
+**Resultado: 82 pasan, 0 fallan.**
+
+### Se verificó que no pasan en vacío
+
+Rompí a propósito el guardia de token (`_token_requerido` → `if False`) y
+volví a correr la suite: **11 fallos**, los 8 de `TestTokenManipulado`
+entre ellos. Luego restauré el archivo (`git diff` limpio). Las pruebas
+de seguridad detectan de verdad un guardia roto.
+
+⚠️ Si tocas `app/database/connection.py`, mira primero
+`tests/test_caja_blanca.py`: parchea `ConnectionPool` y `_pool` por
+nombre, así que renombrar cualquiera de los dos rompe la suite entera de
+golpe — exactamente como pasó con `oracledb`.
+
+## 2026-10-05 (5) · Claude — pruebas de las páginas del dashboard
+
+`tests/test_modularizacion.py` sube de 63 a **75 pruebas**; la suite de
+SIIHAPI, de 135 a **147**. Sólo se anexó una clase,
+`TestPaginasDashboard`; nada de lo que ya estaba se tocó.
+
+### El hueco que tapan
+
+Las 63 pruebas originales eran **todas de la API REST**. Por eso el fallo
+del menú pasó entero: un `{% url %}` mal escrito, un `active` que no
+coincide o una variable de contexto que no se manda no rompen ni una sola
+prueba de API, pero dejan la página en 500 o sin el enlace. Las 12 nuevas
+entran por `/dashboard/...` con el cliente de Django y una sesión real.
+
+Cubren: que las tres páginas rendericen (docente, estudiante y estudiante
+sin canales); que el sidebar del docente enlace ambos módulos; que el del
+estudiante **no** ofrezca «Notas por voz»; crear canal desde el
+formulario; que un estudiante no pueda crearlo; que un GET a `/crear/`
+dé 405; que la hora de `datetime-local` quede en zona local y no en UTC;
+que un docente ajeno no programe clase en un canal que no es suyo; que
+una duración absurda se acote a 600 en vez de reventar; y que una fecha
+inválida no cree sesión.
+
+### Se verificó que no pasan en vacío
+
+Dos mutaciones, cada una revertida después:
+
+1. Quitar el bloque «Aula Virtual» del sidebar del docente → falla
+   `test_sidebar_del_docente_enlaza_aula_virtual_y_notas_voz`.
+2. Cambiar `make_aware(..., get_current_timezone())` por UTC → falla
+   `test_docente_programa_clase_con_hora_local_no_utc` (hora 3 en vez de 8).
+
+⚠️ **Si añades páginas HTML en `apps/mantenimiento`, pruébalas por su
+URL del dashboard, no sólo por la API.** Una plantilla que compila no es
+una plantilla que renderiza.
